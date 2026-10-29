@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:crosspay_app/core/constants/app_constants.dart';
 import 'package:crosspay_app/core/constants/app_routes.dart';
 import 'package:crosspay_app/core/theme/app_theme.dart';
+import 'package:crosspay_app/features/onboarding/screens/phone_entry_screen.dart';
 import 'package:crosspay_app/features/onboarding/screens/splash_language_screen.dart';
 
 class CrossPayApp extends StatelessWidget {
@@ -16,23 +17,25 @@ class CrossPayApp extends StatelessWidget {
       initialRoute: AppRoutes.splash,
       routes: {
         AppRoutes.splash: (_) => const SplashLanguageScreen(),
-        AppRoutes.phone: (_) => const _NextStepScreen(),
+        AppRoutes.phone: (_) => const PhoneEntryScreen(),
+        AppRoutes.otp: (_) =>
+            const _NextStepScreen(label: 'Next: F2.3 OTP verification'),
       },
     );
   }
 }
 
-// TEMPORARY: replaced by the real phone-entry screen in F2.2.
+// TEMPORARY: replaced by the real OTP screen in F2.3.
 class _NextStepScreen extends StatelessWidget {
-  const _NextStepScreen();
+  const _NextStepScreen({required this.label});
+
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text(AppConstants.appName)),
-      body: const Center(
-        child: Text('Next: F2.2 phone entry (temporary screen)'),
-      ),
+      body: Center(child: Text('$label (temporary screen)')),
     );
   }
 }

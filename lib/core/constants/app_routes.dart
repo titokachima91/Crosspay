@@ -3,4 +3,5 @@ class AppRoutes {
 
   static const String splash = '/';
   static const String phone = '/phone';
+  static const String otp = '/otp';
 }

@@ -44,6 +44,25 @@ class ConfigRepository {
               countryCode: r.string('countryCode'),
             ),
         ],
+        countries: [
+          for (final c in root.list('countries'))
+            Country(
+              code: c.string('code'),
+              name: c.string('name'),
+              // Tolerate "+255" as well as "255".
+              dialCode: c.string('dialCode').replaceAll(RegExp(r'\D'), ''),
+              nationalNumberLength: c.integer('nationalNumberLength'),
+            ),
+        ],
+        carriers: [
+          for (final c in root.list('carriers'))
+            Carrier(
+              id: c.string('id'),
+              name: c.string('name'),
+              countryCode: c.string('countryCode'),
+              prefixPattern: c.string('prefixPattern'),
+            ),
+        ],
       );
     } on DioException catch (e) {
       throw ApiException.fromDio(e);

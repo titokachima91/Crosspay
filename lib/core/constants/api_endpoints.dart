@@ -7,6 +7,7 @@ class ApiEndpoints {
 
   static const String config = '$_v1/config';
   static const String rates = '$_v1/rates';
+  static const String otpRequest = '$_v1/auth/otp/request';
   static const String tradeQuote = '$_v1/trade/quote';
   static const String tradeInitiate = '$_v1/trade/initiate';
 }

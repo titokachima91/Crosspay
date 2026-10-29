@@ -55,3 +55,24 @@ class UserProfile {
     return (dailyUsedMinor / dailyLimitMinor).clamp(0.0, 1.0).toDouble();
   }
 }
+
+/// The server's answer to "send me a verification code". All timings come
+/// from the server; [requestedAt] is when the app received the answer.
+class OtpChallenge {
+  const OtpChallenge({
+    required this.codeLength,
+    required this.resendAfterSeconds,
+    required this.expiresInSeconds,
+    required this.requestedAt,
+  });
+
+  final int codeLength;
+  final int resendAfterSeconds;
+  final int expiresInSeconds;
+  final DateTime requestedAt;
+
+  DateTime get resendAvailableAt =>
+      requestedAt.add(Duration(seconds: resendAfterSeconds));
+
+  DateTime get expiresAt => requestedAt.add(Duration(seconds: expiresInSeconds));
+}

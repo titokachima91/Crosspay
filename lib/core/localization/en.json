@@ -31,5 +31,12 @@
   "corridor.level.down": "Unavailable",
   "corridor.status.balanced_p2p": "Balanced P2P match",
   "corridor.status.high_liquidity": "High-liquidity corridor",
-  "corridor.status.active_clearing": "Active clearing"
+  "corridor.status.active_clearing": "Active clearing",
+  "phone.title": "Enter your business phone number",
+  "phone.subtitle": "Used for account identification and automated local mobile money payout.",
+  "phone.carrier_likely": "Likely network: {name}",
+  "phone.carrier_unknown": "We couldn't suggest a network for this number. You can still continue.",
+  "phone.carrier_info": "We suggest your mobile money network from your number. You can confirm it when you pay.",
+  "phone.continue": "Continue with SMS OTP",
+  "phone.no_countries": "No countries are available yet."
 }

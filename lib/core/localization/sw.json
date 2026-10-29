@@ -31,5 +31,12 @@
   "corridor.level.down": "Haipatikani",
   "corridor.status.balanced_p2p": "Mlinganisho mzuri wa P2P",
   "corridor.status.high_liquidity": "Njia yenye ukwasi mkubwa",
-  "corridor.status.active_clearing": "Ulipaji unaendelea"
+  "corridor.status.active_clearing": "Ulipaji unaendelea",
+  "phone.title": "Weka namba ya simu ya biashara yako",
+  "phone.subtitle": "Inatumika kutambulisha akaunti na kwa malipo ya kiotomatiki ya pesa za simu.",
+  "phone.carrier_likely": "Mtandao unaowezekana: {name}",
+  "phone.carrier_unknown": "Hatukuweza kupendekeza mtandao kwa namba hii. Bado unaweza kuendelea.",
+  "phone.carrier_info": "Tunapendekeza mtandao wako wa pesa za simu kulingana na namba yako. Unaweza kuuthibitisha unapolipa.",
+  "phone.continue": "Endelea na OTP ya SMS",
+  "phone.no_countries": "Hakuna nchi zinazopatikana kwa sasa."
 }

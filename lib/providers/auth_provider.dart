@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:crosspay_app/core/network/api_exception.dart';
 import 'package:crosspay_app/models/user_model.dart';
+import 'package:crosspay_app/repositories/auth_repository.dart';
 
-enum AuthStatus { signedOut, otpPending, signedIn }
+enum AuthStatus { signedOut, requestingOtp, otpPending, signedIn }
 
 class AuthState {
   const AuthState({
@@ -9,23 +11,30 @@ class AuthState {
     this.phone,
     this.user,
     this.accessToken,
-    this.errorMessage,
+    this.otpChallenge,
+    this.errorKey,
   });
 
   final AuthStatus status;
+
+  /// International format, e.g. "+<calling code><number>".
   final String? phone;
   final UserProfile? user;
 
   /// JWT. Held in memory for now; secure on-device storage arrives in F2.3.
   final String? accessToken;
-  final String? errorMessage;
+  final OtpChallenge? otpChallenge;
+
+  /// Localization key describing the last failure, e.g. 'error.network'.
+  final String? errorKey;
 
   AuthState copyWith({
     AuthStatus? status,
     String? phone,
     UserProfile? user,
     String? accessToken,
-    String? errorMessage,
+    OtpChallenge? otpChallenge,
+    String? errorKey,
     bool clearError = false,
   }) {
     return AuthState(
@@ -33,20 +42,38 @@ class AuthState {
       phone: phone ?? this.phone,
       user: user ?? this.user,
       accessToken: accessToken ?? this.accessToken,
-      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      otpChallenge: otpChallenge ?? this.otpChallenge,
+      errorKey: clearError ? null : (errorKey ?? this.errorKey),
     );
   }
 }
 
-/// Holds who is signed in. The server calls arrive in F2.x; these methods
-/// only move the state.
 class AuthNotifier extends Notifier<AuthState> {
   @override
   AuthState build() => const AuthState();
 
-  void otpRequested(String phone) {
-    state = AuthState(status: AuthStatus.otpPending, phone: phone);
+  /// Asks the server to send a code. Returns true when the code was sent.
+  Future<bool> requestOtp(String phone) async {
+    state = AuthState(status: AuthStatus.requestingOtp, phone: phone);
+    try {
+      final challenge = await ref.read(authRepositoryProvider).requestOtp(phone);
+      state = AuthState(
+        status: AuthStatus.otpPending,
+        phone: phone,
+        otpChallenge: challenge,
+      );
+      return true;
+    } on ApiException catch (e) {
+      state = AuthState(
+        status: AuthStatus.signedOut,
+        phone: phone,
+        errorKey: e.messageKey,
+      );
+      return false;
+    }
   }
+
+  void clearError() => state = state.copyWith(clearError: true);
 
   void signedIn(UserProfile user, String accessToken) {
     state = AuthState(
@@ -57,13 +84,7 @@ class AuthNotifier extends Notifier<AuthState> {
     );
   }
 
-  void failed(String message) {
-    state = state.copyWith(errorMessage: message);
-  }
-
-  void signOut() {
-    state = const AuthState();
-  }
+  void signOut() => state = const AuthState();
 }
 
 final authProvider =
