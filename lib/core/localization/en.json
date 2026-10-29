@@ -20,5 +20,16 @@
   "error.client": "The request was not accepted. Please check your details.",
   "error.server": "Something went wrong on our side. Please try again later.",
   "error.cancelled": "The request was cancelled.",
-  "error.unknown": "An unexpected error occurred."
+  "error.unknown": "An unexpected error occurred.",
+  "common.get_started": "Get started",
+  "common.retry": "Try again",
+  "corridor.title": "Live regional corridor health",
+  "corridor.empty": "No corridors are active right now.",
+  "corridor.rate_line": "1 {to} = {rate} {from}",
+  "corridor.level.healthy": "Active",
+  "corridor.level.limited": "Limited",
+  "corridor.level.down": "Unavailable",
+  "corridor.status.balanced_p2p": "Balanced P2P match",
+  "corridor.status.high_liquidity": "High-liquidity corridor",
+  "corridor.status.active_clearing": "Active clearing"
 }

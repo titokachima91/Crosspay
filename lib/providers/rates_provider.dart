@@ -1,7 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:crosspay_app/core/network/api_exception.dart';
 import 'package:crosspay_app/models/quote_model.dart';
+import 'package:crosspay_app/providers/config_provider.dart';
+import 'package:crosspay_app/repositories/rates_repository.dart';
 
-/// "unavailable" means no rate feed is connected. Screens must say so plainly.
+/// "unavailable" means no rate data has been loaded. Screens must say so plainly.
 enum RatesStatus { unavailable, loading, live, error }
 
 class RatesState {
@@ -10,7 +13,7 @@ class RatesState {
     this.rates = const [],
     this.p2pDensityPercent,
     this.bankSweepPercent,
-    this.errorMessage,
+    this.errorKey,
   });
 
   final RatesStatus status;
@@ -19,7 +22,9 @@ class RatesState {
   /// Queue Liquidity Health gauges on Screen 4.1 (0 to 100).
   final int? p2pDensityPercent;
   final int? bankSweepPercent;
-  final String? errorMessage;
+
+  /// Localization key describing the failure, e.g. 'error.network'.
+  final String? errorKey;
 
   CorridorRate? rateFor(Currency from, Currency to) {
     for (final r in rates) {
@@ -27,45 +32,40 @@ class RatesState {
     }
     return null;
   }
-
-  RatesState copyWith({
-    RatesStatus? status,
-    List<CorridorRate>? rates,
-    int? p2pDensityPercent,
-    int? bankSweepPercent,
-    String? errorMessage,
-  }) {
-    return RatesState(
-      status: status ?? this.status,
-      rates: rates ?? this.rates,
-      p2pDensityPercent: p2pDensityPercent ?? this.p2pDensityPercent,
-      bankSweepPercent: bankSweepPercent ?? this.bankSweepPercent,
-      errorMessage: errorMessage ?? this.errorMessage,
-    );
-  }
 }
 
 class RatesNotifier extends Notifier<RatesState> {
   @override
   RatesState build() => const RatesState();
 
-  void loading() => state = state.copyWith(status: RatesStatus.loading);
+  /// Needs the server config first, because rates refer to currencies by code.
+  /// A failed refresh clears old rates, so stale prices are never shown as live.
+  Future<void> load() async {
+    final config = ref.read(appConfigProvider).config;
+    if (config.isEmpty) {
+      state = const RatesState();
+      return;
+    }
 
-  void ratesUpdated({
-    required List<CorridorRate> rates,
-    int? p2pDensityPercent,
-    int? bankSweepPercent,
-  }) {
-    state = state.copyWith(
-      status: RatesStatus.live,
-      rates: rates,
-      p2pDensityPercent: p2pDensityPercent,
-      bankSweepPercent: bankSweepPercent,
+    state = RatesState(
+      status: RatesStatus.loading,
+      rates: state.rates,
+      p2pDensityPercent: state.p2pDensityPercent,
+      bankSweepPercent: state.bankSweepPercent,
     );
-  }
 
-  void failed(String message) =>
-      state = state.copyWith(status: RatesStatus.error, errorMessage: message);
+    try {
+      final snapshot = await ref.read(ratesRepositoryProvider).fetch(config);
+      state = RatesState(
+        status: RatesStatus.live,
+        rates: snapshot.rates,
+        p2pDensityPercent: snapshot.p2pDensityPercent,
+        bankSweepPercent: snapshot.bankSweepPercent,
+      );
+    } on ApiException catch (e) {
+      state = RatesState(status: RatesStatus.error, errorKey: e.messageKey);
+    }
+  }
 }
 
 final ratesProvider =

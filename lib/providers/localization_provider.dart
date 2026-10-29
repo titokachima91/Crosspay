@@ -27,9 +27,15 @@ final localizationProvider = Provider<AppLocalizations>((ref) {
   return ref.watch(translationsProvider)[code]!;
 });
 
-/// Shortcut for screens: ref.tr('nav.home')
+/// Shortcuts for screens: ref.tr('nav.home')
 extension TranslateX on WidgetRef {
   String tr(String key, {Map<String, String> params = const {}}) {
     return watch(localizationProvider).t(key, params: params);
+  }
+
+  /// Returns null when no translation exists for [key].
+  String? trMaybe(String key, {Map<String, String> params = const {}}) {
+    final l10n = watch(localizationProvider);
+    return l10n.has(key) ? l10n.t(key, params: params) : null;
   }
 }

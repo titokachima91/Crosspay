@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crosspay_app/core/constants/app_constants.dart';
+import 'package:crosspay_app/core/constants/app_routes.dart';
 import 'package:crosspay_app/core/theme/app_theme.dart';
-import 'package:crosspay_app/providers/localization_provider.dart';
+import 'package:crosspay_app/features/onboarding/screens/splash_language_screen.dart';
 
 class CrossPayApp extends StatelessWidget {
   const CrossPayApp({super.key});
@@ -13,66 +13,25 @@ class CrossPayApp extends StatelessWidget {
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: const _LocalizationCheckScreen(),
+      initialRoute: AppRoutes.splash,
+      routes: {
+        AppRoutes.splash: (_) => const SplashLanguageScreen(),
+        AppRoutes.phone: (_) => const _NextStepScreen(),
+      },
     );
   }
 }
 
-// Temporary screen to confirm localization works. Replaced in F2.1 (Splash).
-class _LocalizationCheckScreen extends ConsumerWidget {
-  const _LocalizationCheckScreen();
+// TEMPORARY: replaced by the real phone-entry screen in F2.2.
+class _NextStepScreen extends StatelessWidget {
+  const _NextStepScreen();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final code = ref.watch(localeCodeProvider);
-
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text(AppConstants.appName)),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              ref.tr('splash.welcome',
-                  params: {'appName': AppConstants.appName}),
-              style: Theme.of(context).textTheme.headlineMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              ref.tr('app.tagline'),
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            Text(ref.tr('common.language'),
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            SegmentedButton<String>(
-              segments: [
-                ButtonSegment(
-                    value: 'en', label: Text(ref.tr('common.english'))),
-                ButtonSegment(
-                    value: 'sw', label: Text(ref.tr('common.swahili'))),
-              ],
-              selected: {code},
-              onSelectionChanged: (selection) => ref
-                  .read(localeCodeProvider.notifier)
-                  .setLanguage(selection.first),
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              decoration: InputDecoration(labelText: ref.tr('phone.label')),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {},
-              child: Text(ref.tr('common.continue')),
-            ),
-          ],
-        ),
+      body: const Center(
+        child: Text('Next: F2.2 phone entry (temporary screen)'),
       ),
     );
   }

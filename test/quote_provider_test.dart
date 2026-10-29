@@ -4,8 +4,8 @@ import 'package:crosspay_app/models/quote_model.dart';
 import 'package:crosspay_app/providers/quote_provider.dart';
 
 // Test inputs only. Not app data.
-const _a = Currency(code: 'AAA', name: 'Test currency A');
-const _b = Currency(code: 'BBB', name: 'Test currency B');
+const _a = Currency(code: 'AAA', name: 'Test currency A', countryCode: 'ZZ');
+const _b = Currency(code: 'BBB', name: 'Test currency B', countryCode: 'ZZ');
 
 RouteQuote _route(
   RouteType type, {

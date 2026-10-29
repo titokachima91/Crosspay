@@ -1,10 +1,17 @@
 /// A currency the platform supports. Supplied by the server (see AppConfig).
 /// Equality is by [code].
 class Currency {
-  const Currency({required this.code, required this.name});
+  const Currency({
+    required this.code,
+    required this.name,
+    required this.countryCode,
+  });
 
   final String code;
   final String name;
+
+  /// Country the currency belongs to, used to draw the flag.
+  final String countryCode;
 
   @override
   bool operator ==(Object other) => other is Currency && other.code == code;
@@ -106,17 +113,33 @@ class Quote {
   }
 }
 
-/// A live market rate shown on the Rates tab (Screen 4.1).
+/// How healthy a corridor is, used for the coloured status dot.
+enum CorridorLevel { healthy, limited, down }
+
+/// A corridor's status: a server code (translated by the app when known)
+/// plus a level for the dot colour.
+class CorridorStatus {
+  const CorridorStatus({required this.code, required this.level});
+
+  final String code;
+  final CorridorLevel level;
+}
+
+/// A live market rate (Screens 1.1 and 4.1).
 class CorridorRate {
   const CorridorRate({
     required this.from,
     required this.to,
     required this.rate,
-    required this.change24hPercent,
+    this.change24hPercent,
+    this.status,
   });
 
   final Currency from;
   final Currency to;
+
+  /// How many [from] units equal one [to] unit (display only).
   final double rate;
-  final double change24hPercent;
+  final double? change24hPercent;
+  final CorridorStatus? status;
 }

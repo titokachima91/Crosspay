@@ -26,6 +26,8 @@ class AppLocalizations {
     return result;
   }
 
+  bool has(String key) => _strings.containsKey(key);
+
   /// Returns the translation for [key]. A missing key shows the key itself,
   /// so gaps are easy to spot on screen.
   String t(String key, {Map<String, String> params = const {}}) {

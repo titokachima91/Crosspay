@@ -20,5 +20,16 @@
   "error.client": "Ombi halikukubaliwa. Tafadhali angalia taarifa ulizoweka.",
   "error.server": "Tatizo limetokea upande wetu. Tafadhali jaribu tena baadaye.",
   "error.cancelled": "Ombi limesitishwa.",
-  "error.unknown": "Hitilafu isiyotarajiwa imetokea."
+  "error.unknown": "Hitilafu isiyotarajiwa imetokea.",
+  "common.get_started": "Anza",
+  "common.retry": "Jaribu tena",
+  "corridor.title": "Hali ya moja kwa moja ya njia za kikanda",
+  "corridor.empty": "Hakuna njia zinazofanya kazi kwa sasa.",
+  "corridor.rate_line": "1 {to} = {rate} {from}",
+  "corridor.level.healthy": "Inafanya kazi",
+  "corridor.level.limited": "Kwa kikomo",
+  "corridor.level.down": "Haipatikani",
+  "corridor.status.balanced_p2p": "Mlinganisho mzuri wa P2P",
+  "corridor.status.high_liquidity": "Njia yenye ukwasi mkubwa",
+  "corridor.status.active_clearing": "Ulipaji unaendelea"
 }
