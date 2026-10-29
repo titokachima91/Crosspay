@@ -125,6 +125,7 @@ class RetryInterceptor extends Interceptor {
       case DioExceptionType.badResponse:
         final status = err.response?.statusCode;
         return status == 502 || status == 503 || status == 504;
+      case DioExceptionType.transformTimeout:
       case DioExceptionType.badCertificate:
       case DioExceptionType.cancel:
       case DioExceptionType.unknown:
