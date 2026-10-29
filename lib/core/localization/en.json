@@ -1,0 +1,16 @@
+{
+  "app.tagline": "Instant Regional B2B Trade Settlement Engine",
+  "splash.welcome": "Welcome to {appName}",
+  "splash.how_title": "How it works",
+  "splash.zero_balance": "Zero-Balance Escrow: funds clear through regulated bank and payment provider accounts.",
+  "splash.direct_settlement": "Direct Settlement: pay in your local currency and your supplier is paid in theirs.",
+  "common.continue": "Continue",
+  "common.language": "Language",
+  "common.english": "English",
+  "common.swahili": "Swahili",
+  "phone.label": "Phone number",
+  "nav.home": "Home",
+  "nav.ledger": "Ledger",
+  "nav.rates": "Rates",
+  "nav.account": "Account"
+}

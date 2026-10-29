@@ -1,0 +1,16 @@
+{
+  "app.tagline": "Mfumo wa Haraka wa Malipo ya Biashara za Kikanda",
+  "splash.welcome": "Karibu {appName}",
+  "splash.how_title": "Jinsi inavyofanya kazi",
+  "splash.zero_balance": "Escrow bila salio: fedha hupita kwenye akaunti za benki na watoa huduma wa malipo walioidhinishwa.",
+  "splash.direct_settlement": "Malipo ya moja kwa moja: lipa kwa sarafu ya nchi yako na msambazaji wako atalipwa kwa sarafu ya kwao.",
+  "common.continue": "Endelea",
+  "common.language": "Lugha",
+  "common.english": "Kiingereza",
+  "common.swahili": "Kiswahili",
+  "phone.label": "Namba ya simu",
+  "nav.home": "Nyumbani",
+  "nav.ledger": "Miamala",
+  "nav.rates": "Viwango",
+  "nav.account": "Akaunti"
+}
