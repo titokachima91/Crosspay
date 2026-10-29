@@ -12,5 +12,13 @@
   "nav.home": "Home",
   "nav.ledger": "Ledger",
   "nav.rates": "Rates",
-  "nav.account": "Account"
+  "nav.account": "Account",
+  "error.notConfigured": "The app is not connected to a server yet.",
+  "error.network": "No connection. Please check your internet and try again.",
+  "error.timeout": "The request took too long. Please try again.",
+  "error.unauthorized": "Your session has ended. Please sign in again.",
+  "error.client": "The request was not accepted. Please check your details.",
+  "error.server": "Something went wrong on our side. Please try again later.",
+  "error.cancelled": "The request was cancelled.",
+  "error.unknown": "An unexpected error occurred."
 }

@@ -12,5 +12,13 @@
   "nav.home": "Nyumbani",
   "nav.ledger": "Miamala",
   "nav.rates": "Viwango",
-  "nav.account": "Akaunti"
+  "nav.account": "Akaunti",
+  "error.notConfigured": "Programu bado haijaunganishwa na seva.",
+  "error.network": "Hakuna mtandao. Tafadhali angalia muunganisho wako na ujaribu tena.",
+  "error.timeout": "Ombi limechukua muda mrefu. Tafadhali jaribu tena.",
+  "error.unauthorized": "Kipindi chako kimeisha. Tafadhali ingia tena.",
+  "error.client": "Ombi halikukubaliwa. Tafadhali angalia taarifa ulizoweka.",
+  "error.server": "Tatizo limetokea upande wetu. Tafadhali jaribu tena baadaye.",
+  "error.cancelled": "Ombi limesitishwa.",
+  "error.unknown": "Hitilafu isiyotarajiwa imetokea."
 }

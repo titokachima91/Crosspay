@@ -8,18 +8,23 @@ class AuthState {
     this.status = AuthStatus.signedOut,
     this.phone,
     this.user,
+    this.accessToken,
     this.errorMessage,
   });
 
   final AuthStatus status;
   final String? phone;
   final UserProfile? user;
+
+  /// JWT. Held in memory for now; secure on-device storage arrives in F2.3.
+  final String? accessToken;
   final String? errorMessage;
 
   AuthState copyWith({
     AuthStatus? status,
     String? phone,
     UserProfile? user,
+    String? accessToken,
     String? errorMessage,
     bool clearError = false,
   }) {
@@ -27,13 +32,14 @@ class AuthState {
       status: status ?? this.status,
       phone: phone ?? this.phone,
       user: user ?? this.user,
+      accessToken: accessToken ?? this.accessToken,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
   }
 }
 
-/// Holds who is signed in. The server calls arrive in F1.5 and F2.x; these
-/// methods only move the state.
+/// Holds who is signed in. The server calls arrive in F2.x; these methods
+/// only move the state.
 class AuthNotifier extends Notifier<AuthState> {
   @override
   AuthState build() => const AuthState();
@@ -42,11 +48,12 @@ class AuthNotifier extends Notifier<AuthState> {
     state = AuthState(status: AuthStatus.otpPending, phone: phone);
   }
 
-  void signedIn(UserProfile user) {
+  void signedIn(UserProfile user, String accessToken) {
     state = AuthState(
       status: AuthStatus.signedIn,
       phone: user.phone,
       user: user,
+      accessToken: accessToken,
     );
   }
 
