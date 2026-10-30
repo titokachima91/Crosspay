@@ -31,6 +31,26 @@ class AuthRepository {
       throw ApiException.fromDio(e);
     }
   }
+
+  /// Checks the code. On success the server returns the sign-in token.
+  Future<AuthSession> verifyOtp({
+    required String phone,
+    required String code,
+  }) async {
+    try {
+      final response = await _dio.post<dynamic>(
+        ApiEndpoints.otpVerify,
+        data: {'phone': phone, 'code': code},
+      );
+      final root = JsonReader.of(response.data);
+      return AuthSession(
+        accessToken: root.string('accessToken'),
+        profileComplete: root.boolean('profileComplete'),
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
 }
 
 final authRepositoryProvider = Provider<AuthRepository>(

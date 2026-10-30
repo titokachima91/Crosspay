@@ -38,4 +38,14 @@ extension TranslateX on WidgetRef {
     final l10n = watch(localizationProvider);
     return l10n.has(key) ? l10n.t(key, params: params) : null;
   }
+
+  /// Message for a failure: a specific one when the app has a translation for
+  /// the server's error code (error.code.<code>), otherwise the general
+  /// message for [key].
+  String trError({required String key, String? code}) {
+    final specific = (code == null || code.isEmpty)
+        ? null
+        : trMaybe('error.code.${code.toLowerCase()}');
+    return specific ?? tr(key);
+  }
 }

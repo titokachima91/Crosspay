@@ -38,5 +38,15 @@
   "phone.carrier_unknown": "Hatukuweza kupendekeza mtandao kwa namba hii. Bado unaweza kuendelea.",
   "phone.carrier_info": "Tunapendekeza mtandao wako wa pesa za simu kulingana na namba yako. Unaweza kuuthibitisha unapolipa.",
   "phone.continue": "Endelea na OTP ya SMS",
-  "phone.no_countries": "Hakuna nchi zinazopatikana kwa sasa."
+  "phone.no_countries": "Hakuna nchi zinazopatikana kwa sasa.",
+  "otp.title": "Thibitisha namba ya simu",
+  "otp.subtitle": "Weka msimbo wa tarakimu {length} uliotumwa kwa {phone}",
+  "otp.resend_in": "Tuma msimbo tena baada ya {time}",
+  "otp.resend": "Tuma msimbo tena",
+  "otp.verify": "Thibitisha na uendelee",
+  "otp.no_request": "Omba msimbo wa uthibitisho kwanza.",
+  "error.code.otp_invalid": "Msimbo si sahihi. Tafadhali angalia na ujaribu tena.",
+  "error.code.otp_expired": "Msimbo umeisha muda. Tafadhali omba mpya.",
+  "error.code.otp_too_many_attempts": "Umejaribu mara nyingi kupita kiasi. Tafadhali omba msimbo mpya.",
+  "error.code.rate_limited": "Maombi ni mengi mno. Tafadhali subiri kidogo kisha ujaribu tena."
 }

@@ -57,6 +57,12 @@ class JsonReader {
     throw _invalid(key);
   }
 
+  bool boolean(String key) {
+    final v = _map[key];
+    if (v is bool) return v;
+    throw _invalid(key);
+  }
+
   JsonReader? optionalObject(String key) {
     final v = _map[key];
     if (v == null) return null;

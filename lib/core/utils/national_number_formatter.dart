@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/services.dart';
+import 'package:crosspay_app/core/utils/phone_utils.dart';
 
 /// Phone field formatter: digits only, no leading zero, capped at
 /// [maxDigits], shown in groups of three (e.g. "712 345 678").
@@ -43,18 +44,10 @@ class NationalNumberFormatter extends TextInputFormatter {
         digitsBeforeCursor > 0 ? (digitsBeforeCursor - 1) ~/ 3 : 0;
 
     return TextEditingValue(
-      text: _group(digits),
+      text: PhoneUtils.groupDigits(digits),
       selection: TextSelection.collapsed(
         offset: digitsBeforeCursor + spacesBeforeCursor,
       ),
     );
-  }
-
-  static String _group(String digits) {
-    final parts = <String>[];
-    for (var i = 0; i < digits.length; i += 3) {
-      parts.add(digits.substring(i, math.min(i + 3, digits.length)));
-    }
-    return parts.join(' ');
   }
 }

@@ -76,3 +76,16 @@ class OtpChallenge {
 
   DateTime get expiresAt => requestedAt.add(Duration(seconds: expiresInSeconds));
 }
+
+/// The server's answer to a correct verification code.
+class AuthSession {
+  const AuthSession({
+    required this.accessToken,
+    required this.profileComplete,
+  });
+
+  final String accessToken;
+
+  /// False for a new merchant who still has to complete business KYC.
+  final bool profileComplete;
+}

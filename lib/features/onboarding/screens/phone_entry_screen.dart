@@ -276,7 +276,7 @@ class _PhoneFormState extends ConsumerState<_PhoneForm> {
                 if (auth.errorKey != null) ...[
                   const SizedBox(height: 16),
                   Text(
-                    ref.tr(auth.errorKey!),
+                    ref.trError(key: auth.errorKey!, code: auth.errorCode),
                     style: const TextStyle(color: AppColors.danger),
                   ),
                 ],

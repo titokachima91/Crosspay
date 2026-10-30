@@ -38,5 +38,15 @@
   "phone.carrier_unknown": "We couldn't suggest a network for this number. You can still continue.",
   "phone.carrier_info": "We suggest your mobile money network from your number. You can confirm it when you pay.",
   "phone.continue": "Continue with SMS OTP",
-  "phone.no_countries": "No countries are available yet."
+  "phone.no_countries": "No countries are available yet.",
+  "otp.title": "Verify phone number",
+  "otp.subtitle": "Enter the {length}-digit verification code sent to {phone}",
+  "otp.resend_in": "Resend code in {time}",
+  "otp.resend": "Resend code",
+  "otp.verify": "Verify and proceed",
+  "otp.no_request": "Request a verification code first.",
+  "error.code.otp_invalid": "That code is not correct. Please check and try again.",
+  "error.code.otp_expired": "That code has expired. Please request a new one.",
+  "error.code.otp_too_many_attempts": "Too many incorrect attempts. Please request a new code.",
+  "error.code.rate_limited": "Too many requests. Please wait a moment and try again."
 }

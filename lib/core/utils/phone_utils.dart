@@ -1,7 +1,7 @@
 import 'package:crosspay_app/models/app_config_model.dart';
 
-/// Pure phone-number helpers. All rules (lengths, carrier patterns) come from
-/// the server config; nothing about any country is written here.
+/// Pure phone-number helpers. All rules (lengths, carrier patterns, calling
+/// codes) come from the server config; nothing about any country is here.
 class PhoneUtils {
   PhoneUtils._();
 
@@ -17,6 +17,35 @@ class PhoneUtils {
   /// International format sent to the server: +<calling code><number>.
   static String toInternational(Country country, String input) =>
       '+${country.dialCode}${normalizeNational(input)}';
+
+  /// "1234567" becomes "123 456 7".
+  static String groupDigits(String digits) {
+    final parts = <String>[];
+    for (var i = 0; i < digits.length; i += 3) {
+      final end = i + 3 < digits.length ? i + 3 : digits.length;
+      parts.add(digits.substring(i, end));
+    }
+    return parts.join(' ');
+  }
+
+  /// Display form of an international number, e.g. "+<code> 712 345 678".
+  /// The longest matching calling code wins. If none matches, the number is
+  /// returned unchanged.
+  static String formatInternational(String phone, List<Country> countries) {
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+
+    Country? match;
+    for (final c in countries) {
+      if (!digits.startsWith(c.dialCode)) continue;
+      if (match == null || c.dialCode.length > match.dialCode.length) {
+        match = c;
+      }
+    }
+    if (match == null) return phone;
+
+    final national = digits.substring(match.dialCode.length);
+    return '+${match.dialCode} ${groupDigits(national)}';
+  }
 
   /// Suggests a carrier from the number's prefix. Returns null when nothing
   /// matches. A suggestion only: customers can keep their number when they

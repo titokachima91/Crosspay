@@ -43,3 +43,15 @@ the default on the phone screen. Carrier matching is a suggestion only.
 Request:  { "phone": "+<dial code><national number>" }
 Response: { "codeLength": <int>, "resendAfterSeconds": <int>, "expiresInSeconds": <int> }
 The app shows the code boxes and the resend countdown from these values.
+
+## POST /api/v1/auth/otp/verify   (no login)
+Request:  { "phone": "+<dial code><national number>", "code": "<digits>" }
+Response: { "accessToken": "<JWT>", "profileComplete": <true | false> }
+- profileComplete = false sends the merchant to business KYC; true goes Home.
+- Wrong or expired codes must be 4xx (not 401) with an error code (below).
+- Token lifetime and refresh are NOT defined yet. For now an expired token
+  (401 on a request that carried a token) signs the user out.
+
+## Error codes the app already translates (error.code.<lowercase code>)
+OTP_INVALID, OTP_EXPIRED, OTP_TOO_MANY_ATTEMPTS, RATE_LIMITED
+Any other code falls back to a general message for its HTTP class.
