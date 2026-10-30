@@ -48,5 +48,17 @@
   "error.code.otp_invalid": "That code is not correct. Please check and try again.",
   "error.code.otp_expired": "That code has expired. Please request a new one.",
   "error.code.otp_too_many_attempts": "Too many incorrect attempts. Please request a new code.",
-  "error.code.rate_limited": "Too many requests. Please wait a moment and try again."
+  "error.code.rate_limited": "Too many requests. Please wait a moment and try again.",
+  "kyc.step": "Step {current} of {total}",
+  "kyc.title": "Business registration and KYC",
+  "kyc.business_name": "Legal business or trading name",
+  "kyc.hub": "Primary trading market or hub",
+  "kyc.hub_hint": "Select your main market",
+  "kyc.id_label": "National ID number or business TIN",
+  "kyc.privacy_notice": "We use this only to verify your business with regulated partners.",
+  "kyc.submit": "Verify and launch dashboard",
+  "kyc.no_hubs": "No trading markets are available yet.",
+  "error.code.id_number_invalid": "That ID or TIN number is not valid. Please check and try again.",
+  "error.code.id_name_mismatch": "The name does not match the ID or TIN. Please check both.",
+  "error.code.kyc_rejected": "We could not verify this business. Please contact support."
 }

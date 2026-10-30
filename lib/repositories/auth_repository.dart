@@ -6,7 +6,7 @@ import 'package:crosspay_app/core/network/dio_client.dart';
 import 'package:crosspay_app/core/network/json_reader.dart';
 import 'package:crosspay_app/models/user_model.dart';
 
-/// Sign-in calls. See docs/api_contract.md.
+/// Sign-in and onboarding calls. See docs/api_contract.md.
 class AuthRepository {
   AuthRepository(this._dio);
 
@@ -47,6 +47,37 @@ class AuthRepository {
         accessToken: root.string('accessToken'),
         profileComplete: root.boolean('profileComplete'),
       );
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// Sends the business details for verification. [idNumber] is sensitive:
+  /// it goes to the server and nowhere else. Never store or log it.
+  Future<KycStatus> submitKyc({
+    required String businessName,
+    required String hubId,
+    required String idNumber,
+  }) async {
+    try {
+      final response = await _dio.put<dynamic>(
+        ApiEndpoints.kyc,
+        data: {
+          'businessName': businessName,
+          'hubId': hubId,
+          'idNumber': idNumber,
+        },
+      );
+      final root = JsonReader.of(response.data);
+      return switch (root.string('kycStatus')) {
+        'verified' => KycStatus.verified,
+        'pending' => KycStatus.pending,
+        _ => throw const ApiException(
+            kind: ApiErrorKind.unknown,
+            code: 'INVALID_RESPONSE',
+            serverMessage: 'Unexpected format: kycStatus',
+          ),
+      };
     } on DioException catch (e) {
       throw ApiException.fromDio(e);
     }

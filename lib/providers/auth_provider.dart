@@ -10,6 +10,7 @@ enum AuthStatus {
   otpPending,
   verifyingOtp,
   signedIn,
+  submittingKyc,
 }
 
 class AuthState {
@@ -19,6 +20,7 @@ class AuthState {
     this.user,
     this.accessToken,
     this.profileComplete,
+    this.kycStatus,
     this.otpChallenge,
     this.errorKey,
     this.errorCode,
@@ -29,7 +31,7 @@ class AuthState {
   /// International format, e.g. "+<calling code><number>".
   final String? phone;
 
-  /// Loaded separately after sign-in (F2.4 / F3.1).
+  /// Loaded separately after sign-in (F3.1).
   final UserProfile? user;
 
   /// JWT, also saved to secure storage at sign-in.
@@ -37,6 +39,9 @@ class AuthState {
 
   /// Whether business KYC is done. Known once the code is verified.
   final bool? profileComplete;
+
+  /// Set after the business details were submitted (verified or pending).
+  final KycStatus? kycStatus;
   final OtpChallenge? otpChallenge;
 
   /// Localization key for the last failure, e.g. 'error.network', and the
@@ -50,6 +55,7 @@ class AuthState {
     UserProfile? user,
     String? accessToken,
     bool? profileComplete,
+    KycStatus? kycStatus,
     OtpChallenge? otpChallenge,
     String? errorKey,
     String? errorCode,
@@ -61,6 +67,7 @@ class AuthState {
       user: user ?? this.user,
       accessToken: accessToken ?? this.accessToken,
       profileComplete: profileComplete ?? this.profileComplete,
+      kycStatus: kycStatus ?? this.kycStatus,
       otpChallenge: otpChallenge ?? this.otpChallenge,
       errorKey: clearError ? null : (errorKey ?? this.errorKey),
       errorCode: clearError ? null : (errorCode ?? this.errorCode),
@@ -136,6 +143,42 @@ class AuthNotifier extends Notifier<AuthState> {
         errorKey: e.messageKey,
         errorCode: e.code,
       );
+      return false;
+    }
+  }
+
+  /// Sends the business details. The ID/TIN is passed straight through to the
+  /// server and is never kept in state, stored, or logged here.
+  /// Returns true when the server accepted it (verified or pending).
+  Future<bool> submitKyc({
+    required String businessName,
+    required String hubId,
+    required String idNumber,
+  }) async {
+    state = state.copyWith(status: AuthStatus.submittingKyc, clearError: true);
+
+    try {
+      final kyc = await ref.read(authRepositoryProvider).submitKyc(
+            businessName: businessName,
+            hubId: hubId,
+            idNumber: idNumber,
+          );
+      state = state.copyWith(
+        status: AuthStatus.signedIn,
+        kycStatus: kyc,
+        profileComplete: true,
+      );
+      return true;
+    } on ApiException catch (e) {
+      // If the session ended meanwhile (for example a 401 signed the user
+      // out), keep that outcome instead of overwriting it.
+      if (state.status == AuthStatus.submittingKyc) {
+        state = state.copyWith(
+          status: AuthStatus.signedIn,
+          errorKey: e.messageKey,
+          errorCode: e.code,
+        );
+      }
       return false;
     }
   }

@@ -32,7 +32,6 @@ class UserProfile {
     required this.limitCurrency,
     required this.dailyLimitMinor,
     required this.dailyUsedMinor,
-    this.nationalIdOrTin,
   });
 
   final String id;
@@ -40,7 +39,6 @@ class UserProfile {
   final String businessName;
   final TradingHub hub;
   final KycStatus kycStatus;
-  final String? nationalIdOrTin;
 
   /// Daily limit and usage for the Screen 5.1 capacity bar, in minor units
   /// of [limitCurrency].

@@ -48,5 +48,17 @@
   "error.code.otp_invalid": "Msimbo si sahihi. Tafadhali angalia na ujaribu tena.",
   "error.code.otp_expired": "Msimbo umeisha muda. Tafadhali omba mpya.",
   "error.code.otp_too_many_attempts": "Umejaribu mara nyingi kupita kiasi. Tafadhali omba msimbo mpya.",
-  "error.code.rate_limited": "Maombi ni mengi mno. Tafadhali subiri kidogo kisha ujaribu tena."
+  "error.code.rate_limited": "Maombi ni mengi mno. Tafadhali subiri kidogo kisha ujaribu tena.",
+  "kyc.step": "Hatua ya {current} kati ya {total}",
+  "kyc.title": "Usajili wa biashara na uthibitisho wa utambulisho (KYC)",
+  "kyc.business_name": "Jina rasmi la biashara au la kibiashara",
+  "kyc.hub": "Soko kuu au kitovu cha biashara",
+  "kyc.hub_hint": "Chagua soko lako kuu",
+  "kyc.id_label": "Namba ya kitambulisho cha taifa au TIN ya biashara",
+  "kyc.privacy_notice": "Tunatumia taarifa hii kuthibitisha biashara yako na washirika walioidhinishwa pekee.",
+  "kyc.submit": "Thibitisha na ufungue dashibodi",
+  "kyc.no_hubs": "Hakuna masoko ya biashara yanayopatikana kwa sasa.",
+  "error.code.id_number_invalid": "Namba hiyo ya kitambulisho au TIN si sahihi. Tafadhali angalia na ujaribu tena.",
+  "error.code.id_name_mismatch": "Jina halilingani na kitambulisho au TIN. Tafadhali angalia vyote viwili.",
+  "error.code.kyc_rejected": "Hatukuweza kuthibitisha biashara hii. Tafadhali wasiliana na huduma kwa wateja."
 }

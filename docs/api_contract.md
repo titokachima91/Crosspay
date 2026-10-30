@@ -55,3 +55,16 @@ Response: { "accessToken": "<JWT>", "profileComplete": <true | false> }
 ## Error codes the app already translates (error.code.<lowercase code>)
 OTP_INVALID, OTP_EXPIRED, OTP_TOO_MANY_ATTEMPTS, RATE_LIMITED
 Any other code falls back to a general message for its HTTP class.
+
+## PUT /api/v1/me/kyc   (login required)
+Request:  { "businessName": "<name>", "hubId": "<hub id from /config>", "idNumber": "<national ID or business TIN>" }
+Response: { "kycStatus": "verified" | "pending" }
+- "pending" means a manual or partner check is still running. The merchant
+  still enters Home; the server must refuse transactions until "verified".
+- Rejections are 4xx (not 401) with a code the app translates:
+  ID_NUMBER_INVALID, ID_NAME_MISMATCH, KYC_REJECTED
+- The server verifies the ID/TIN against official registers, stores it
+  encrypted, and never returns it in full. Any later display uses a masked
+  value (for example the last 4 characters only).
+- The app never stores or logs idNumber, and request/response bodies must
+  never be logged by any proxy or API gateway either.

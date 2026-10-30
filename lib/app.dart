@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:crosspay_app/core/constants/app_constants.dart';
 import 'package:crosspay_app/core/constants/app_routes.dart';
 import 'package:crosspay_app/core/theme/app_theme.dart';
+import 'package:crosspay_app/features/onboarding/screens/kyc_profile_screen.dart';
 import 'package:crosspay_app/features/onboarding/screens/otp_verification_screen.dart';
 import 'package:crosspay_app/features/onboarding/screens/phone_entry_screen.dart';
 import 'package:crosspay_app/features/onboarding/screens/splash_language_screen.dart';
@@ -20,8 +21,7 @@ class CrossPayApp extends StatelessWidget {
         AppRoutes.splash: (_) => const SplashLanguageScreen(),
         AppRoutes.phone: (_) => const PhoneEntryScreen(),
         AppRoutes.otp: (_) => const OtpVerificationScreen(),
-        AppRoutes.kyc: (_) =>
-            const _NextStepScreen(label: 'Next: F2.4 business profile and KYC'),
+        AppRoutes.kyc: (_) => const KycProfileScreen(),
         AppRoutes.home: (_) =>
             const _NextStepScreen(label: 'Next: F3.1 home dashboard'),
       },
@@ -29,7 +29,7 @@ class CrossPayApp extends StatelessWidget {
   }
 }
 
-// TEMPORARY: each is replaced by its real screen (F2.4, F3.1).
+// TEMPORARY: replaced by the real Home screen in F3.1.
 class _NextStepScreen extends StatelessWidget {
   const _NextStepScreen({required this.label});
 
