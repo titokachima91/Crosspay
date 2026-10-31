@@ -52,19 +52,22 @@ class AuthRepository {
     }
   }
 
-  /// Sends the business details for verification. [idNumber] is sensitive:
+  /// Sends the identity details for verification. [idNumber] is sensitive:
   /// it goes to the server and nowhere else. Never store or log it.
+  /// [hubId] is for business accounts only.
   Future<KycStatus> submitKyc({
-    required String businessName,
-    required String hubId,
+    required AccountType accountType,
+    required String legalName,
+    String? hubId,
     required String idNumber,
   }) async {
     try {
       final response = await _dio.put<dynamic>(
         ApiEndpoints.kyc,
         data: {
-          'businessName': businessName,
-          'hubId': hubId,
+          'accountType': accountType.name,
+          'legalName': legalName,
+          if (hubId != null) 'hubId': hubId,
           'idNumber': idNumber,
         },
       );

@@ -8,7 +8,11 @@ import 'package:crosspay_app/features/onboarding/screens/phone_entry_screen.dart
 import 'package:crosspay_app/features/onboarding/screens/splash_language_screen.dart';
 
 class CrossPayApp extends StatelessWidget {
-  const CrossPayApp({super.key});
+  const CrossPayApp({super.key, this.builder});
+
+  /// Optional wrapper drawn around every screen. The real app passes nothing;
+  /// only the separate preview app uses it (to show its banner).
+  final TransitionBuilder? builder;
 
   @override
   Widget build(BuildContext context) {
@@ -16,6 +20,7 @@ class CrossPayApp extends StatelessWidget {
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      builder: builder,
       initialRoute: AppRoutes.splash,
       routes: {
         AppRoutes.splash: (_) => const SplashLanguageScreen(),

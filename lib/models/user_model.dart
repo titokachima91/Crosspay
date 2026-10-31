@@ -2,6 +2,9 @@ import 'package:crosspay_app/models/quote_model.dart';
 
 enum KycStatus { notStarted, pending, verified, rejected }
 
+/// Anyone can use the app, personally or for a business.
+enum AccountType { personal, business }
+
 /// A trading market the merchant can register under (Screen 1.4 dropdown).
 /// Supplied by the server (see AppConfig). Equality is by [id].
 class TradingHub {
@@ -26,8 +29,9 @@ class UserProfile {
   const UserProfile({
     required this.id,
     required this.phone,
-    required this.businessName,
-    required this.hub,
+    required this.displayName,
+    required this.accountType,
+    this.hub,
     required this.kycStatus,
     required this.limitCurrency,
     required this.dailyLimitMinor,
@@ -36,8 +40,11 @@ class UserProfile {
 
   final String id;
   final String phone;
-  final String businessName;
-  final TradingHub hub;
+  final String displayName;
+  final AccountType accountType;
+
+  /// Only business accounts have a trading market.
+  final TradingHub? hub;
   final KycStatus kycStatus;
 
   /// Daily limit and usage for the Screen 5.1 capacity bar, in minor units

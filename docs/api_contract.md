@@ -46,20 +46,28 @@ The app shows the code boxes and the resend countdown from these values.
 
 ## POST /api/v1/auth/otp/verify   (no login)
 Request:  { "phone": "+<dial code><national number>", "code": "<digits>" }
-Response: { "accessToken": "<JWT>", "profileComplete": <true | false> }
+Response: { "accessToken": "<JWT>", "refreshToken": "<token>",
+            "expiresInSeconds": <int>, "profileComplete": <true | false> }
 - profileComplete = false sends the merchant to business KYC; true goes Home.
 - Wrong or expired codes must be 4xx (not 401) with an error code (below).
-- Token lifetime and refresh are NOT defined yet. For now an expired token
-  (401 on a request that carried a token) signs the user out.
+- The reply also carries "refreshToken" and "expiresInSeconds" (access token
+  lifetime). The app reads them from F5.3 (stay signed in); until then an
+  expired token (401 on a request that carried a token) signs the user out.
 
 ## Error codes the app already translates (error.code.<lowercase code>)
 OTP_INVALID, OTP_EXPIRED, OTP_TOO_MANY_ATTEMPTS, RATE_LIMITED
 Any other code falls back to a general message for its HTTP class.
 
 ## PUT /api/v1/me/kyc   (login required)
-Request:  { "businessName": "<name>", "hubId": "<hub id from /config>", "idNumber": "<national ID or business TIN>" }
+Request:
+{
+  "accountType": "personal" | "business",
+  "legalName": "<full legal name (personal) or business name (business)>",
+  "hubId": "<hub id from /config>",          (business only; omit for personal)
+  "idNumber": "<personal: national ID or passport; business: national ID or business TIN>"
+}
 Response: { "kycStatus": "verified" | "pending" }
-- "pending" means a manual or partner check is still running. The merchant
+- "pending" means a manual or partner check is still running. The user
   still enters Home; the server must refuse transactions until "verified".
 - Rejections are 4xx (not 401) with a code the app translates:
   ID_NUMBER_INVALID, ID_NAME_MISMATCH, KYC_REJECTED
@@ -68,3 +76,27 @@ Response: { "kycStatus": "verified" | "pending" }
   value (for example the last 4 characters only).
 - The app never stores or logs idNumber, and request/response bodies must
   never be logged by any proxy or API gateway either.
+
+## POST /api/v1/auth/refresh   (no login; carries the refresh token)
+Request:  { "refreshToken": "<token>" }
+Response: { "accessToken": "<JWT>", "refreshToken": "<token>", "expiresInSeconds": <int> }
+Used from F5.3 (stay signed in). Refresh tokens rotate on every use.
+
+## GET /api/v1/me   (login required)
+{
+  "id": "<id>", "phone": "+<dial code><number>",
+  "accountType": "personal" | "business",
+  "displayName": "<name>",
+  "hubId": "<hub id>",                         (business only)
+  "kycStatus": "verified" | "pending" | "rejected",
+  "tier": "<server-defined tier code>",
+  "limit": { "currency": "<code>", "dailyLimitMinor": <int>, "dailyUsedMinor": <int> }
+}
+
+## Settled rules for endpoints not built yet
+- Fees are added ON TOP: totalDebit = amount + fee; the recipient receives the
+  full converted amount. Quotes return fee, payout and totalDebit per route.
+- There is no wallet and no balance. Home shows "available today" (the
+  remaining daily limit). Receiving means payout to the recipient's mobile
+  money or bank account.
+- Tiers and limits are defined only by the server.

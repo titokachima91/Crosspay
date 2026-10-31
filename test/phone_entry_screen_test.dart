@@ -103,7 +103,7 @@ void main() {
     await tester.pumpWidget(appFor(container));
     await tester.pump();
 
-    expect(find.text('Enter your business phone number'), findsOneWidget);
+    expect(find.text('Enter your phone number'), findsOneWidget);
     expect(find.textContaining('+999'), findsWidgets);
 
     ElevatedButton button() =>

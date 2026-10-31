@@ -151,15 +151,17 @@ class AuthNotifier extends Notifier<AuthState> {
   /// server and is never kept in state, stored, or logged here.
   /// Returns true when the server accepted it (verified or pending).
   Future<bool> submitKyc({
-    required String businessName,
-    required String hubId,
+    required AccountType accountType,
+    required String legalName,
+    String? hubId,
     required String idNumber,
   }) async {
     state = state.copyWith(status: AuthStatus.submittingKyc, clearError: true);
 
     try {
       final kyc = await ref.read(authRepositoryProvider).submitKyc(
-            businessName: businessName,
+            accountType: accountType,
+            legalName: legalName,
             hubId: hubId,
             idNumber: idNumber,
           );

@@ -23,14 +23,15 @@ class PayoutRail {
 class Beneficiary {
   const Beneficiary({
     required this.id,
-    required this.businessName,
+    required this.name,
     required this.rail,
     required this.accountOrPhone,
     this.kycVerified = false,
   });
 
   final String id;
-  final String businessName;
+  /// The recipient's name: a person or a business.
+  final String name;
   final PayoutRail rail;
 
   /// Mobile number or bank account number, depending on [rail].

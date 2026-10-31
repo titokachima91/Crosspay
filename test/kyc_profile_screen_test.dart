@@ -34,6 +34,13 @@ const _testConfig = AppConfig(
   ],
 );
 
+typedef _Submit = Future<KycStatus> Function(
+  AccountType type,
+  String legalName,
+  String? hubId,
+  String idNumber,
+);
+
 class _FakeConfigRepository extends ConfigRepository {
   _FakeConfigRepository(this._outcome) : super(Dio());
 
@@ -46,11 +53,7 @@ class _FakeConfigRepository extends ConfigRepository {
 class _FakeAuthRepository extends AuthRepository {
   _FakeAuthRepository(this._onSubmit) : super(Dio());
 
-  final Future<KycStatus> Function(
-    String businessName,
-    String hubId,
-    String idNumber,
-  ) _onSubmit;
+  final _Submit _onSubmit;
 
   @override
   Future<OtpChallenge> requestOtp(String phone) async => OtpChallenge(
@@ -69,11 +72,12 @@ class _FakeAuthRepository extends AuthRepository {
 
   @override
   Future<KycStatus> submitKyc({
-    required String businessName,
-    required String hubId,
+    required AccountType accountType,
+    required String legalName,
+    String? hubId,
     required String idNumber,
   }) =>
-      _onSubmit(businessName, hubId, idNumber);
+      _onSubmit(accountType, legalName, hubId, idNumber);
 }
 
 class _MemoryTokenStorage implements TokenStorage {
@@ -99,7 +103,7 @@ void main() {
   });
 
   Future<ProviderContainer> signedInContainer({
-    required Future<KycStatus> Function(String, String, String) onSubmit,
+    required _Submit onSubmit,
     Future<AppConfig> Function()? config,
   }) async {
     final container = ProviderContainer(overrides: [
@@ -136,46 +140,53 @@ void main() {
   ElevatedButton submitButton(WidgetTester tester) =>
       tester.widget<ElevatedButton>(find.byType(ElevatedButton));
 
-  Future<void> fillForm(WidgetTester tester) async {
-    await tester.enterText(find.byType(TextField).at(0), '  Test Trading  ');
-    await tester.tap(find.byType(DropdownButtonFormField<TradingHub>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Hub Two (Testland)').last);
-    await tester.pumpAndSettle();
+  Future<void> fillNameAndId(WidgetTester tester) async {
+    await tester.enterText(find.byType(TextField).at(0), '  Test Person  ');
     await tester.enterText(find.byType(TextField).at(1), ' TEST-ID-1 ');
-    await tester.pump();
+    await tester.pumpAndSettle();
   }
 
-  testWidgets('shows the layout and enables submit only when complete', (tester) async {
+  Future<void> chooseHub(WidgetTester tester, String label) async {
+    await tester.tap(find.byType(DropdownButtonFormField<TradingHub>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(label).last);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> switchToBusiness(WidgetTester tester) async {
+    await tester.tap(find.text('Business'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('a person is the default: no market field, submit needs name and ID', (tester) async {
     final container = await signedInContainer(
-      onSubmit: (_, __, ___) async => KycStatus.verified,
+      onSubmit: (_, __, ___, ____) async => KycStatus.verified,
     );
 
     await tester.pumpWidget(appFor(container));
     await tester.pump();
 
     expect(find.text('Step 2 of 2'), findsOneWidget);
-    expect(find.text('Business registration and KYC'), findsOneWidget);
+    expect(find.text('Verify your identity'), findsOneWidget);
+    expect(find.byType(DropdownButtonFormField<TradingHub>), findsNothing);
     expect(
       find.text('We use this only to verify your business with regulated partners.'),
       findsOneWidget,
     );
     expect(submitButton(tester).onPressed, isNull);
 
-    await tester.enterText(find.byType(TextField).at(0), 'Test Trading');
-    await tester.pump();
-    expect(submitButton(tester).onPressed, isNull);
-
-    await fillForm(tester);
+    await fillNameAndId(tester);
     expect(submitButton(tester).onPressed, isNotNull);
   });
 
-  testWidgets('sends trimmed values and the chosen hub, then opens Home', (tester) async {
+  testWidgets('a person sends trimmed values and no market, then opens Home', (tester) async {
+    AccountType? sentType;
     String? sentName;
-    String? sentHub;
+    String? sentHub = 'unset';
     String? sentId;
     final container = await signedInContainer(
-      onSubmit: (name, hub, id) async {
+      onSubmit: (type, name, hub, id) async {
+        sentType = type;
         sentName = name;
         sentHub = hub;
         sentId = id;
@@ -185,25 +196,69 @@ void main() {
 
     await tester.pumpWidget(appFor(container));
     await tester.pump();
-    await fillForm(tester);
+    await fillNameAndId(tester);
     await tester.tap(find.byType(ElevatedButton));
     await tester.pumpAndSettle();
 
-    expect(sentName, 'Test Trading');
-    expect(sentHub, 'h2');
+    expect(sentType, AccountType.personal);
+    expect(sentName, 'Test Person');
+    expect(sentHub, isNull);
     expect(sentId, 'TEST-ID-1');
     expect(find.text('home-screen'), findsOneWidget);
     expect(container.read(authProvider).kycStatus, KycStatus.verified);
   });
 
-  testWidgets('a pending check still opens Home', (tester) async {
+  testWidgets('a business must also choose a market from the server list', (tester) async {
     final container = await signedInContainer(
-      onSubmit: (_, __, ___) async => KycStatus.pending,
+      onSubmit: (_, __, ___, ____) async => KycStatus.verified,
     );
 
     await tester.pumpWidget(appFor(container));
     await tester.pump();
-    await fillForm(tester);
+    await switchToBusiness(tester);
+
+    expect(find.text('Business registration and KYC'), findsOneWidget);
+    expect(find.byType(DropdownButtonFormField<TradingHub>), findsOneWidget);
+
+    await fillNameAndId(tester);
+    expect(submitButton(tester).onPressed, isNull);
+
+    await chooseHub(tester, 'Hub Two (Testland)');
+    expect(submitButton(tester).onPressed, isNotNull);
+  });
+
+  testWidgets('a business sends its chosen market', (tester) async {
+    AccountType? sentType;
+    String? sentHub;
+    final container = await signedInContainer(
+      onSubmit: (type, name, hub, id) async {
+        sentType = type;
+        sentHub = hub;
+        return KycStatus.verified;
+      },
+    );
+
+    await tester.pumpWidget(appFor(container));
+    await tester.pump();
+    await switchToBusiness(tester);
+    await fillNameAndId(tester);
+    await chooseHub(tester, 'Hub Two (Testland)');
+    await tester.tap(find.byType(ElevatedButton));
+    await tester.pumpAndSettle();
+
+    expect(sentType, AccountType.business);
+    expect(sentHub, 'h2');
+    expect(find.text('home-screen'), findsOneWidget);
+  });
+
+  testWidgets('a pending check still opens Home', (tester) async {
+    final container = await signedInContainer(
+      onSubmit: (_, __, ___, ____) async => KycStatus.pending,
+    );
+
+    await tester.pumpWidget(appFor(container));
+    await tester.pump();
+    await fillNameAndId(tester);
     await tester.tap(find.byType(ElevatedButton));
     await tester.pumpAndSettle();
 
@@ -213,7 +268,7 @@ void main() {
 
   testWidgets('a rejected ID shows a clear message and stays on the form', (tester) async {
     final container = await signedInContainer(
-      onSubmit: (_, __, ___) async => throw const ApiException(
+      onSubmit: (_, __, ___, ____) async => throw const ApiException(
         kind: ApiErrorKind.client,
         statusCode: 422,
         code: 'ID_NUMBER_INVALID',
@@ -222,7 +277,7 @@ void main() {
 
     await tester.pumpWidget(appFor(container));
     await tester.pump();
-    await fillForm(tester);
+    await fillNameAndId(tester);
     await tester.tap(find.byType(ElevatedButton));
     await tester.pumpAndSettle();
 
@@ -233,23 +288,27 @@ void main() {
     expect(find.text('home-screen'), findsNothing);
   });
 
-  testWidgets('says plainly when the server data cannot be loaded', (tester) async {
+  testWidgets('a person can still register when the market list cannot load', (tester) async {
     final container = await signedInContainer(
-      onSubmit: (_, __, ___) async => KycStatus.verified,
+      onSubmit: (_, __, ___, ____) async => KycStatus.verified,
       config: () async => throw const ApiException(kind: ApiErrorKind.network),
     );
 
     await tester.pumpWidget(appFor(container));
     await tester.pump();
 
+    // The personal form needs nothing from the server config.
+    expect(find.byType(TextField), findsNWidgets(2));
+
+    await switchToBusiness(tester);
+
     expect(find.text(translations['en']!.t('error.network')), findsOneWidget);
     expect(find.text('Try again'), findsOneWidget);
-    expect(find.byType(TextField), findsNothing);
   });
 
   testWidgets('returns to the start when the session ends', (tester) async {
     final container = await signedInContainer(
-      onSubmit: (_, __, ___) async => KycStatus.verified,
+      onSubmit: (_, __, ___, ____) async => KycStatus.verified,
     );
 
     await tester.pumpWidget(appFor(container));
