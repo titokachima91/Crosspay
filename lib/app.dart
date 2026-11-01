@@ -6,6 +6,7 @@ import 'package:crosspay_app/features/onboarding/screens/kyc_profile_screen.dart
 import 'package:crosspay_app/features/onboarding/screens/otp_verification_screen.dart';
 import 'package:crosspay_app/features/onboarding/screens/phone_entry_screen.dart';
 import 'package:crosspay_app/features/onboarding/screens/splash_language_screen.dart';
+import 'package:crosspay_app/features/shell/main_shell_screen.dart';
 
 class CrossPayApp extends StatelessWidget {
   const CrossPayApp({super.key, this.builder});
@@ -27,14 +28,15 @@ class CrossPayApp extends StatelessWidget {
         AppRoutes.phone: (_) => const PhoneEntryScreen(),
         AppRoutes.otp: (_) => const OtpVerificationScreen(),
         AppRoutes.kyc: (_) => const KycProfileScreen(),
-        AppRoutes.home: (_) =>
-            const _NextStepScreen(label: 'Next: F3.1 home dashboard'),
+        AppRoutes.home: (_) => const MainShellScreen(),
+        AppRoutes.review: (_) =>
+            const _NextStepScreen(label: 'Next: F3.2 route selection'),
       },
     );
   }
 }
 
-// TEMPORARY: replaced by the real Home screen in F3.1.
+// TEMPORARY: replaced by the real route-selection screen in F3.2.
 class _NextStepScreen extends StatelessWidget {
   const _NextStepScreen({required this.label});
 

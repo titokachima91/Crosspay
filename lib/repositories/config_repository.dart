@@ -26,6 +26,7 @@ class ConfigRepository {
               code: c.string('code'),
               name: c.string('name'),
               countryCode: c.string('countryCode'),
+              decimals: c.integer('decimals'),
             ),
         ],
         hubs: [

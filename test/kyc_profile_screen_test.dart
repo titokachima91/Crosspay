@@ -19,7 +19,7 @@ import 'package:crosspay_app/repositories/config_repository.dart';
 
 // Test stand-ins and inputs only. Not app code or app data.
 const _testConfig = AppConfig(
-  currencies: [Currency(code: 'AAA', name: 'Alpha', countryCode: 'ZZ')],
+  currencies: [Currency(code: 'AAA', name: 'Alpha', countryCode: 'ZZ', decimals: 2)],
   hubs: [
     TradingHub(id: 'h1', name: 'Hub One', countryCode: 'ZZ'),
     TradingHub(id: 'h2', name: 'Hub Two', countryCode: 'ZZ'),

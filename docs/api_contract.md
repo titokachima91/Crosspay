@@ -9,7 +9,8 @@ Conventions
 
 ## GET /api/v1/config   (no login)
 {
-  "currencies":  [ { "code": "<ISO code>", "name": "<name>", "countryCode": "<2 letters>" } ],
+  "currencies":  [ { "code": "<ISO code>", "name": "<name>", "countryCode": "<2 letters>",
+                     "decimals": <digits shown after the decimal point, e.g. 0 or 2> } ],
   "hubs":        [ { "id": "<id>", "name": "<name>", "countryCode": "<2 letters>" } ],
   "payoutRails": [ { "id": "<id>", "name": "<name>", "countryCode": "<2 letters>" } ],
   "countries":   [ { "code": "<2 letters>", "name": "<name>", "dialCode": "<digits, e.g. 255>",
@@ -100,3 +101,26 @@ Used from F5.3 (stay signed in). Refresh tokens rotate on every use.
   remaining daily limit). Receiving means payout to the recipient's mobile
   money or bank account.
 - Tiers and limits are defined only by the server.
+
+## GET /api/v1/trade/estimate   (login required)
+Query: ?sendCurrency=<code>&receiveCurrency=<code>&sendAmountMinor=<int>
+Response:
+{
+  "rate": <number: send-currency units per 1 receive-currency unit>,
+  "receiveAmountMinor": <int: the full converted amount; fees are added on top>,
+  "estimatedMinSeconds": <int>, "estimatedMaxSeconds": <int>,
+  "route": "p2p" | "bank"          (the route this estimate is based on)
+}
+- Indicative only; the locked price comes with the route choice (quote).
+- A safe read: no idempotency key needed, may be retried. The app asks about
+  half a second after the person stops typing and ignores out-of-date answers.
+- All amounts are whole numbers in the smallest unit (see currency "decimals").
+
+## GET /api/v1/beneficiaries   (login required)
+{
+  "beneficiaries": [
+    { "id": "<id>", "name": "<person or business name>", "railId": "<id from /config>",
+      "accountOrPhone": "<number>", "kycVerified": <true | false> }
+  ]
+}
+- A recipient whose railId is not in /config is ignored by the app.

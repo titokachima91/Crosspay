@@ -46,14 +46,14 @@ Dio _dioFor(_BodyAdapter adapter) => buildDio(
 
 Dio _dioReturning(String body) => _dioFor(_BodyAdapter(body));
 
-const _a = Currency(code: 'AAA', name: 'Alpha', countryCode: 'ZZ');
-const _b = Currency(code: 'BBB', name: 'Beta', countryCode: 'ZZ');
+const _a = Currency(code: 'AAA', name: 'Alpha', countryCode: 'ZZ', decimals: 2);
+const _b = Currency(code: 'BBB', name: 'Beta', countryCode: 'ZZ', decimals: 2);
 
 void main() {
   test('config is read from the server reply', () async {
     final repo = ConfigRepository(_dioReturning('''
       {
-        "currencies": [{"code": "AAA", "name": "Alpha", "countryCode": "ZZ"}],
+        "currencies": [{"code": "AAA", "name": "Alpha", "countryCode": "ZZ", "decimals": 2}],
         "hubs": [{"id": "h1", "name": "Hub one", "countryCode": "ZZ"}],
         "payoutRails": [{"id": "r1", "name": "Rail one", "countryCode": "ZZ"}],
         "countries": [{"code": "ZZ", "name": "Testland", "dialCode": "+999",

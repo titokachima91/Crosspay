@@ -28,8 +28,8 @@ class _FakeRatesRepository extends RatesRepository {
   Future<RatesSnapshot> fetch(AppConfig config) => _outcome();
 }
 
-const _a = Currency(code: 'AAA', name: 'Alpha', countryCode: 'ZZ');
-const _b = Currency(code: 'BBB', name: 'Beta', countryCode: 'ZZ');
+const _a = Currency(code: 'AAA', name: 'Alpha', countryCode: 'ZZ', decimals: 2);
+const _b = Currency(code: 'BBB', name: 'Beta', countryCode: 'ZZ', decimals: 2);
 
 void main() {
   test('config loads and becomes ready', () async {

@@ -55,6 +55,12 @@ class UserProfile {
 
   bool get isVerified => kycStatus == KycStatus.verified;
 
+  /// What can still be sent today (never below zero).
+  int get dailyRemainingMinor {
+    final remaining = dailyLimitMinor - dailyUsedMinor;
+    return remaining < 0 ? 0 : remaining;
+  }
+
   double get dailyUsedFraction {
     if (dailyLimitMinor <= 0) return 0;
     return (dailyUsedMinor / dailyLimitMinor).clamp(0.0, 1.0).toDouble();

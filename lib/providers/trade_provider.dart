@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crosspay_app/models/beneficiary_model.dart';
 import 'package:crosspay_app/models/trade_model.dart';
+import 'package:crosspay_app/providers/auth_provider.dart';
 
 enum TradeFlowStatus { idle, submitting, active, error }
 
@@ -45,7 +46,15 @@ class TradeState {
 
 class TradeNotifier extends Notifier<TradeState> {
   @override
-  TradeState build() => const TradeState();
+  TradeState build() {
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      if (next.status == AuthStatus.signedOut &&
+          previous?.status != AuthStatus.signedOut) {
+        reset();
+      }
+    });
+    return const TradeState();
+  }
 
   void selectBeneficiary(Beneficiary b) =>
       state = state.copyWith(beneficiary: b, clearError: true);

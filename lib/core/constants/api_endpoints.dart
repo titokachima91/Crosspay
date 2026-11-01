@@ -10,6 +10,9 @@ class ApiEndpoints {
   static const String otpRequest = '$_v1/auth/otp/request';
   static const String otpVerify = '$_v1/auth/otp/verify';
   static const String kyc = '$_v1/me/kyc';
+  static const String me = '$_v1/me';
+  static const String beneficiaries = '$_v1/beneficiaries';
+  static const String tradeEstimate = '$_v1/trade/estimate';
   static const String tradeQuote = '$_v1/trade/quote';
   static const String tradeInitiate = '$_v1/trade/initiate';
 }

@@ -2,6 +2,7 @@
 // The real app (lib/) never imports this folder; a test enforces that.
 // Deleting the preview/ folder removes every simulated value.
 
+import 'dart:math' as math;
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crosspay_app/core/network/api_exception.dart';
@@ -11,16 +12,27 @@ import 'package:crosspay_app/models/beneficiary_model.dart';
 import 'package:crosspay_app/models/quote_model.dart';
 import 'package:crosspay_app/models/user_model.dart';
 import 'package:crosspay_app/repositories/auth_repository.dart';
+import 'package:crosspay_app/repositories/beneficiary_repository.dart';
 import 'package:crosspay_app/repositories/config_repository.dart';
+import 'package:crosspay_app/repositories/profile_repository.dart';
 import 'package:crosspay_app/repositories/rates_repository.dart';
+import 'package:crosspay_app/repositories/trade_repository.dart';
 
 /// The only SMS code the preview accepts.
 const String previewOtpCode = '1234';
 
-const Currency _tzs =
-    Currency(code: 'TZS', name: 'Tanzanian Shilling', countryCode: 'TZ');
-const Currency _kes =
-    Currency(code: 'KES', name: 'Kenyan Shilling', countryCode: 'KE');
+const Currency _tzs = Currency(
+  code: 'TZS',
+  name: 'Tanzanian Shilling',
+  countryCode: 'TZ',
+  decimals: 0,
+);
+const Currency _kes = Currency(
+  code: 'KES',
+  name: 'Kenyan Shilling',
+  countryCode: 'KE',
+  decimals: 2,
+);
 
 const AppConfig previewConfig = AppConfig(
   currencies: [_tzs, _kes],
@@ -81,6 +93,19 @@ Future<void> _wait(Duration latency) async {
   }
 }
 
+/// What the preview "remembers" about the person who just registered.
+class _PreviewSession {
+  String displayName = 'Preview User';
+  AccountType accountType = AccountType.personal;
+  KycStatus kycStatus = KycStatus.verified;
+}
+
+double? _previewRate(String from, String to) {
+  if (from == 'TZS' && to == 'KES') return 19.85;
+  if (from == 'KES' && to == 'TZS') return 0.0504;
+  return null;
+}
+
 class _PreviewConfigRepository extends ConfigRepository {
   _PreviewConfigRepository(this._latency) : super(Dio());
 
@@ -131,9 +156,10 @@ class _PreviewRatesRepository extends RatesRepository {
 }
 
 class _PreviewAuthRepository extends AuthRepository {
-  _PreviewAuthRepository(this._latency) : super(Dio());
+  _PreviewAuthRepository(this._latency, this._session) : super(Dio());
 
   final Duration _latency;
+  final _PreviewSession _session;
 
   @override
   Future<OtpChallenge> requestOtp(String phone) async {
@@ -183,7 +209,115 @@ class _PreviewAuthRepository extends AuthRepository {
         code: 'ID_NUMBER_INVALID',
       );
     }
-    return id.contains('wait') ? KycStatus.pending : KycStatus.verified;
+    _session
+      ..displayName = legalName
+      ..accountType = accountType
+      ..kycStatus = id.contains('wait') ? KycStatus.pending : KycStatus.verified;
+    return _session.kycStatus;
+  }
+}
+
+class _PreviewProfileRepository extends ProfileRepository {
+  _PreviewProfileRepository(this._latency, this._session) : super(Dio());
+
+  final Duration _latency;
+  final _PreviewSession _session;
+
+  @override
+  Future<UserProfile> fetch(AppConfig config) async {
+    await _wait(_latency);
+    return UserProfile(
+      id: 'preview-user',
+      phone: '+255712345678',
+      displayName: _session.displayName,
+      accountType: _session.accountType,
+      hub: _session.accountType == AccountType.business
+          ? config.hubs.first
+          : null,
+      kycStatus: _session.kycStatus,
+      limitCurrency: config.currencyByCode('TZS') ?? config.currencies.first,
+      dailyLimitMinor: 10000000,
+      dailyUsedMinor: 2000000,
+    );
+  }
+}
+
+class _PreviewBeneficiaryRepository extends BeneficiaryRepository {
+  _PreviewBeneficiaryRepository(this._latency) : super(Dio());
+
+  final Duration _latency;
+
+  @override
+  Future<List<Beneficiary>> list(AppConfig config) async {
+    await _wait(_latency);
+    if (config.payoutRails.isEmpty) return const [];
+    final rail = config.payoutRails.first;
+    return [
+      Beneficiary(
+        id: 'b1',
+        name: 'Eastleigh Textiles',
+        rail: rail,
+        accountOrPhone: '+254700000001',
+        kycVerified: true,
+      ),
+      Beneficiary(
+        id: 'b2',
+        name: 'Lusaka Import Export',
+        rail: rail,
+        accountOrPhone: '+254700000002',
+        kycVerified: true,
+      ),
+      Beneficiary(
+        id: 'b3',
+        name: 'Nairobi Motors',
+        rail: rail,
+        accountOrPhone: '+254700000003',
+      ),
+      Beneficiary(
+        id: 'b4',
+        name: 'Kampala Wholesale',
+        rail: rail,
+        accountOrPhone: '+254700000004',
+        kycVerified: true,
+      ),
+    ];
+  }
+}
+
+class _PreviewTradeRepository extends TradeRepository {
+  _PreviewTradeRepository(this._latency) : super(Dio());
+
+  final Duration _latency;
+
+  @override
+  Future<Estimate> estimate({
+    required Currency sendCurrency,
+    required Currency receiveCurrency,
+    required int sendAmountMinor,
+  }) async {
+    await _wait(_latency);
+    final rate = _previewRate(sendCurrency.code, receiveCurrency.code);
+    if (rate == null) {
+      throw const ApiException(
+        kind: ApiErrorKind.client,
+        statusCode: 400,
+        code: 'CORRIDOR_UNAVAILABLE',
+      );
+    }
+
+    final sendMajor =
+        sendAmountMinor / math.pow(10, sendCurrency.decimals).toDouble();
+    final receiveMajor = sendMajor / rate;
+    final receiveMinor =
+        (receiveMajor * math.pow(10, receiveCurrency.decimals)).round();
+
+    return Estimate(
+      rate: rate,
+      receiveAmountMinor: receiveMinor,
+      estimatedMinSeconds: 1800,
+      estimatedMaxSeconds: 7200,
+      route: RouteType.p2p,
+    );
   }
 }
 
@@ -204,10 +338,17 @@ class _PreviewTokenStorage implements TokenStorage {
 List<Override> previewOverrides({
   Duration latency = const Duration(milliseconds: 600),
 }) {
+  final session = _PreviewSession();
   return [
     configRepositoryProvider.overrideWithValue(_PreviewConfigRepository(latency)),
     ratesRepositoryProvider.overrideWithValue(_PreviewRatesRepository(latency)),
-    authRepositoryProvider.overrideWithValue(_PreviewAuthRepository(latency)),
+    authRepositoryProvider
+        .overrideWithValue(_PreviewAuthRepository(latency, session)),
+    profileRepositoryProvider
+        .overrideWithValue(_PreviewProfileRepository(latency, session)),
+    beneficiaryRepositoryProvider
+        .overrideWithValue(_PreviewBeneficiaryRepository(latency)),
+    tradeRepositoryProvider.overrideWithValue(_PreviewTradeRepository(latency)),
     tokenStorageProvider.overrideWithValue(_PreviewTokenStorage()),
   ];
 }

@@ -12,6 +12,12 @@ Walkthrough
 - Code: 1234 works; anything else shows the wrong-code message.
 - Identity: try Personal and Business. An ID containing "bad" is rejected,
   one containing "wait" ends as pending, anything else is verified.
-- Home is still a temporary screen until F3.1.
+- Home: your name and badge come from what you typed. Type an amount in
+  "You send"; the other side updates after a short pause. Tap the rate line
+  to swap currencies; tap a saved recipient to select it. More than
+  "Available today" (8,000,000 TZS) shows the limit message. A "pending"
+  registration shows the verification message and the button stays off.
+- Ledger, Rates and Account tabs, and the screen after "Review", are still
+  temporary placeholders.
 
 To remove all simulated data: delete this folder.

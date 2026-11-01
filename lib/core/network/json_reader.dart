@@ -63,6 +63,12 @@ class JsonReader {
     throw _invalid(key);
   }
 
+  JsonReader object(String key) {
+    final v = _map[key];
+    if (v is Map<String, dynamic>) return JsonReader._(v);
+    throw _invalid(key);
+  }
+
   JsonReader? optionalObject(String key) {
     final v = _map[key];
     if (v == null) return null;

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crosspay_app/models/quote_model.dart';
+import 'package:crosspay_app/providers/auth_provider.dart';
 
 enum QuoteStatus { idle, loading, ready, expired, error }
 
@@ -73,6 +74,12 @@ class QuoteNotifier extends Notifier<QuoteState> {
   @override
   QuoteState build() {
     ref.onDispose(() => _timer?.cancel());
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      if (next.status == AuthStatus.signedOut &&
+          previous?.status != AuthStatus.signedOut) {
+        reset();
+      }
+    });
     return const QuoteState();
   }
 

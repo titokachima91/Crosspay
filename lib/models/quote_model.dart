@@ -5,6 +5,7 @@ class Currency {
     required this.code,
     required this.name,
     required this.countryCode,
+    required this.decimals,
   });
 
   final String code;
@@ -12,6 +13,10 @@ class Currency {
 
   /// Country the currency belongs to, used to draw the flag.
   final String countryCode;
+
+  /// How many digits follow the decimal point on screen (for example 0 or 2).
+  /// Amounts are whole numbers in the smallest unit: displayed value x 10^decimals.
+  final int decimals;
 
   @override
   bool operator ==(Object other) => other is Currency && other.code == code;
@@ -23,8 +28,9 @@ class Currency {
 /// The two clearing routes the product offers (Screen 2.2).
 enum RouteType { p2p, bank }
 
-/// One route's outcome as priced by the server. Amounts are integers in
-/// minor units (1/100). The app displays these values and never calculates them.
+/// One route's outcome as priced by the server. Amounts are whole numbers in
+/// the smallest unit of each currency (see Currency.decimals). The app displays
+/// these values and never calculates them.
 class RouteQuote {
   const RouteQuote({
     required this.route,
@@ -142,4 +148,26 @@ class CorridorRate {
   final double rate;
   final double? change24hPercent;
   final CorridorStatus? status;
+}
+
+/// An indicative conversion shown while typing. It is NOT a locked price: the
+/// real, locked quote comes later with the route choice.
+class Estimate {
+  const Estimate({
+    required this.rate,
+    required this.receiveAmountMinor,
+    required this.estimatedMinSeconds,
+    required this.estimatedMaxSeconds,
+    required this.route,
+  });
+
+  /// Units of send currency per 1 unit of receive currency (display only).
+  final double rate;
+
+  /// What the recipient would get (fees are added on top, never deducted).
+  final int receiveAmountMinor;
+
+  final int estimatedMinSeconds;
+  final int estimatedMaxSeconds;
+  final RouteType route;
 }

@@ -43,7 +43,7 @@ class _FakeAuthRepository extends AuthRepository {
 }
 
 const _testConfig = AppConfig(
-  currencies: [Currency(code: 'AAA', name: 'Alpha', countryCode: 'ZZ')],
+  currencies: [Currency(code: 'AAA', name: 'Alpha', countryCode: 'ZZ', decimals: 2)],
   countries: [
     Country(
       code: 'ZZ',

@@ -23,7 +23,7 @@ class _FakeConfigRepository extends ConfigRepository {
 
   @override
   Future<AppConfig> fetch() async => const AppConfig(
-        currencies: [Currency(code: 'AAA', name: 'Alpha', countryCode: 'ZZ')],
+        currencies: [Currency(code: 'AAA', name: 'Alpha', countryCode: 'ZZ', decimals: 2)],
         countries: [
           Country(
             code: 'ZZ',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crosspay_app/core/constants/app_colors.dart';
 import 'package:crosspay_app/core/utils/country_flag.dart';
+import 'package:crosspay_app/core/utils/money_format.dart';
 import 'package:crosspay_app/models/quote_model.dart';
 import 'package:crosspay_app/providers/config_provider.dart';
 import 'package:crosspay_app/providers/localization_provider.dart';
@@ -95,9 +96,6 @@ List<CorridorRate> _firstPerPair(List<CorridorRate> rates) {
   return result;
 }
 
-String _formatRate(double rate) =>
-    rate >= 1 ? rate.toStringAsFixed(2) : rate.toStringAsFixed(4);
-
 class _MessageWithRetry extends ConsumerWidget {
   const _MessageWithRetry({required this.text, required this.onRetry});
 
@@ -148,7 +146,7 @@ class _RateRow extends ConsumerWidget {
 
     final rateLine = ref.tr('corridor.rate_line', params: {
       'to': rate.to.code,
-      'rate': _formatRate(rate.rate),
+      'rate': MoneyFormat.rate(rate.rate),
       'from': rate.from.code,
     });
 

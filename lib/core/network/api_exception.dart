@@ -32,6 +32,13 @@ class ApiException implements Exception {
   /// Localization key for a general, user-facing message.
   String get messageKey => 'error.${kind.name}';
 
+  /// The server answered, but not in the agreed shape.
+  factory ApiException.invalidResponse(String what) => ApiException(
+        kind: ApiErrorKind.unknown,
+        code: 'INVALID_RESPONSE',
+        serverMessage: 'Unexpected format: $what',
+      );
+
   factory ApiException.fromDio(DioException e) {
     final inner = e.error;
     if (inner is ApiException) return inner;

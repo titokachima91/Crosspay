@@ -29,3 +29,11 @@ Only the founder can do (open items)
 - Choose the final name (BantuPay / CrossPay / AfrEX); check domain and trademark.
 - Open partner conversations: SMS provider, mobile money aggregators, bank.
 - Supply a logo file and the privacy policy text.
+
+Home screen (F3.1)
+- Converter figures come from the server (GET /trade/estimate, debounced).
+- Currency decimals come from the server; amounts are whole numbers in the
+  smallest unit (displayed value x 10^decimals).
+- Bell icon left out until notifications exist; "Saved recipients" row shows
+  people only; "+ Add new" / "View all" arrive with F5.2.
+- Over-limit and not-verified messages are display checks; the server enforces.

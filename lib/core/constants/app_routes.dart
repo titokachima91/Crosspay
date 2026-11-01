@@ -6,4 +6,5 @@ class AppRoutes {
   static const String otp = '/otp';
   static const String kyc = '/kyc';
   static const String home = '/home';
+  static const String review = '/review';
 }
