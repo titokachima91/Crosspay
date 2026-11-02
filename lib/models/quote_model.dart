@@ -43,6 +43,9 @@ class RouteQuote {
     required this.isRecommended,
     required this.isAvailable,
     this.matchingDensityPercent,
+    this.status,
+    this.safeguardCode,
+    this.breakdown = const [],
   });
 
   final RouteType route;
@@ -66,6 +69,16 @@ class RouteQuote {
 
   /// Peer-matching density (0 to 100), when the route has one.
   final int? matchingDensityPercent;
+
+  /// Route health, as a code plus a level (like corridor status).
+  final CorridorStatus? status;
+
+  /// Present only when the safeguard really exists (for example an
+  /// escrow partner). The app shows no safeguard claim without it.
+  final String? safeguardCode;
+
+  /// The fee lines that add up to [feeMinor], in the SEND currency.
+  final List<FeeLine> breakdown;
 }
 
 /// A server-issued price with a rate lock that ends at [expiresAt].
@@ -78,6 +91,7 @@ class Quote {
     required this.rate,
     required this.expiresAt,
     required this.routes,
+    this.clockOffset = Duration.zero,
   });
 
   final String id;
@@ -92,8 +106,12 @@ class Quote {
   final DateTime expiresAt;
   final List<RouteQuote> routes;
 
+  /// Server clock minus phone clock when the quote arrived. Keeps a wrong
+  /// phone clock from stretching or cutting the rate lock.
+  final Duration clockOffset;
+
   Duration remainingAt(DateTime now) {
-    final diff = expiresAt.difference(now);
+    final diff = expiresAt.difference(now.add(clockOffset));
     return diff.isNegative ? Duration.zero : diff;
   }
 
@@ -170,4 +188,14 @@ class Estimate {
   final int estimatedMinSeconds;
   final int estimatedMaxSeconds;
   final RouteType route;
+}
+
+/// One line of a route's fee breakdown (for example the platform fee).
+class FeeLine {
+  const FeeLine({required this.code, required this.amountMinor});
+
+  final String code;
+
+  /// In the SEND currency.
+  final int amountMinor;
 }

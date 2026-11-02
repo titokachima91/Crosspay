@@ -21,3 +21,9 @@ Walkthrough
   temporary placeholders.
 
 To remove all simulated data: delete this folder.
+
+Route selection (preview)
+- Tap "Review and select route" on Home. The simulated lock lasts 90 seconds,
+  so you can watch it expire and tap "Get a new rate".
+- Amounts above 5,000,000 make the simulated bank route unavailable.
+- "Proceed" leads to a temporary screen until F3.3.

@@ -319,6 +319,99 @@ class _PreviewTradeRepository extends TradeRepository {
       route: RouteType.p2p,
     );
   }
+
+  @override
+  Future<Quote> quote({
+    required Currency sendCurrency,
+    required Currency receiveCurrency,
+    required int sendAmountMinor,
+  }) async {
+    await _wait(_latency);
+    final rate = _previewRate(sendCurrency.code, receiveCurrency.code);
+    if (rate == null) {
+      throw const ApiException(
+        kind: ApiErrorKind.client,
+        statusCode: 400,
+        code: 'CORRIDOR_UNAVAILABLE',
+      );
+    }
+
+    final sendMajor =
+        sendAmountMinor / math.pow(10, sendCurrency.decimals).toDouble();
+    final payout =
+        (sendMajor / rate * math.pow(10, receiveCurrency.decimals)).round();
+    int part(int bps) => (sendAmountMinor * bps / 10000).round();
+
+    RouteQuote build(
+      RouteType type, {
+      required int platformBps,
+      required int networkBps,
+      required int minSeconds,
+      required int maxSeconds,
+      required bool recommended,
+      required bool available,
+      required String statusCode,
+      required String safeguard,
+    }) {
+      final platform = part(platformBps);
+      final network = part(networkBps);
+      return RouteQuote(
+        route: type,
+        feeBps: platformBps + networkBps,
+        feeMinor: platform + network,
+        payoutMinor: payout,
+        totalDebitMinor: sendAmountMinor + platform + network,
+        estimatedMinSeconds: minSeconds,
+        estimatedMaxSeconds: maxSeconds,
+        isRecommended: recommended,
+        isAvailable: available,
+        status: available
+            ? CorridorStatus(code: statusCode, level: CorridorLevel.healthy)
+            : null,
+        safeguardCode: safeguard,
+        breakdown: [
+          FeeLine(code: 'platform_fee', amountMinor: platform),
+          FeeLine(code: 'network_fee', amountMinor: network),
+        ],
+      );
+    }
+
+    // Above this amount the simulated bank route becomes unavailable.
+    final bankAvailable = sendMajor <= 5000000;
+
+    return Quote(
+      id: 'preview-quote',
+      sendCurrency: sendCurrency,
+      receiveCurrency: receiveCurrency,
+      sendAmountMinor: sendAmountMinor,
+      rate: rate,
+      expiresAt: DateTime.now().add(const Duration(seconds: 90)),
+      routes: [
+        build(
+          RouteType.p2p,
+          platformBps: 100,
+          networkBps: 50,
+          minSeconds: 1800,
+          maxSeconds: 7200,
+          recommended: true,
+          available: true,
+          statusCode: 'high_matching_density',
+          safeguard: 'local_partner_escrow',
+        ),
+        build(
+          RouteType.bank,
+          platformBps: 200,
+          networkBps: 80,
+          minSeconds: 5,
+          maxSeconds: 60,
+          recommended: false,
+          available: bankAvailable,
+          statusCode: 'instant_settlement_available',
+          safeguard: 'direct_bank_treasury',
+        ),
+      ],
+    );
+  }
 }
 
 class _PreviewTokenStorage implements TokenStorage {

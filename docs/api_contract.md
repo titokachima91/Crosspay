@@ -124,3 +124,43 @@ Response:
   ]
 }
 - A recipient whose railId is not in /config is ignored by the app.
+
+## POST /api/v1/trade/quote   (login required)
+Request:  { "sendCurrency": "<code>", "receiveCurrency": "<code>", "sendAmountMinor": <int> }
+Response:
+{
+  "id": "<quote id>",
+  "rate": <number: send-currency units per 1 receive-currency unit>,
+  "serverTime": "<ISO-8601 UTC: the server's clock when it answered>",
+  "expiresAt": "<ISO-8601 UTC: when the rate lock ends>",
+  "routes": [
+    {
+      "route": "p2p" | "bank",
+      "feeBps": <int>,
+      "feeMinor": <int, send currency>,
+      "payoutMinor": <int, receive currency: the FULL converted amount>,
+      "totalDebitMinor": <int, send currency: amount + fee>,
+      "estimatedMinSeconds": <int>, "estimatedMaxSeconds": <int>,
+      "isRecommended": <bool>, "isAvailable": <bool>,
+      "matchingDensityPercent": <0-100, optional>,
+      "status": { "code": "<status code>", "level": "healthy | limited | down" },   (optional)
+      "safeguardCode": "<code>",     (optional: only when the safeguard really exists)
+      "breakdown": [ { "code": "platform_fee | network_fee | ...", "amountMinor": <int, send currency> } ]
+    }
+  ]
+}
+- The lock lasts until expiresAt; nothing in the app assumes a duration. The
+  app corrects its countdown with serverTime, so a wrong phone clock cannot
+  stretch or cut the lock.
+- Fees are added on top: totalDebitMinor = sendAmountMinor + feeMinor, and
+  payoutMinor is never reduced by fees.
+- Codes the app translates today. Route status: high_matching_density,
+  instant_settlement_available. Safeguard: local_partner_escrow,
+  direct_bank_treasury (wording must be approved by the lawyer; the server
+  must send a safeguardCode only when that safeguard truly exists). Fee lines:
+  platform_fee, network_fee. Unknown codes are ignored (safeguards) or shown
+  generically (fee lines).
+- Rejections are 4xx with a code, e.g. CORRIDOR_UNAVAILABLE, LIMIT_EXCEEDED,
+  VERIFICATION_REQUIRED.
+- A locked rate is a promise the platform keeps even if the market moves: the
+  spread built into the rate must cover that risk (a pricing decision).

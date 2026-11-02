@@ -37,3 +37,13 @@ Home screen (F3.1)
 - Bell icon left out until notifications exist; "Saved recipients" row shows
   people only; "+ Add new" / "View all" arrive with F5.2.
 - Over-limit and not-verified messages are display checks; the server enforces.
+
+Route selection (F3.2)
+- Each card shows "You pay" (amount + fee) and "Recipient gets" (full
+  converted amount); the old single "total payout" line is gone.
+- A safeguard line (escrow, treasury sweep) appears only when the server sends
+  a safeguardCode AND the app has approved wording for it.
+- Fee lines come from the server. "Fastest" replaces the "Instant" badge
+  because speeds are data, not a promise.
+- A new quote is requested every time the screen opens. When the lock ends,
+  the screen offers "Get a new rate" and never re-prices silently.

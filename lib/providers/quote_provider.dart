@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:crosspay_app/core/network/api_exception.dart';
+import 'package:crosspay_app/core/utils/duration_format.dart';
 import 'package:crosspay_app/models/quote_model.dart';
 import 'package:crosspay_app/providers/auth_provider.dart';
+import 'package:crosspay_app/repositories/trade_repository.dart';
 
 enum QuoteStatus { idle, loading, ready, expired, error }
 
@@ -14,10 +17,11 @@ class QuoteState {
     this.selectedRoute,
     this.status = QuoteStatus.idle,
     this.remaining = Duration.zero,
-    this.errorMessage,
+    this.errorKey,
+    this.errorCode,
   });
 
-  /// Null until the user (or the server config) picks one.
+  /// Null until the person (or the first screen) picks one.
   final Currency? sendCurrency;
   final Currency? receiveCurrency;
   final int sendAmountMinor;
@@ -25,7 +29,11 @@ class QuoteState {
   final RouteType? selectedRoute;
   final QuoteStatus status;
   final Duration remaining;
-  final String? errorMessage;
+
+  /// Localization key for the last failure (e.g. 'error.network') and the
+  /// server's error code for a more specific message.
+  final String? errorKey;
+  final String? errorCode;
 
   bool get canRequestQuote =>
       sendCurrency != null &&
@@ -34,11 +42,7 @@ class QuoteState {
       sendAmountMinor > 0;
 
   /// Countdown label for the rate-lock banner, e.g. "04:58".
-  String get remainingLabel {
-    final m = remaining.inMinutes.toString().padLeft(2, '0');
-    final s = (remaining.inSeconds % 60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
+  String get remainingLabel => formatClock(remaining);
 
   QuoteState copyWith({
     Currency? sendCurrency,
@@ -50,7 +54,8 @@ class QuoteState {
     bool clearRoute = false,
     QuoteStatus? status,
     Duration? remaining,
-    String? errorMessage,
+    String? errorKey,
+    String? errorCode,
     bool clearError = false,
   }) {
     return QuoteState(
@@ -61,7 +66,8 @@ class QuoteState {
       selectedRoute: clearRoute ? null : (selectedRoute ?? this.selectedRoute),
       status: status ?? this.status,
       remaining: remaining ?? this.remaining,
-      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      errorKey: clearError ? null : (errorKey ?? this.errorKey),
+      errorCode: clearError ? null : (errorCode ?? this.errorCode),
     );
   }
 }
@@ -70,10 +76,12 @@ class QuoteState {
 /// whatever the server put in the quote's expiry time.
 class QuoteNotifier extends Notifier<QuoteState> {
   Timer? _timer;
+  int _requestGeneration = 0;
 
   @override
   QuoteState build() {
     ref.onDispose(() => _timer?.cancel());
+    // A different person must never see the previous person's inputs.
     ref.listen<AuthState>(authProvider, (previous, next) {
       if (next.status == AuthStatus.signedOut &&
           previous?.status != AuthStatus.signedOut) {
@@ -83,9 +91,11 @@ class QuoteNotifier extends Notifier<QuoteState> {
     return const QuoteState();
   }
 
-  /// Any change to the inputs invalidates the current quote.
+  /// Any change to the inputs invalidates the current quote and any request
+  /// still on its way.
   void _edit({Currency? send, Currency? receive, int? amount}) {
     _timer?.cancel();
+    _requestGeneration++;
     state = state.copyWith(
       sendCurrency: send,
       receiveCurrency: receive,
@@ -109,6 +119,29 @@ class QuoteNotifier extends Notifier<QuoteState> {
     final option = state.quote?.forRoute(route);
     if (option == null || !option.isAvailable) return;
     state = state.copyWith(selectedRoute: route);
+  }
+
+  /// Asks the server for a locked quote for the current inputs.
+  Future<void> requestQuote() async {
+    final inputs = state;
+    final send = inputs.sendCurrency;
+    final receive = inputs.receiveCurrency;
+    if (!inputs.canRequestQuote || send == null || receive == null) return;
+
+    quoteRequested();
+    final generation = ++_requestGeneration;
+    try {
+      final quote = await ref.read(tradeRepositoryProvider).quote(
+            sendCurrency: send,
+            receiveCurrency: receive,
+            sendAmountMinor: inputs.sendAmountMinor,
+          );
+      if (generation != _requestGeneration) return;
+      quoteReceived(quote);
+    } on ApiException catch (e) {
+      if (generation != _requestGeneration) return;
+      quoteFailed(e.messageKey, code: e.code);
+    }
   }
 
   void quoteRequested() {
@@ -139,13 +172,18 @@ class QuoteNotifier extends Notifier<QuoteState> {
     }
   }
 
-  void quoteFailed(String message) {
+  void quoteFailed(String errorKey, {String? code}) {
     _timer?.cancel();
-    state = state.copyWith(status: QuoteStatus.error, errorMessage: message);
+    state = state.copyWith(
+      status: QuoteStatus.error,
+      errorKey: errorKey,
+      errorCode: code,
+    );
   }
 
   void reset() {
     _timer?.cancel();
+    _requestGeneration++;
     state = const QuoteState();
   }
 

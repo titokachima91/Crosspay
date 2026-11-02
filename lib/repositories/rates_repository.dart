@@ -6,6 +6,7 @@ import 'package:crosspay_app/core/network/dio_client.dart';
 import 'package:crosspay_app/core/network/json_reader.dart';
 import 'package:crosspay_app/models/app_config_model.dart';
 import 'package:crosspay_app/models/quote_model.dart';
+import 'package:crosspay_app/repositories/status_parser.dart';
 
 class RatesSnapshot {
   const RatesSnapshot({
@@ -43,7 +44,7 @@ class RatesRepository {
             to: to,
             rate: item.number('rate'),
             change24hPercent: item.optionalNumber('change24hPercent'),
-            status: _parseStatus(item.optionalObject('status')),
+            status: parseCorridorStatus(item.optionalObject('status')),
           ),
         );
       }
@@ -57,18 +58,6 @@ class RatesRepository {
     } on DioException catch (e) {
       throw ApiException.fromDio(e);
     }
-  }
-
-  CorridorStatus? _parseStatus(JsonReader? json) {
-    if (json == null) return null;
-    final level = switch (json.string('level')) {
-      'healthy' => CorridorLevel.healthy,
-      'limited' => CorridorLevel.limited,
-      'down' => CorridorLevel.down,
-      _ => null,
-    };
-    if (level == null) return null;
-    return CorridorStatus(code: json.string('code'), level: level);
   }
 }
 

@@ -58,6 +58,14 @@ class MoneyFormat {
     return whole * _pow10(places) + fraction;
   }
 
+  /// 150 basis points become "1.5%", 100 become "1%".
+  static String percentFromBps(int bps) {
+    final whole = bps ~/ 100;
+    final fraction =
+        (bps % 100).toString().padLeft(2, '0').replaceFirst(RegExp(r'0+$'), '');
+    return fraction.isEmpty ? '$whole%' : '$whole.$fraction%';
+  }
+
   /// Exchange rate for display: "19.85" or "0.0504".
   static String rate(double value) =>
       value >= 1 ? value.toStringAsFixed(2) : value.toStringAsFixed(4);

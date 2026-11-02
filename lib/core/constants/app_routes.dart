@@ -7,4 +7,5 @@ class AppRoutes {
   static const String kyc = '/kyc';
   static const String home = '/home';
   static const String review = '/review';
+  static const String recipient = '/recipient';
 }
