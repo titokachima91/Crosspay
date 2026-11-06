@@ -235,3 +235,5 @@ Backend MUST:
 ---
 
 ## Report End - No fluff. Just facts.
+
+- F3.7.2 Language selector: DONE (language_selector_screen.dart, en/sw only per shipped localization; verified analyze 0 issues; route /language pending registration with account entry point).
