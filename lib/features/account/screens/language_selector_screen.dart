@@ -10,7 +10,7 @@ import 'package:crosspay_app/providers/localization_provider.dart';
 class LanguageSelectorScreen extends ConsumerWidget {
   const LanguageSelectorScreen({super.key});
 
-  String _name(String code) => switch (code) {
+  static String _name(String code) => switch (code) {
         'en' => 'English',
         'sw' => 'Kiswahili',
         _ => code.toUpperCase(),
@@ -50,7 +50,7 @@ class LanguageSelectorScreen extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(14),
                     onTap: () => ref
                         .read(localeCodeProvider.notifier)
-                        .setLocale(code),
+                        .setLanguage(code),
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(

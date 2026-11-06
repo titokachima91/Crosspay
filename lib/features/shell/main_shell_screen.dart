@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:crosspay_app/core/constants/app_colors.dart';
 import 'package:crosspay_app/core/constants/app_routes.dart';
+import 'package:crosspay_app/core/security/pin_manager.dart';
+import 'package:crosspay_app/features/account/screens/account_tab_screen.dart';
 import 'package:crosspay_app/features/transaction/screens/home_dashboard_screen.dart';
 import 'package:crosspay_app/providers/auth_provider.dart';
 import 'package:crosspay_app/widgets/persistent_bottom_nav.dart';
@@ -15,6 +18,29 @@ class MainShellScreen extends ConsumerStatefulWidget {
 
 class _MainShellScreenState extends ConsumerState<MainShellScreen> {
   int _index = 0;
+  bool _gated = false;
+  bool _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _gate());
+  }
+
+  /// F3.7.3 — app-lock gate. Runs once per shell mount: when a PIN is
+  /// set the person must enter it before the tabs become usable.
+  /// Cancel pops back to the previous screen (never traps in a loop).
+  Future<void> _gate() async {
+    if (_gated) return;
+    _gated = true;
+    final unlocked = await PinManager().ensureUnlocked(context);
+    if (!mounted) return;
+    if (unlocked) {
+      setState(() => _visible = true);
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,15 +56,18 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
     });
 
     return Scaffold(
-      body: IndexedStack(
-        index: _index,
-        children: const [
-          HomeDashboardScreen(),
-          _PlaceholderTab(label: 'Next: F4.1 ledger'),
-          _PlaceholderTab(label: 'Next: F4.2 rates'),
-          _PlaceholderTab(label: 'Next: F5.1 account'),
-        ],
-      ),
+      body: !_visible
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.emerald))
+          : IndexedStack(
+              index: _index,
+              children: const [
+                HomeDashboardScreen(),
+                _PlaceholderTab(label: 'Next: F4.1 ledger'),
+                _PlaceholderTab(label: 'Next: F4.2 rates'),
+                AccountTabScreen(),
+              ],
+            ),
       bottomNavigationBar: PersistentBottomNav(
         currentIndex: _index,
         onSelected: (index) => setState(() => _index = index),
