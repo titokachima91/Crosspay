@@ -103,11 +103,15 @@ class PaymentNotifier extends Notifier<PaymentState> {
   Timer? _pollTimer;
   Timer? _fallbackTimer;
   bool _polling = false;
+  bool _disposed = false;
   int _generation = 0;
 
   @override
   PaymentState build() {
-    ref.onDispose(_stopTimers);
+    ref.onDispose(() {
+      _disposed = true;
+      _stopTimers();
+    });
     ref.listen<AuthState>(authProvider, (previous, next) {
       if (next.status == AuthStatus.signedOut &&
           previous?.status != AuthStatus.signedOut) {
@@ -162,7 +166,7 @@ class PaymentNotifier extends Notifier<PaymentState> {
             idempotencyKey: key,
             config: ref.read(appConfigProvider).config,
           );
-      if (generation != _generation) return;
+      if (generation != _generation || _disposed) return;
 
       ref.read(tradeProvider.notifier).tradeStarted(result.trade);
       state = PaymentState(
@@ -178,7 +182,7 @@ class PaymentNotifier extends Notifier<PaymentState> {
         _applyTrade(result.trade);
       }
     } on ApiException catch (e) {
-      if (generation != _generation) return;
+      if (generation != _generation || _disposed) return;
       state = PaymentState(
         status: PaymentStatus.error,
         attemptKey: key,
@@ -219,10 +223,10 @@ class PaymentNotifier extends Notifier<PaymentState> {
       final updated = await ref
           .read(tradeRepositoryProvider)
           .fetchTrade(trade.id, ref.read(appConfigProvider).config);
-      if (generation != _generation) return;
+      if (generation != _generation || _disposed) return;
       _applyTrade(updated);
     } on ApiException catch (e) {
-      if (generation != _generation) return;
+      if (generation != _generation || _disposed) return;
       state = state.copyWith(pollErrorKey: e.messageKey);
     } finally {
       _polling = false;
