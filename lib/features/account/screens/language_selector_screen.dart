@@ -4,7 +4,7 @@ import 'package:crosspay_app/core/constants/app_colors.dart';
 import 'package:crosspay_app/core/localization/app_localizations.dart';
 import 'package:crosspay_app/providers/localization_provider.dart';
 
-/// F3.7.2 Language selector — reuses the existing localeCodeProvider.
+/// F5.3 Language selector — reuses the existing localeCodeProvider.
 /// Only languages the app actually ships (AppLocalizations.supportedCodes)
 /// are offered: no fake entries, choice remembered on this device.
 class LanguageSelectorScreen extends ConsumerWidget {

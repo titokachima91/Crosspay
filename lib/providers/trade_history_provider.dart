@@ -3,7 +3,7 @@ import 'package:crosspay_app/models/trade_model.dart';
 import 'package:crosspay_app/providers/config_provider.dart';
 import 'package:crosspay_app/repositories/trade_repository.dart';
 
-/// F3.7.4 — trade history (GET /trades).
+/// F4.1 — trade history (GET /trades).
 ///
 /// Kept in its own provider so the live tracking state
 /// (tradeProvider) is never disturbed. Until the backend ships

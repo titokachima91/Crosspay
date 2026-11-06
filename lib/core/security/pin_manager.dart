@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// F3.7.3 — local app-lock PIN manager.
+/// F5.3 — local app-lock PIN manager.
 ///
 /// The PIN itself is NEVER stored: only a salted SHA-256 hash is kept
 /// in platform-secure storage (Keychain / Keystore). A wrong device

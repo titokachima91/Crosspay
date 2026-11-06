@@ -5,7 +5,10 @@ import 'package:crosspay_app/core/utils/money_format.dart';
 import 'package:crosspay_app/models/quote_model.dart';
 import 'package:crosspay_app/providers/quote_provider.dart';
 
-/// F3.7.1 Advanced Payment Routing — route comparison screen.
+/// Advanced Payment Routing — route comparison screen.
+///
+/// Kept extra: this screen is outside the F1-F5 plan (see the "Kept extras"
+/// section of MASTER_PROGRESS_REPORT.md).
 ///
 /// Shows every route the server priced for the current quote (You pay /
 /// Recipient gets / fee lines / arrival estimate) and lets the user pick

@@ -5,12 +5,35 @@ import 'package:crosspay_app/core/utils/money_format.dart';
 import 'package:crosspay_app/models/trade_model.dart';
 import 'package:crosspay_app/providers/trade_history_provider.dart';
 
-/// F3.7.4 Transaction History — searchable list of the user's trades.
+/// Date windows offered above the list. [days] is null for "all time".
+enum HistoryRange {
+  all('All time', null),
+  last7('Last 7 days', 7),
+  last30('Last 30 days', 30),
+  last90('Last 90 days', 90);
+
+  const HistoryRange(this.label, this.days);
+
+  final String label;
+  final int? days;
+
+  /// Whether [createdAt] falls inside this window. "All time" never
+  /// filters a row out. Compared as instants, so UTC rows from the
+  /// server and the device clock line up.
+  bool includes(DateTime createdAt, DateTime now) {
+    final days = this.days;
+    if (days == null) return true;
+    return createdAt.isAfter(now.subtract(Duration(days: days)));
+  }
+}
+
+/// F4.1 Transaction History — searchable, filterable list of the user's trades.
 ///
 /// Reads ONLY from [tradeHistoryProvider] (server data). When the
 /// endpoint is unavailable the screen says so plainly ("not
 /// connected") — never fake data in lib/ (product rule 2 & 5).
-/// Client-side search and status filter run over server-provided rows.
+/// Search, status and date-window filters run on the device over the
+/// server-provided rows; the server stays the source of truth.
 class TransactionHistoryScreen extends ConsumerStatefulWidget {
   const TransactionHistoryScreen({super.key});
 
@@ -23,6 +46,7 @@ class _TransactionHistoryScreenState
     extends ConsumerState<TransactionHistoryScreen> {
   String _query = '';
   TradeStatus? _filter;
+  HistoryRange _range = HistoryRange.all;
 
   @override
   void initState() {
@@ -32,10 +56,13 @@ class _TransactionHistoryScreenState
     });
   }
 
-  List<Trade> _apply(List<Trade> trades) {
+  List<Trade> _apply(List<Trade> trades, DateTime now) {
     var rows = trades;
     if (_filter != null) {
       rows = rows.where((t) => t.status == _filter).toList();
+    }
+    if (_range != HistoryRange.all) {
+      rows = rows.where((t) => _range.includes(t.createdAt, now)).toList();
     }
     if (_query.trim().isNotEmpty) {
       final q = _query.trim().toLowerCase();
@@ -72,7 +99,7 @@ class _TransactionHistoryScreenState
   @override
   Widget build(BuildContext context) {
     final history = ref.watch(tradeHistoryProvider);
-    final rows = _apply(history.trades);
+    final rows = _apply(history.trades, DateTime.now());
 
     return Scaffold(
       appBar: AppBar(
@@ -106,6 +133,11 @@ class _TransactionHistoryScreenState
                   _FilterChips(
                     selected: _filter,
                     onSelected: (s) => setState(() => _filter = s),
+                  ),
+                  const SizedBox(height: 8),
+                  _RangeChips(
+                    selected: _range,
+                    onSelected: (r) => setState(() => _range = r),
                   ),
                   const SizedBox(height: 12),
                   Expanded(
@@ -205,17 +237,40 @@ class _FilterChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
       children: [
         for (final option in _options)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(_label(option), style: const TextStyle(fontSize: 13)),
-              selected: selected == option,
-              selectedColor: AppColors.emerald.withOpacity(0.15),
-              onSelected: (_) => onSelected(option),
-            ),
+          ChoiceChip(
+            label: Text(_label(option), style: const TextStyle(fontSize: 13)),
+            selected: selected == option,
+            selectedColor: AppColors.emerald.withOpacity(0.15),
+            onSelected: (_) => onSelected(option),
+          ),
+      ],
+    );
+  }
+}
+
+class _RangeChips extends StatelessWidget {
+  const _RangeChips({required this.selected, required this.onSelected});
+
+  final HistoryRange selected;
+  final ValueChanged<HistoryRange> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final option in HistoryRange.values)
+          ChoiceChip(
+            label: Text(option.label, style: const TextStyle(fontSize: 13)),
+            selected: selected == option,
+            selectedColor: AppColors.navy.withOpacity(0.12),
+            onSelected: (_) => onSelected(option),
           ),
       ],
     );

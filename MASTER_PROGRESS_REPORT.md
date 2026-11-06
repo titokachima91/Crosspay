@@ -61,7 +61,7 @@ CrossPay is engineered as a non-custodial, server-driven cross-border payments e
 - [x] F3.6 Digital invoice & share sheet - **COMPLETE & DOCUMENTED**
 
 ### F4 Ledger & Market
-- [ ] F4.1 Searchable ledger & filters (+ ledger model/provider) - **partial (2026-11-06): history screen w/ search + status filter built; date-range filter, export, timeline, analytics remain** -> `FEATURE_SPEC/F4/F4.1.md`
+- [ ] F4.1 Searchable ledger & filters (+ ledger model/provider) - **partial: history screen w/ search + status filter (2026-11-06) and date-range windows (2026-11-07); CSV export, status timeline, analytics remain** -> `FEATURE_SPEC/F4/F4.1.md`
 - [ ] F4.2 Market depth & queue health
 
 ### F5 Profile & Security
@@ -93,7 +93,7 @@ CrossPay is engineered as a non-custodial, server-driven cross-border payments e
 
 ## PART 3: TESTING
 
-- [x] Widget & unit suites - `flutter test` -> **169/169 passing** (2026-11-06)
+- [x] Widget & unit suites - `flutter test` -> **177/177 passing** (2026-11-07)
 - [ ] T1.1 End-to-end sandbox run
 - [ ] T1.2 KYC/sanctions
 - [ ] T1.3 Pilot
@@ -216,12 +216,12 @@ Backend MUST:
 ### Partially Built (tracked under their real plan IDs, built 2026-11-06)
 | Feature | Status | Documentation | Tests | Analysis |
 |---------|--------|---------------|-------|----------|
-| F4.1 | Partial - history search + status filter shipped | `FEATURE_SPEC/F4/F4.1.md` | Passing | 0 issues |
+| F4.1 | Partial - history search, status + date-window filters shipped | `FEATURE_SPEC/F4/F4.1.md` | Passing | 0 issues |
 | F5.3 | Partial - PIN lock + language selector shipped | `FEATURE_SPEC/F5/F5.3.md` | Passing | 0 issues |
 
 ### Code Quality
 - `dart analyze lib/ test/` → No issues found (verified 2026-11-07)
-- `flutter test` → **169/169 all passing** (verified 2026-11-07)
+- `flutter test` → **177/177 all passing** (verified 2026-11-07)
 - Payment notifier ignores late results once disposed (`_disposed` guards in `start`/`_poll`, 2026-11-07) - the fallback-timeout test exposed a poll landing on an already-disposed container
 - Preview/fakes errors resolved
 
@@ -237,7 +237,7 @@ Backend MUST:
 
 **F3 is closed at F3.6. F4 opens now, with part of F4.1 (and F5.3) already built.**
 
-- **F4.1 (partial, built 2026-11-06):** transaction history screen (`/history`) with search + status filter, `trade_history_provider`, `getTrades()` in the trade repository, `ApiEndpoints.trades/tradeInvoice/tradeShare`. Remaining: date-range filter, CSV export, status timeline, analytics dashboard; backend `GET /trades` plus history/analytics/export endpoints. Spec: `FEATURE_SPEC/F4/F4.1.md`.
+- **F4.1 (partial, built 2026-11-06; date-range added 2026-11-07):** transaction history screen (`/history`) with search, status filter and date windows (7/30/90 days, filtered on the device over the server rows - `HistoryRange` + `_RangeChips`), `trade_history_provider`, `getTrades()` in the trade repository, `ApiEndpoints.trades/tradeInvoice/tradeShare`. Chip rows use `Wrap` (the old `Row` overflowed on phone widths). Remaining: CSV export, status timeline, analytics dashboard; backend `GET /trades` plus history/analytics/export endpoints. Spec: `FEATURE_SPEC/F4/F4.1.md`.
 - **F4.2 (not started):** market depth & queue health.
 - **F5.3 (partial, built early 2026-11-06):** PIN lock (`lib/core/security/pin_manager.dart`), app-shell PIN gate, language selector (`/language`), security settings (`/security`), Account tab hub. Remaining: `local_auth` biometrics, stay-signed-in / refresh-token rotation, language persistence, 3+ languages/RTL. Spec: `FEATURE_SPEC/F5/F5.3.md`.
 - **Verified (2026-11-06):** `dart analyze lib/ test/` -> **No issues found**; `flutter test` -> **169/169 passing**; `flutter build web --release -t preview/main.dart` -> preview served HTTP 200 (port 8000).

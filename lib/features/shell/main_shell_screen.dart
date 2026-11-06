@@ -27,7 +27,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _gate());
   }
 
-  /// F3.7.3 — app-lock gate. Runs once per shell mount: when a PIN is
+  /// F5.3 — app-lock gate. Runs once per shell mount: when a PIN is
   /// set the person must enter it before the tabs become usable.
   /// Cancel pops back to the previous screen (never traps in a loop).
   Future<void> _gate() async {

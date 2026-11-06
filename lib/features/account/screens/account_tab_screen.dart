@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:crosspay_app/core/constants/app_colors.dart';
 import 'package:crosspay_app/core/constants/app_routes.dart';
 
-/// F3.7 — Account tab: the entry point to Security, History and
+/// F4.1 / F5.3 — Account tab: the entry point to Security, History and
 /// Language. Replaces the temporary "Next: F5.1 account" placeholder;
 /// F5.1 profile and F5.2 saved recipients slot in here later.
 class AccountTabScreen extends StatelessWidget {

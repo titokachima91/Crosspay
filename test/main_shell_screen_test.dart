@@ -20,7 +20,7 @@ void main() {
   });
 
   setUp(() {
-    // F3.7.3 PIN gate: PinManager reads secure storage through a platform
+    // F5.3 PIN gate: PinManager reads secure storage through a platform
     // channel that has no responder under test, so the future never
     // completes and pumpAndSettle hangs. The plugin's own @visibleForTesting
     // hook backs reads with an in-memory map instead: empty map -> no PIN ->

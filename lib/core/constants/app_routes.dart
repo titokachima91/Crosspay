@@ -12,7 +12,7 @@ class AppRoutes {
   static const String tracker = '/tracker';
   static const String invoice = '/invoice';
 
-  // F3.7
+  // F4.1 (history) / F5.3 (security, language)
   static const String compareRoutes = '/compare-routes';
   static const String history = '/history';
   static const String security = '/security';
