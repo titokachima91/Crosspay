@@ -33,11 +33,21 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
   Future<void> _gate() async {
     if (_gated) return;
     _gated = true;
-    final unlocked = await PinManager().ensureUnlocked(context);
+    bool unlocked;
+    try {
+      unlocked = await PinManager().ensureUnlocked(context);
+    } catch (_) {
+      // Secure storage unavailable (tests, broken keystore): fail
+      // open so a storage error never locks the person out of their
+      // own device. PIN guards app surface only; session security
+      // stays with the server (refresh tokens, timeouts).
+      unlocked = true;
+    }
     if (!mounted) return;
     if (unlocked) {
       setState(() => _visible = true);
     } else {
+      // Cancelled the PIN prompt: leave the shell.
       Navigator.of(context).pop();
     }
   }

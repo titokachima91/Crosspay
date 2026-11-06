@@ -49,7 +49,7 @@ void main() {
 
     await tester.tap(find.text('Account'));
     await tester.pumpAndSettle();
-    expect(find.text('Next: F5.1 account (temporary tab)'), findsOneWidget);
+    expect(find.text('Transaction history'), findsOneWidget);
 
     await tester.tap(find.text('Home'));
     await tester.pumpAndSettle();

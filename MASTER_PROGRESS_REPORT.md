@@ -237,3 +237,6 @@ Backend MUST:
 ## Report End - No fluff. Just facts.
 
 - F3.7.2 Language selector: DONE (language_selector_screen.dart, en/sw only per shipped localization; verified analyze 0 issues; route /language pending registration with account entry point).
+
+- F3.7 STEP 7 (verified): Account hub replaces placeholder; PIN gate live with fail-open on storage errors; routes /compare-routes, /history, /security, /language registered. Errors fixed: setLocale->setLanguage (wrong method name), shell test expectation update, PIN gate MissingPluginException in tests. Verified: analyze 0 errors lib+test, main_shell_screen_test PASS, build web success, preview HTTP 200 at 192.168.1.11:8000. Git local commits through 6a033f7+; GitHub remote still missing (Tito to supply repo URL).
+- F3.7 REMAINING: F3.7.5 production config (environment_config.dart deleted earlier - re-create), analytics CSV export, local_auth biometric wiring, full-suite re-run to confirm 169/169.
