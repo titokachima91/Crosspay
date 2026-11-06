@@ -48,16 +48,16 @@ class LanguageSelectorScreen extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(14),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(14),
-                    onTap: () =>
-                        ref.read(localeCodeProvider.notifier).setLocale(code),
+                    onTap: () => ref
+                        .read(localeCodeProvider.notifier)
+                        .setLocale(code),
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: selected
-                              ? AppColors.emerald
-                              : AppColors.border,
+                          color:
+                              selected ? AppColors.emerald : AppColors.border,
                           width: selected ? 2 : 1,
                         ),
                       ),
