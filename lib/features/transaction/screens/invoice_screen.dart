@@ -77,7 +77,7 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(color: AppColors.emerald.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-                            child: Text('Pending', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.emerald)),
+                            child: const Text('Pending', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.emerald)),
                           ),
                         ]),
                       ],

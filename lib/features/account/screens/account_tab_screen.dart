@@ -13,8 +13,8 @@ class AccountTabScreen extends StatelessWidget {
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(24),
-        children: [
-          const Text(
+        children: const [
+          Text(
             'Account',
             style: TextStyle(
               fontSize: 22,
@@ -22,14 +22,14 @@ class AccountTabScreen extends StatelessWidget {
               color: AppColors.navy,
             ),
           ),
-          const SizedBox(height: 16),
-          const _Tile(
+          SizedBox(height: 16),
+          _Tile(
             icon: Icons.history,
             title: 'Transaction history',
             subtitle: 'Search your past trades',
             route: AppRoutes.history,
           ),
-          const _Tile(
+          _Tile(
             icon: Icons.lock_outline,
             title: 'Security',
             subtitle: 'PIN lock and session settings',

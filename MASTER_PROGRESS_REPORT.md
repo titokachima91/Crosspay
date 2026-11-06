@@ -217,26 +217,27 @@ Backend MUST:
 | F3.6 | Complete | Complete | Passing | 0 issues |
 
 ### Code Quality
-- `dart analyze lib/` → 0 issues
-- `dart analyze test/` → 0 issues
-- All test suites verified passing
+- `dart analyze lib/ test/` → No issues found (verified 2026-11-06)
+- `flutter test` → **169/169 all passing** (verified 2026-11-06)
 - Preview/fakes errors resolved
 
 ### Documentation Files
 - `FEATURE_SPEC/F3/F3.5.md` - Live Escrow & Queue Tracker specification
 - `FEATURE_SPEC/F3/F3.6.md` - Digital Invoice & Share Sheet specification
+- `FEATURE_SPEC/F3/F3.7.md` - Advanced Features specification (incl. implementation log, Steps 1-7)
 
 ---
 
-## NEXT PHASE: F3.7 PLANNING
+## CURRENT PHASE: F3.7 IMPLEMENTATION (in progress)
 
-**Ready to proceed.** Foundation (F3.5) and extension (F3.6) are complete.
+**Core implemented & verified; production config / export / biometrics remain.**
+
+- **Done:** route comparison (`/compare-routes`), transaction history (`/history`, in `lib/features/ledger/`), security settings (`/security`), language selector (`/language`, en/sw per shipped localization), Account tab hub as 4th shell tab, PIN gate with fail-open on storage errors — all routes registered in `app.dart`.
+- **Verified (2026-11-06):** `dart analyze lib/ test/` → **No issues found**; `flutter test` → **169/169 passing**. The PIN-gate test hang was root-caused (secure-storage MethodChannel never completes under `testWidgets`) and fixed test-side via `FlutterSecureStorage.setMockInitialValues({})` — full diagnosis in `F3.7.md` Step 7. Also fixed: `setLocale` → `setLanguage`, shell test expectation. `GATE-DEBUG` probes removed.
+- **Build/preview:** `flutter build web --release -t preview/main.dart` → served HTTP 200 on port 8000.
+- **Remaining:** F3.7.5 production config (`environment_config.dart` re-create — old `Env`/`FeatureFlags` copy had invalid syntax and was deleted), analytics CSV export, `local_auth` biometric wiring, 3+ languages/RTL, planned test files (`route_selection_test`, `security_test`, `analytics_test`), backend `GET /trades` for real history data.
+- **Git:** local commits through `c236a85` + this session's commit; **GitHub remote still missing** — Tito to supply repo URL + auth, then push.
 
 ---
 
 ## Report End - No fluff. Just facts.
-
-- F3.7.2 Language selector: DONE (language_selector_screen.dart, en/sw only per shipped localization; verified analyze 0 issues; route /language pending registration with account entry point).
-
-- F3.7 STEP 7 (verified): Account hub replaces placeholder; PIN gate live with fail-open on storage errors; routes /compare-routes, /history, /security, /language registered. Errors fixed: setLocale->setLanguage (wrong method name), shell test expectation update, PIN gate MissingPluginException in tests. Verified: analyze 0 errors lib+test, main_shell_screen_test PASS, build web success, preview HTTP 200 at 192.168.1.11:8000. Git local commits through 6a033f7+; GitHub remote still missing (Tito to supply repo URL).
-- F3.7 REMAINING: F3.7.5 production config (environment_config.dart deleted earlier - re-create), analytics CSV export, local_auth biometric wiring, full-suite re-run to confirm 169/169.

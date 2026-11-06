@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:crosspay_app/core/localization/app_localizations.dart';
 import 'package:crosspay_app/core/theme/app_theme.dart';
@@ -16,6 +17,15 @@ void main() {
 
   setUpAll(() async {
     translations = await AppLocalizations.loadAll();
+  });
+
+  setUp(() {
+    // F3.7.3 PIN gate: PinManager reads secure storage through a platform
+    // channel that has no responder under test, so the future never
+    // completes and pumpAndSettle hangs. The plugin's own @visibleForTesting
+    // hook backs reads with an in-memory map instead: empty map -> no PIN ->
+    // the gate opens instantly. Re-set per test so state never leaks.
+    FlutterSecureStorage.setMockInitialValues(const {});
   });
 
   testWidgets('the four tabs switch, and Home loads the preview data', (tester) async {

@@ -36,7 +36,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
     bool unlocked;
     try {
       unlocked = await PinManager().ensureUnlocked(context);
-    } catch (_) {
+    } catch (e) {
       // Secure storage unavailable (tests, broken keystore): fail
       // open so a storage error never locks the person out of their
       // own device. PIN guards app surface only; session security

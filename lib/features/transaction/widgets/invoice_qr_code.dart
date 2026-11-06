@@ -30,8 +30,8 @@ class InvoiceQrCode extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pattern = _qrPattern();
-    final size = 200.0;
-    final cellSize = size / 25;
+    const size = 200.0;
+    const cellSize = size / 25;
 
     return Column(
       children: [
@@ -44,7 +44,7 @@ class InvoiceQrCode extends StatelessWidget {
             border: Border.all(color: AppColors.border),
           ),
           child: CustomPaint(
-            size: Size(size, size),
+            size: const Size(size, size),
             painter: _QrPainter(pattern: pattern, cellSize: cellSize),
           ),
         ),

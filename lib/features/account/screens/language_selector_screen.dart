@@ -19,7 +19,7 @@ class LanguageSelectorScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final current = ref.watch(localeCodeProvider);
-    final codes = AppLocalizations.supportedCodes;
+    const codes = AppLocalizations.supportedCodes;
 
     return Scaffold(
       appBar: AppBar(
