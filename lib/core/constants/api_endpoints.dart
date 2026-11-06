@@ -17,6 +17,7 @@ class ApiEndpoints {
   static const String tradeQuote = '$_v1/trade/quote';
   static const String tradeInitiate = '$_v1/trade/initiate';
 
+  static const String trades = '$_v1/trades';
   static String trade(String id) => '$_v1/trades/${Uri.encodeComponent(id)}';
   static String tradePaymentClaim(String id) => '${trade(id)}/payment-claim';
   static String tradeCancel(String id) => '${trade(id)}/cancel';

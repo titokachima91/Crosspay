@@ -12,6 +12,9 @@ import 'package:crosspay_app/features/transaction/screens/payment_prompt_screen.
 import 'package:crosspay_app/features/transaction/screens/route_selection_screen.dart';
 import 'package:crosspay_app/features/transaction/screens/trade_tracker_screen.dart';
 import 'package:crosspay_app/features/transaction/screens/invoice_screen.dart';
+import 'package:crosspay_app/features/transaction/screens/route_comparison_screen.dart';
+import 'package:crosspay_app/features/ledger/screens/transaction_history_screen.dart';
+import 'package:crosspay_app/features/account/screens/security_settings_screen.dart';
 
 class CrossPayApp extends StatelessWidget {
   const CrossPayApp({super.key, this.builder});
@@ -39,6 +42,9 @@ class CrossPayApp extends StatelessWidget {
         AppRoutes.payment: (_) => const PaymentPromptScreen(),
         AppRoutes.tracker: (_) => const TradeTrackerScreen(),
         AppRoutes.invoice: (_) => const InvoiceScreen(),
+        AppRoutes.compareRoutes: (_) => const RouteComparisonScreen(),
+        AppRoutes.history: (_) => const TransactionHistoryScreen(),
+        AppRoutes.security: (_) => const SecuritySettingsScreen(),
       },
     );
   }

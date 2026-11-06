@@ -11,4 +11,9 @@ class AppRoutes {
   static const String payment = '/payment';
   static const String tracker = '/tracker';
   static const String invoice = '/invoice';
+
+  // F3.7
+  static const String compareRoutes = '/compare-routes';
+  static const String history = '/history';
+  static const String security = '/security';
 }

@@ -165,6 +165,20 @@ class TradeRepository {
     }
   }
 
+  /// Fetch the signed-in user's trade history (newest first).
+  /// Server returns `{ "trades": [ ... ] }`. Until the backend ships
+  /// GET /trades the call fails and the UI says so plainly ("not connected").
+  Future<List<Trade>> getTrades(AppConfig config) async {
+    try {
+      final response = await _dio.get<dynamic>(ApiEndpoints.trades);
+      final root = JsonReader.of(response.data);
+      final items = root.list('trades');
+      return items.map((e) => _parseTrade(JsonReader.of(e), config)).toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
   /// Claim manual payment for a trade
   /// [idempotencyKey] is the ONE key for this authorization attempt: the server
   /// must return the same result for a repeated key and never collect twice.
