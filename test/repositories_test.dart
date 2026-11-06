@@ -55,7 +55,7 @@ void main() {
       {
         "currencies": [{"code": "AAA", "name": "Alpha", "countryCode": "ZZ", "decimals": 2}],
         "hubs": [{"id": "h1", "name": "Hub one", "countryCode": "ZZ"}],
-        "payoutRails": [{"id": "r1", "name": "Rail one", "countryCode": "ZZ"}],
+        "payoutRails": [{"id": "r1", "name": "Rail one", "countryCode": "ZZ", "kind": "mobile_money"}],
         "countries": [{"code": "ZZ", "name": "Testland", "dialCode": "+999",
                        "nationalNumberLength": 9}],
         "carriers": [{"id": "c1", "name": "Test Carrier", "countryCode": "ZZ",

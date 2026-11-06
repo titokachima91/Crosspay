@@ -164,3 +164,78 @@ Response:
   VERIFICATION_REQUIRED.
 - A locked rate is a promise the platform keeps even if the market moves: the
   spread built into the rate must cover that risk (a pricing decision).
+
+## Payout rails now carry a kind
+In GET /config, each payoutRails entry gains:  "kind": "mobile_money" | "bank"
+The app labels the field ("mobile number" or "account number") and formats it
+from this. The recipient's destination is the country of the currency being
+received; the app lists only rails whose countryCode matches.
+
+## POST /api/v1/beneficiaries/check   (login required)
+Request:  { "railId": "<rail id>", "account": "<international number or account>", "name": "<optional>" }
+Response:
+{
+  "accountStatus": "found" | "not_found",
+  "networkName": "<e.g. the mobile money network>",          (optional)
+  "nameMatch": "match" | "mismatch" | "unavailable"          (only when a name was sent)
+}
+- The registered name is NEVER returned: only whether the name matches.
+  Otherwise the endpoint could be used to read other people's names.
+- The server must throttle this endpoint per person (enumeration protection)
+  and never log the account or the name.
+- "unavailable" means the destination cannot check names automatically (for
+  example some banks). The app then allows paying but warns the person.
+- Rejections are 4xx with a code, e.g. RATE_LIMITED, RAIL_UNAVAILABLE.
+
+## Authorization attempts (used by the payment step, F3.4)
+The app creates ONE unique key per authorization attempt (same quote and same
+recipient details keep the same key) and sends it as X-Idempotency-Key on
+POST /api/v1/trade/initiate and on every retry. The server must return the
+original result for a repeated key and must never charge twice.
+
+## POST /api/v1/trade/initiate   (login required)
+Header:   X-Idempotency-Key = the app's ONE key for this authorization attempt
+Request:
+{
+  "quoteId": "<quote id>", "route": "p2p" | "bank",
+  "recipient": { "railId": "<id>", "account": "<number>", "name": "<name>", "reference": "<optional>" }
+}
+Response:
+{
+  "trade": <trade object, below>,
+  "collection": {
+    "pushSent": <bool: a payment prompt was sent to the payer's phone>,
+    "networkName": "<payer's mobile money network>",          (optional)
+    "amountMinor": <int: the total to pay, send currency>,
+    "pushTimeoutSeconds": <int: when the app opens the manual fallback>,
+    "pollIntervalSeconds": <int: how often the app checks the trade>,
+    "manual": { "methodCode": "paybill | till | ...", "number": "<number>", "reference": "<code>" }   (optional)
+  }
+}
+- A repeated key MUST return the original result and never start a second
+  collection. A different quote or different recipient details are a new key.
+- Rejections are 4xx with a code: QUOTE_EXPIRED, LIMIT_EXCEEDED,
+  VERIFICATION_REQUIRED, RECIPIENT_REJECTED, CORRIDOR_UNAVAILABLE.
+
+Trade object:
+{
+  "id", "reference", "route": "p2p | bank",
+  "status": "pending_deposit | escrowed | matching | matched | disbursing |
+             completed | expired | refunded | failed | cancelled",
+  "sendCurrency", "receiveCurrency", "sendAmountMinor", "feeMinor", "feeBps",
+  "receiveAmountMinor", "rate", "beneficiaryName", "createdAt": "<ISO-8601 UTC>",
+  "verificationHash": "<optional>"
+}
+
+## GET /api/v1/trades/{id}   (login required)  -> trade object
+The app checks this every pollIntervalSeconds. "pending_deposit" means keep
+waiting; escrowed or later means the deposit arrived (the SERVER decides, from
+the payment aggregator's callback); expired, refunded, failed or cancelled
+means it did not complete. (Live push updates may replace polling later.)
+
+## POST /api/v1/trades/{id}/payment-claim   (login required)
+The payer says they paid manually. This only asks the server to re-check the
+aggregator now; it never marks anything as paid by itself.
+
+## POST /api/v1/trades/{id}/cancel   (login required)  -> trade object
+4xx codes: CANNOT_CANCEL, ALREADY_PAID (the app then keeps watching the trade).

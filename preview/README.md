@@ -27,3 +27,23 @@ Route selection (preview)
   so you can watch it expire and tap "Get a new rate".
 - Amounts above 5,000,000 make the simulated bank route unavailable.
 - "Proceed" leads to a temporary screen until F3.3.
+
+Recipient details (preview)
+- After choosing a route, "Proceed" opens the recipient screen. Try the two
+  payout methods of the destination country.
+- A mobile number ending in 0 is "not found". A name containing "mismatch"
+  does not match; "unverifiable" cannot be checked automatically; bank
+  accounts cannot have their name checked automatically; any other name matches.
+- Tap a saved recipient on Home first to see the prefill.
+- "Authorize payment" leads to a temporary screen until F3.4.
+
+Payment prompt (preview)
+- "Authorize payment" opens the payment screen. By default the simulated
+  deposit arrives after about three checks (roughly 6 seconds) and you move on
+  to a temporary screen.
+- Type "timeout" in the payment reference: the deposit never confirms by
+  itself; the manual details open after about 12 seconds, and "I have
+  completed manual payment" confirms it at the next check.
+- Type "nopush" in the payment reference: no prompt is sent and the manual
+  details are shown at once.
+- "Cancel transaction" asks for confirmation, then returns Home.

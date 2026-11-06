@@ -47,6 +47,15 @@ class PhoneUtils {
     return '+${match.dialCode} ${groupDigits(national)}';
   }
 
+  /// "+255712345678" with calling code 255 becomes "712345678". The digits
+  /// are returned unchanged when the number does not start with the code.
+  static String nationalFromInternational(String phone, Country country) {
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    return digits.startsWith(country.dialCode)
+        ? digits.substring(country.dialCode.length)
+        : digits;
+  }
+
   /// Suggests a carrier from the number's prefix. Returns null when nothing
   /// matches. A suggestion only: customers can keep their number when they
   /// switch networks.

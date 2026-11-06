@@ -11,7 +11,6 @@ import 'package:crosspay_app/models/app_config_model.dart';
 import 'package:crosspay_app/models/beneficiary_model.dart';
 import 'package:crosspay_app/models/quote_model.dart';
 import 'package:crosspay_app/models/user_model.dart';
-import 'package:crosspay_app/providers/config_provider.dart';
 import 'package:crosspay_app/providers/estimate_provider.dart';
 import 'package:crosspay_app/providers/localization_provider.dart';
 import 'package:crosspay_app/providers/trade_provider.dart';
@@ -35,7 +34,7 @@ const _config = AppConfig(
       nationalNumberLength: 9,
     ),
   ],
-  payoutRails: [PayoutRail(id: 'r1', name: 'Rail One', countryCode: 'ZZ')],
+  payoutRails: [PayoutRail(id: 'r1', name: 'Rail One', countryCode: 'ZZ', kind: PayoutKind.mobileMoney)],
 );
 
 class _FakeConfigRepository extends ConfigRepository {

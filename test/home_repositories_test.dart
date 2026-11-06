@@ -56,7 +56,7 @@ const _b = Currency(code: 'BBB', name: 'Beta', countryCode: 'ZZ', decimals: 2);
 const _config = AppConfig(
   currencies: [_a, _b],
   hubs: [TradingHub(id: 'h1', name: 'Hub One', countryCode: 'ZZ')],
-  payoutRails: [PayoutRail(id: 'r1', name: 'Rail One', countryCode: 'ZZ')],
+  payoutRails: [PayoutRail(id: 'r1', name: 'Rail One', countryCode: 'ZZ', kind: PayoutKind.mobileMoney)],
 );
 
 void main() {

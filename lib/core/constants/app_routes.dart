@@ -8,4 +8,7 @@ class AppRoutes {
   static const String home = '/home';
   static const String review = '/review';
   static const String recipient = '/recipient';
+  static const String payment = '/payment';
+  static const String tracker = '/tracker';
+  static const String invoice = '/invoice';
 }

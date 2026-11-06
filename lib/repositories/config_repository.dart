@@ -43,6 +43,11 @@ class ConfigRepository {
               id: r.string('id'),
               name: r.string('name'),
               countryCode: r.string('countryCode'),
+              kind: switch (r.string('kind')) {
+                'mobile_money' => PayoutKind.mobileMoney,
+                'bank' => PayoutKind.bank,
+                _ => throw ApiException.invalidResponse('payoutRails.kind'),
+              },
             ),
         ],
         countries: [

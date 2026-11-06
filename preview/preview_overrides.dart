@@ -10,6 +10,7 @@ import 'package:crosspay_app/core/storage/token_storage.dart';
 import 'package:crosspay_app/models/app_config_model.dart';
 import 'package:crosspay_app/models/beneficiary_model.dart';
 import 'package:crosspay_app/models/quote_model.dart';
+import 'package:crosspay_app/models/trade_model.dart';
 import 'package:crosspay_app/models/user_model.dart';
 import 'package:crosspay_app/repositories/auth_repository.dart';
 import 'package:crosspay_app/repositories/beneficiary_repository.dart';
@@ -41,8 +42,30 @@ const AppConfig previewConfig = AppConfig(
     TradingHub(id: 'hub-2', name: 'Eastleigh, Nairobi', countryCode: 'KE'),
   ],
   payoutRails: [
-    PayoutRail(id: 'rail-1', name: 'Preview mobile money A', countryCode: 'KE'),
-    PayoutRail(id: 'rail-2', name: 'Preview mobile money B', countryCode: 'TZ'),
+    PayoutRail(
+      id: 'rail-1',
+      name: 'Preview mobile money (Kenya)',
+      countryCode: 'KE',
+      kind: PayoutKind.mobileMoney,
+    ),
+    PayoutRail(
+      id: 'rail-2',
+      name: 'Preview bank transfer (Kenya)',
+      countryCode: 'KE',
+      kind: PayoutKind.bank,
+    ),
+    PayoutRail(
+      id: 'rail-3',
+      name: 'Preview mobile money (Tanzania)',
+      countryCode: 'TZ',
+      kind: PayoutKind.mobileMoney,
+    ),
+    PayoutRail(
+      id: 'rail-4',
+      name: 'Preview bank transfer (Tanzania)',
+      countryCode: 'TZ',
+      kind: PayoutKind.bank,
+    ),
   ],
   countries: [
     Country(
@@ -282,6 +305,38 @@ class _PreviewBeneficiaryRepository extends BeneficiaryRepository {
       ),
     ];
   }
+
+  /// An account ending in 0 is "not found". A name containing "mismatch" does
+  /// not match; "unverifiable" cannot be checked; bank accounts cannot have
+  /// their name checked automatically; anything else matches.
+  @override
+  Future<RecipientCheck> check({
+    required PayoutRail rail,
+    required String account,
+    String? name,
+  }) async {
+    await _wait(_latency);
+    if (account.endsWith('0')) {
+      return const RecipientCheck(accountStatus: AccountStatus.notFound);
+    }
+
+    NameMatch? match;
+    if (name != null) {
+      final lower = name.toLowerCase();
+      if (lower.contains('mismatch')) {
+        match = NameMatch.mismatch;
+      } else if (lower.contains('unverifiable') || rail.kind == PayoutKind.bank) {
+        match = NameMatch.unavailable;
+      } else {
+        match = NameMatch.match;
+      }
+    }
+    return RecipientCheck(
+      accountStatus: AccountStatus.found,
+      networkName: rail.name,
+      nameMatch: match,
+    );
+  }
 }
 
 class _PreviewTradeRepository extends TradeRepository {
@@ -412,6 +467,153 @@ class _PreviewTradeRepository extends TradeRepository {
       ],
     );
   }
+
+  // --- Payment simulation (F3.4) ---
+  Trade? _trade;
+  int _polls = 0;
+  bool _claimed = false;
+  bool _neverConfirms = false;
+
+  /// A payment reference containing "nopush" means no prompt is sent; one
+  /// containing "timeout" never confirms by itself. Otherwise the deposit is
+  /// "received" after about three checks. Tapping "I have completed manual
+  /// payment" confirms it at the next check.
+  @override
+  Future<InitiatedTrade> initiate({
+    required Quote quote,
+    required RouteType route,
+    required RecipientDetails recipient,
+    required String idempotencyKey,
+    required AppConfig config,
+  }) async {
+    await _wait(_latency);
+    final option = quote.forRoute(route);
+    if (option == null) {
+      throw const ApiException(
+        kind: ApiErrorKind.client,
+        statusCode: 400,
+        code: 'CORRIDOR_UNAVAILABLE',
+      );
+    }
+
+    final reference = recipient.reference.toLowerCase();
+    final pushSent = !reference.contains('nopush');
+    _neverConfirms = !pushSent || reference.contains('timeout');
+    _polls = 0;
+    _claimed = false;
+
+    final trade = Trade(
+      id: 'preview-trade-1',
+      reference: 'PV-0001',
+      route: route,
+      status: TradeStatus.pendingDeposit,
+      sendCurrency: quote.sendCurrency,
+      receiveCurrency: quote.receiveCurrency,
+      sendAmountMinor: quote.sendAmountMinor,
+      feeMinor: option.feeMinor,
+      feeBps: option.feeBps,
+      receiveAmountMinor: option.payoutMinor,
+      rate: quote.rate,
+      beneficiaryName: recipient.name,
+      createdAt: DateTime.now(),
+    );
+    _trade = trade;
+
+    return InitiatedTrade(
+      trade: trade,
+      collection: CollectionInstructions(
+        pushSent: pushSent,
+        networkName: 'Preview mobile money',
+        amountMinor: option.totalDebitMinor,
+        currency: quote.sendCurrency,
+        pushTimeoutSeconds: 12,
+        pollIntervalSeconds: 2,
+        manual: const ManualPayment(
+          methodCode: 'paybill',
+          number: '000000',
+          reference: 'PV-0001',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Future<Trade> fetchTrade(String id, AppConfig config) async {
+    await _wait(_latency);
+    final trade = _trade;
+    if (trade == null) {
+      throw const ApiException(
+        kind: ApiErrorKind.client,
+        statusCode: 404,
+        code: 'TRADE_NOT_FOUND',
+      );
+    }
+    _polls++;
+    if (trade.status == TradeStatus.pendingDeposit &&
+        (_claimed || (!_neverConfirms && _polls >= 3))) {
+      _trade = trade.copyWith(status: TradeStatus.escrowed);
+    }
+    return _trade!;
+  }
+
+  @override
+  Future<void> claimManualPayment(String tradeId) async {
+    await _wait(_latency);
+    _claimed = true;
+  }
+
+  @override
+  Future<Trade> cancelTrade(String tradeId, {required String idempotencyKey, required AppConfig config}) async {
+    await _wait(_latency);
+    final trade = _trade;
+    if (trade == null) {
+      throw const ApiException(
+        kind: ApiErrorKind.client,
+        statusCode: 404,
+        code: 'TRADE_NOT_FOUND',
+      );
+    }
+    _trade = trade.copyWith(status: TradeStatus.cancelled);
+    return _trade!;
+  }
+
+  @override
+  Future<Invoice> getInvoice(String tradeId, {required AppConfig config}) async {
+    await _wait(_latency);
+    final trade = _trade;
+    if (trade == null) {
+      throw const ApiException(
+        kind: ApiErrorKind.client,
+        statusCode: 404,
+        code: 'TRADE_NOT_FOUND',
+      );
+    }
+    return Invoice(
+      tradeId: trade.id,
+      qrCodeUrl: 'preview://qr/${trade.id}',
+      shareUrl: 'preview://trade/${trade.id}',
+      validUntil: DateTime.now().add(const Duration(hours: 24)),
+      amount: trade.sendAmountMinor,
+      currency: trade.sendCurrency.code,
+    );
+  }
+
+  @override
+  Future<void> shareTrade(String tradeId, {required String idempotencyKey, required AppConfig config}) async {
+    await _wait(_latency);
+    final trade = _trade;
+    if (trade == null) {
+      throw const ApiException(
+        kind: ApiErrorKind.client,
+        statusCode: 404,
+        code: 'TRADE_NOT_FOUND',
+      );
+    }
+    _shared = true;
+  }
+
+  bool get shared => _shared;
+  bool _shared = false;
 }
 
 class _PreviewTokenStorage implements TokenStorage {

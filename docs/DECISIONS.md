@@ -47,3 +47,26 @@ Route selection (F3.2)
   because speeds are data, not a promise.
 - A new quote is requested every time the screen opens. When the lock ends,
   the screen offers "Get a new rate" and never re-prices silently.
+
+Recipient details (F3.3)
+- The name check returns match / mismatch only, never the registered name.
+- Authorize needs: lock still running, account found, name matches. If the
+  name cannot be checked automatically, paying is allowed with a visible
+  warning (partners and the lawyer must confirm they accept this).
+- One idempotency key per authorization attempt (same quote + same details =
+  same key). The rate-lock countdown is also shown on this screen.
+- Payout rails are chips (names come from the server); a saved recipient
+  tapped on Home prefills the form, and the check runs again.
+
+Payment prompt (F3.4)
+- Only the server's trade status decides that money arrived. "I have completed
+  manual payment" just asks the server to re-check.
+- Timings (when to open the manual fallback, how often to check) come from
+  the server. Checking is by polling for now; live push may replace it later.
+- Cancel asks for confirmation (a payment already approved on the phone may
+  still go through) and calls the server; if the server refuses, the app keeps
+  watching. Leaving the screen while a payment is in progress is the same as
+  cancelling: it always asks first.
+- The ONE idempotency key per authorization attempt is used for the initiate
+  request and its retries, so a reopened screen can never collect twice.
+- Wording is plain ("payment request sent to your phone") instead of "STK push".

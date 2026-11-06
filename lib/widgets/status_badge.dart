@@ -3,7 +3,8 @@ import 'package:crosspay_app/core/constants/app_colors.dart';
 
 enum BadgeTone { success, warning, danger, neutral }
 
-/// A small coloured pill with a dot, e.g. "Verified".
+/// A small coloured pill with a dot, e.g. "Verified". Long text wraps instead
+/// of overflowing (some translations are long).
 class StatusBadge extends StatelessWidget {
   const StatusBadge({super.key, required this.label, required this.tone});
 
@@ -35,12 +36,14 @@ class StatusBadge extends StatelessWidget {
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: color,
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
             ),
           ),
         ],
