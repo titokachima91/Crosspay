@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:crosspay_app/core/constants/app_colors.dart';
+import 'package:crosspay_app/core/security/biometric_manager.dart';
 import 'package:crosspay_app/core/security/pin_manager.dart';
 
 /// F5.3 Security settings — app-lock PIN, biometric status, sign out.
