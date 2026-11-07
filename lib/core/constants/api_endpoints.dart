@@ -18,9 +18,27 @@ class ApiEndpoints {
   static const String tradeInitiate = '$_v1/trade/initiate';
 
   static const String trades = '$_v1/trades';
+
+  /// F4.1 — one-time CSV export link. Registered before [trade] so the
+  /// literal path is never mistaken for a trade id on the server.
+  static const String tradesExport = '$_v1/trades/export';
+
+  /// F4.1 — spending analytics aggregated by the server.
+  static const String tradesAnalytics = '$_v1/trades/analytics';
+
+  /// F4.2 — queue depth and health per corridor.
+  static const String marketDepth = '$_v1/market/depth';
+
   static String trade(String id) => '$_v1/trades/${Uri.encodeComponent(id)}';
   static String tradePaymentClaim(String id) => '${trade(id)}/payment-claim';
   static String tradeCancel(String id) => '${trade(id)}/cancel';
   static String tradeInvoice(String id) => '${trade(id)}/invoice';
   static String tradeShare(String id) => '${trade(id)}/share';
+
+  /// F4.1 — the status change timeline of one trade.
+  static String tradeHistory(String id) => '${trade(id)}/history';
+
+  /// F5.2 — one saved recipient: GET (single), PATCH (edit), DELETE (remove).
+  static String beneficiary(String id) =>
+      '$_v1/beneficiaries/${Uri.encodeComponent(id)}';
 }

@@ -14,8 +14,11 @@ import 'package:crosspay_app/features/transaction/screens/trade_tracker_screen.d
 import 'package:crosspay_app/features/transaction/screens/invoice_screen.dart';
 import 'package:crosspay_app/features/transaction/screens/route_comparison_screen.dart';
 import 'package:crosspay_app/features/ledger/screens/transaction_history_screen.dart';
+import 'package:crosspay_app/features/ledger/screens/analytics_screen.dart';
 import 'package:crosspay_app/features/account/screens/security_settings_screen.dart';
 import 'package:crosspay_app/features/account/screens/language_selector_screen.dart';
+import 'package:crosspay_app/features/account/screens/profile_screen.dart';
+import 'package:crosspay_app/features/account/screens/beneficiaries_screen.dart';
 
 class CrossPayApp extends StatelessWidget {
   const CrossPayApp({super.key, this.builder});
@@ -45,6 +48,9 @@ class CrossPayApp extends StatelessWidget {
         AppRoutes.invoice: (_) => const InvoiceScreen(),
         AppRoutes.compareRoutes: (_) => const RouteComparisonScreen(),
         AppRoutes.history: (_) => const TransactionHistoryScreen(),
+        AppRoutes.analytics: (_) => const AnalyticsScreen(),
+        AppRoutes.profile: (_) => const ProfileScreen(),
+        AppRoutes.recipients: (_) => const BeneficiariesScreen(),
         AppRoutes.security: (_) => const SecuritySettingsScreen(),
         AppRoutes.language: (_) => const LanguageSelectorScreen(),
       },

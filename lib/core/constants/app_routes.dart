@@ -12,9 +12,14 @@ class AppRoutes {
   static const String tracker = '/tracker';
   static const String invoice = '/invoice';
 
-  // F4.1 (history) / F5.3 (security, language)
+  // F4.1 (history, analytics) / F5.3 (security, language)
   static const String compareRoutes = '/compare-routes';
   static const String history = '/history';
+  static const String analytics = '/analytics';
   static const String security = '/security';
   static const String language = '/language';
+
+  // F5.1 (profile) / F5.2 (saved recipients)
+  static const String profile = '/profile';
+  static const String recipients = '/recipients';
 }

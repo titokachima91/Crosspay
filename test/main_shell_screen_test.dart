@@ -51,11 +51,13 @@ void main() {
 
     await tester.tap(find.text('Ledger'));
     await tester.pumpAndSettle();
-    expect(find.text('Next: F4.1 ledger (temporary tab)'), findsOneWidget);
+    // F4.1 — the Ledger tab is the real history screen now.
+    expect(find.text('History'), findsOneWidget);
 
     await tester.tap(find.text('Rates'));
     await tester.pumpAndSettle();
-    expect(find.text('Next: F4.2 rates (temporary tab)'), findsOneWidget);
+    // F4.2 — the Rates tab is the real market depth screen now.
+    expect(find.text('Market depth'), findsOneWidget);
 
     await tester.tap(find.text('Account'));
     await tester.pumpAndSettle();

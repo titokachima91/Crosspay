@@ -2,12 +2,14 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:crosspay_app/core/localization/app_localizations.dart';
 import 'package:crosspay_app/core/network/api_exception.dart';
 import 'package:crosspay_app/core/theme/app_theme.dart';
 import 'package:crosspay_app/features/ledger/screens/transaction_history_screen.dart';
 import 'package:crosspay_app/models/app_config_model.dart';
 import 'package:crosspay_app/models/quote_model.dart';
 import 'package:crosspay_app/models/trade_model.dart';
+import 'package:crosspay_app/providers/localization_provider.dart';
 import 'package:crosspay_app/repositories/trade_repository.dart';
 
 // Test inputs and stand-ins only. Not app data or app code.
@@ -54,6 +56,12 @@ class _FakeTradeRepository extends TradeRepository {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  late Map<String, AppLocalizations> translations;
+
+  setUpAll(() async {
+    translations = await AppLocalizations.loadAll();
+  });
+
   group('HistoryRange', () {
     final now = DateTime.utc(2026, 11, 7, 12);
 
@@ -91,6 +99,7 @@ void main() {
   ProviderContainer containerFor(_FakeTradeRepository repo) {
     return ProviderContainer(overrides: [
       tradeRepositoryProvider.overrideWithValue(repo),
+      translationsProvider.overrideWithValue(translations),
     ]);
   }
 

@@ -1,20 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crosspay_app/core/constants/app_colors.dart';
+import 'package:crosspay_app/core/constants/app_routes.dart';
+import 'package:crosspay_app/core/utils/date_format.dart';
 import 'package:crosspay_app/core/utils/money_format.dart';
 import 'package:crosspay_app/models/trade_model.dart';
+import 'package:crosspay_app/providers/localization_provider.dart';
+import 'package:crosspay_app/providers/trade_export_provider.dart';
 import 'package:crosspay_app/providers/trade_history_provider.dart';
 
 /// Date windows offered above the list. [days] is null for "all time".
 enum HistoryRange {
-  all('All time', null),
-  last7('Last 7 days', 7),
-  last30('Last 30 days', 30),
-  last90('Last 90 days', 90);
+  all('ledger.range.all', null),
+  last7('ledger.range.last_7', 7),
+  last30('ledger.range.last_30', 30),
+  last90('ledger.range.last_90', 90);
 
-  const HistoryRange(this.label, this.days);
+  const HistoryRange(this.labelKey, this.days);
 
-  final String label;
+  /// Translation key for the chip label.
+  final String labelKey;
   final int? days;
 
   /// Whether [createdAt] falls inside this window. "All time" never
@@ -75,18 +81,9 @@ class _TransactionHistoryScreenState
     return rows;
   }
 
-  String _statusLabel(TradeStatus status) => switch (status) {
-        TradeStatus.pendingDeposit => 'Waiting for payment',
-        TradeStatus.escrowed => 'Verifying payment',
-        TradeStatus.matching => 'Finding payout route',
-        TradeStatus.matched => 'Almost there',
-        TradeStatus.disbursing => 'Paying out',
-        TradeStatus.completed => 'Done',
-        TradeStatus.expired => 'Rate expired',
-        TradeStatus.refunded => 'Refunded',
-        TradeStatus.failed => 'Failed',
-        TradeStatus.cancelled => 'Cancelled',
-      };
+  /// Label for a status. The wording lives in the dictionaries (en / sw), so a
+  /// language switch relabels the whole list.
+  String _statusLabel(TradeStatus status) => ref.tr(status.labelKey);
 
   Color _statusColor(TradeStatus status) => switch (status) {
         TradeStatus.completed => AppColors.emerald,
@@ -96,6 +93,23 @@ class _TransactionHistoryScreenState
         _ => AppColors.warning,
       };
 
+  /// F4.1 — asks the server for a CSV export link. The app never builds the
+  /// file itself; it hands over the link the server issued.
+  Future<void> _export() async {
+    final ticket = await ref.read(tradeExportProvider.notifier).request();
+    if (!mounted) return;
+    if (ticket == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ref.tr('ledger.export_failed'))),
+      );
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (_) => _ExportSheet(ticket: ticket),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final history = ref.watch(tradeHistoryProvider);
@@ -103,7 +117,7 @@ class _TransactionHistoryScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('History'),
+        title: Text(ref.tr('ledger.title')),
         backgroundColor: Colors.transparent,
         foregroundColor: AppColors.navy,
         surfaceTintColor: Colors.transparent,
@@ -111,8 +125,20 @@ class _TransactionHistoryScreenState
         elevation: 0,
         actions: [
           IconButton(
+            icon: const Icon(Icons.insights_outlined, size: 20),
+            tooltip: ref.tr('ledger.analytics'),
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.analytics),
+          ),
+          IconButton(
+            icon: const Icon(Icons.download_outlined, size: 20),
+            tooltip: ref.tr('ledger.export'),
+            onPressed: () {
+              if (!ref.read(tradeExportProvider).busy) _export();
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh, size: 20),
-            tooltip: 'Refresh history',
+            tooltip: ref.tr('ledger.refresh'),
             onPressed: () => ref.read(tradeHistoryProvider.notifier).load(),
           ),
         ],
@@ -157,19 +183,22 @@ class _TransactionHistoryScreenState
       return const Center(child: CircularProgressIndicator());
     }
     if (history.notConnected && history.trades.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
-          'Trade history is not connected yet.\nPlease try again later.',
+          ref.tr('ledger.not_connected'),
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 15, color: AppColors.textSecondary),
+          style: const TextStyle(
+            fontSize: 15,
+            color: AppColors.textSecondary,
+          ),
         ),
       );
     }
     if (rows.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
-          'No trades found.',
-          style: TextStyle(fontSize: 15, color: AppColors.textSecondary),
+          ref.tr('ledger.empty'),
+          style: const TextStyle(fontSize: 15, color: AppColors.textSecondary),
         ),
       );
     }
@@ -185,17 +214,17 @@ class _TransactionHistoryScreenState
   }
 }
 
-class _SearchField extends StatelessWidget {
+class _SearchField extends ConsumerWidget {
   const _SearchField({required this.onChanged});
 
   final ValueChanged<String> onChanged;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return TextField(
       onChanged: onChanged,
       decoration: InputDecoration(
-        hintText: 'Search by reference or recipient',
+        hintText: ref.tr('ledger.search_hint'),
         hintStyle: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
         prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.textSecondary),
         filled: true,
@@ -214,7 +243,7 @@ class _SearchField extends StatelessWidget {
   }
 }
 
-class _FilterChips extends StatelessWidget {
+class _FilterChips extends ConsumerWidget {
   const _FilterChips({required this.selected, required this.onSelected});
 
   final TradeStatus? selected;
@@ -227,23 +256,24 @@ class _FilterChips extends StatelessWidget {
     TradeStatus.failed,
   ];
 
-  String _label(TradeStatus? s) => switch (s) {
-        null => 'All',
-        TradeStatus.completed => 'Done',
-        TradeStatus.escrowed => 'In progress',
-        TradeStatus.failed => 'Failed',
-        _ => 'Other',
+  String _label(WidgetRef ref, TradeStatus? s) => switch (s) {
+        null => ref.tr('ledger.filter.all'),
+        TradeStatus.escrowed => ref.tr('ledger.filter.in_progress'),
+        _ => ref.tr(s.labelKey),
       };
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
         for (final option in _options)
           ChoiceChip(
-            label: Text(_label(option), style: const TextStyle(fontSize: 13)),
+            label: Text(
+              _label(ref, option),
+              style: const TextStyle(fontSize: 13),
+            ),
             selected: selected == option,
             selectedColor: AppColors.emerald.withOpacity(0.15),
             onSelected: (_) => onSelected(option),
@@ -253,26 +283,88 @@ class _FilterChips extends StatelessWidget {
   }
 }
 
-class _RangeChips extends StatelessWidget {
+class _RangeChips extends ConsumerWidget {
   const _RangeChips({required this.selected, required this.onSelected});
 
   final HistoryRange selected;
   final ValueChanged<HistoryRange> onSelected;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
         for (final option in HistoryRange.values)
           ChoiceChip(
-            label: Text(option.label, style: const TextStyle(fontSize: 13)),
+            label: Text(
+              ref.tr(option.labelKey),
+              style: const TextStyle(fontSize: 13),
+            ),
             selected: selected == option,
             selectedColor: AppColors.navy.withOpacity(0.12),
             onSelected: (_) => onSelected(option),
           ),
       ],
+    );
+  }
+}
+
+/// The export link the server issued. Copying it is all the app does: the file
+/// itself is built and served on the server.
+class _ExportSheet extends ConsumerWidget {
+  const _ExportSheet({required this.ticket});
+
+  final ExportTicket ticket;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              ref.tr('ledger.export_ready'),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.navy,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SelectableText(
+              ticket.downloadUrl,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: AppColors.navy),
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  await Clipboard.setData(
+                    ClipboardData(text: ticket.downloadUrl),
+                  );
+                  if (!context.mounted) return;
+                  Navigator.of(context).pop();
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(ref.tr('ledger.export_copied'))),
+                  );
+                },
+                icon: const Icon(Icons.copy, size: 18),
+                label: Text(ref.tr('ledger.export_copy')),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -288,14 +380,7 @@ class _TradeTile extends StatelessWidget {
   final String statusLabel;
   final Color statusColor;
 
-  String get _date {
-    final d = trade.createdAt;
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-    return '${d.day} ${months[d.month - 1]} ${d.year}';
-  }
+  String get _date => DateFormatX.day(trade.createdAt);
 
   @override
   Widget build(BuildContext context) {

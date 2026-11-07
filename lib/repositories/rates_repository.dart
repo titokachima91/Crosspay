@@ -5,6 +5,7 @@ import 'package:crosspay_app/core/network/api_exception.dart';
 import 'package:crosspay_app/core/network/dio_client.dart';
 import 'package:crosspay_app/core/network/json_reader.dart';
 import 'package:crosspay_app/models/app_config_model.dart';
+import 'package:crosspay_app/models/market_depth_model.dart';
 import 'package:crosspay_app/models/quote_model.dart';
 import 'package:crosspay_app/repositories/status_parser.dart';
 
@@ -55,6 +56,35 @@ class RatesRepository {
         p2pDensityPercent: health?.optionalInt('p2pDensityPercent'),
         bankSweepPercent: health?.optionalInt('bankSweepPercent'),
       );
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// F4.2 — queue depth and health per corridor (`GET /market/depth`).
+  /// Currency codes are matched against [config]; a corridor naming a
+  /// currency the config does not list is skipped, exactly as with rates.
+  Future<List<CorridorDepth>> fetchDepth(AppConfig config) async {
+    try {
+      final response = await _dio.get<dynamic>(ApiEndpoints.marketDepth);
+      final root = JsonReader.of(response.data);
+
+      final result = <CorridorDepth>[];
+      for (final item in root.list('corridors')) {
+        final from = config.currencyByCode(item.string('from'));
+        final to = config.currencyByCode(item.string('to'));
+        if (from == null || to == null) continue;
+        result.add(
+          CorridorDepth(
+            from: from,
+            to: to,
+            queueDepth: item.integer('queueDepth'),
+            estimatedSettleSeconds: item.integer('estimatedSettleSeconds'),
+            status: parseCorridorStatus(item.optionalObject('status')),
+          ),
+        );
+      }
+      return result;
     } on DioException catch (e) {
       throw ApiException.fromDio(e);
     }

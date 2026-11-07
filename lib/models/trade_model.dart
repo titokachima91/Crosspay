@@ -13,6 +13,26 @@ enum TradeStatus {
   cancelled,
 }
 
+/// Shared naming for a status: the server's own snake_case code (API and
+/// timeline values) and the key for its plain-language label.
+extension TradeStatusX on TradeStatus {
+  String get code => switch (this) {
+        TradeStatus.pendingDeposit => 'pending_deposit',
+        TradeStatus.escrowed => 'escrowed',
+        TradeStatus.matching => 'matching',
+        TradeStatus.matched => 'matched',
+        TradeStatus.disbursing => 'disbursing',
+        TradeStatus.completed => 'completed',
+        TradeStatus.expired => 'expired',
+        TradeStatus.refunded => 'refunded',
+        TradeStatus.failed => 'failed',
+        TradeStatus.cancelled => 'cancelled',
+      };
+
+  /// Translation key for the label, e.g. 'trade.status.completed'.
+  String get labelKey => 'trade.status.$code';
+}
+
 class Trade {
   const Trade({
     required this.id,
@@ -96,6 +116,17 @@ class Invoice {
   final String currency;
 
   bool get isExpired => DateTime.now().isAfter(validUntil);
+}
+
+/// F4.1 — a one-time export link issued by the server. The app copies or
+/// opens this link; it never assembles a file by itself.
+class ExportTicket {
+  const ExportTicket({required this.downloadUrl, required this.expiresAt});
+
+  final String downloadUrl;
+  final DateTime expiresAt;
+
+  bool get isExpired => DateTime.now().isAfter(expiresAt);
 }
 
 /// Manual payment details (Paybill / Till) from the server.

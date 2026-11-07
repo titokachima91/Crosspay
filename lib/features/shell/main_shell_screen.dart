@@ -4,7 +4,9 @@ import 'package:crosspay_app/core/constants/app_colors.dart';
 import 'package:crosspay_app/core/constants/app_routes.dart';
 import 'package:crosspay_app/core/security/pin_manager.dart';
 import 'package:crosspay_app/features/account/screens/account_tab_screen.dart';
+import 'package:crosspay_app/features/ledger/screens/transaction_history_screen.dart';
 import 'package:crosspay_app/features/transaction/screens/home_dashboard_screen.dart';
+import 'package:crosspay_app/features/transaction/screens/market_depth_screen.dart';
 import 'package:crosspay_app/providers/auth_provider.dart';
 import 'package:crosspay_app/widgets/persistent_bottom_nav.dart';
 
@@ -73,8 +75,8 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
               index: _index,
               children: const [
                 HomeDashboardScreen(),
-                _PlaceholderTab(label: 'Next: F4.1 ledger'),
-                _PlaceholderTab(label: 'Next: F4.2 rates'),
+                TransactionHistoryScreen(),
+                MarketDepthScreen(),
                 AccountTabScreen(),
               ],
             ),
@@ -86,16 +88,5 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
   }
 }
 
-// TEMPORARY: each tab is replaced by its real screen (F4.1, F4.2, F5.1).
-class _PlaceholderTab extends StatelessWidget {
-  const _PlaceholderTab({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Center(child: Text('$label (temporary tab)')),
-    );
-  }
-}
+/// Each tab is now its real screen: Home (F3.1), Ledger (F4.1),
+/// Rates / market depth (F4.2) and Account (F4.1 / F5.1 / F5.2 / F5.3).

@@ -6,8 +6,10 @@ import 'package:crosspay_app/core/network/dio_client.dart';
 import 'package:crosspay_app/core/network/idempotency_interceptor.dart';
 import 'package:crosspay_app/core/network/json_reader.dart';
 import 'package:crosspay_app/models/app_config_model.dart';
+import 'package:crosspay_app/models/analytics_model.dart';
 import 'package:crosspay_app/models/beneficiary_model.dart';
 import 'package:crosspay_app/models/quote_model.dart';
+import 'package:crosspay_app/models/trade_event_model.dart';
 import 'package:crosspay_app/models/trade_model.dart';
 import 'package:crosspay_app/repositories/status_parser.dart';
 
@@ -179,6 +181,81 @@ class TradeRepository {
     }
   }
 
+  /// F4.1 — the trade's status change timeline (`GET /trades/{id}/history`).
+  /// Server returns `{ "events": [ { "status": "...", "at": "...",
+  /// "noteCode": "..." } ] }`. Until the endpoint ships the call fails and the
+  /// timeline card says so plainly - the app never invents events.
+  Future<List<TradeEvent>> fetchTimeline(String tradeId) async {
+    try {
+      final response =
+          await _dio.get<dynamic>(ApiEndpoints.tradeHistory(tradeId));
+      final root = JsonReader.of(response.data);
+      return [
+        for (final item in root.list('events'))
+          TradeEvent(
+            status: parseTradeStatus(item.string('status')),
+            at: _time(item, 'at'),
+            noteCode: item.optionalString('noteCode'),
+          ),
+      ];
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// F4.1 — asks the server for a one-time CSV export link
+  /// (`GET /trades/export`). The link is all the app gets; building the file
+  /// stays on the server.
+  Future<ExportTicket> requestExport() async {
+    try {
+      final response = await _dio.get<dynamic>(ApiEndpoints.tradesExport);
+      final root = JsonReader.of(response.data);
+      return ExportTicket(
+        downloadUrl: root.string('downloadUrl'),
+        expiresAt: _time(root, 'expiresAt'),
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// F4.1 — spending analytics aggregated by the server
+  /// (`GET /trades/analytics`). Every number is the server's; the app only
+  /// displays it. Currency codes are matched against [config] and an unknown
+  /// code means the response is broken.
+  Future<TradeAnalytics> fetchAnalytics(AppConfig config) async {
+    try {
+      final response = await _dio.get<dynamic>(ApiEndpoints.tradesAnalytics);
+      final root = JsonReader.of(response.data);
+
+      Currency currency(JsonReader json, String key) {
+        final found = config.currencyByCode(json.string(key));
+        if (found == null) throw ApiException.invalidResponse(key);
+        return found;
+      }
+
+      final totals = root.object('totals');
+      return TradeAnalytics(
+        trades: totals.integer('trades'),
+        sentMinor: totals.integer('sentMinor'),
+        sentCurrency: currency(totals, 'sentCurrency'),
+        receivedMinor: totals.integer('receivedMinor'),
+        receivedCurrency: currency(totals, 'receivedCurrency'),
+        corridors: [
+          for (final item in root.list('corridors'))
+            CorridorSpend(
+              from: currency(item, 'from'),
+              to: currency(item, 'to'),
+              trades: item.integer('trades'),
+              sentMinor: item.integer('sentMinor'),
+            ),
+        ],
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
   /// Claim manual payment for a trade
   /// [idempotencyKey] is the ONE key for this authorization attempt: the server
   /// must return the same result for a repeated key and never collect twice.
@@ -283,19 +360,7 @@ class TradeRepository {
       return found;
     }
 
-    final status = switch (json.string('status')) {
-      'pending_deposit' => TradeStatus.pendingDeposit,
-      'escrowed' => TradeStatus.escrowed,
-      'matching' => TradeStatus.matching,
-      'matched' => TradeStatus.matched,
-      'disbursing' => TradeStatus.disbursing,
-      'completed' => TradeStatus.completed,
-      'expired' => TradeStatus.expired,
-      'refunded' => TradeStatus.refunded,
-      'failed' => TradeStatus.failed,
-      'cancelled' => TradeStatus.cancelled,
-      _ => throw ApiException.invalidResponse('status'),
-    };
+    final status = parseTradeStatus(json.string('status'));
 
     return Trade(
       id: json.string('id'),

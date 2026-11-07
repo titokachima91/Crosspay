@@ -1,19 +1,31 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crosspay_app/core/localization/app_localizations.dart';
+import 'package:crosspay_app/core/storage/language_store.dart';
 
 /// All dictionaries, loaded once in main() and injected there.
 final translationsProvider = Provider<Map<String, AppLocalizations>>(
   (ref) => throw UnimplementedError('translationsProvider must be overridden'),
 );
 
-/// The language the user has selected: 'en' or 'sw'.
+/// The language the user has selected: 'en' or 'sw'. [initial] is what main()
+/// read back from the device (F5.3), so the app reopens in the same language.
 class LocaleCodeNotifier extends Notifier<String> {
-  @override
-  String build() => 'en';
+  LocaleCodeNotifier({String initial = 'en'}) : _initial = initial;
 
-  void setLanguage(String code) {
-    if (AppLocalizations.supportedCodes.contains(code)) {
-      state = code;
+  final String _initial;
+
+  @override
+  String build() => _initial;
+
+  /// Switches the language and remembers the choice on this device. A device
+  /// that cannot store it still switches for this run.
+  Future<void> setLanguage(String code) async {
+    if (!AppLocalizations.supportedCodes.contains(code)) return;
+    state = code;
+    try {
+      await ref.read(languageStoreProvider).write(code);
+    } catch (_) {
+      // Nothing else to do: the choice lasts for this session only.
     }
   }
 }

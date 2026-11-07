@@ -8,8 +8,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crosspay_app/core/network/api_exception.dart';
 import 'package:crosspay_app/core/storage/token_storage.dart';
 import 'package:crosspay_app/models/app_config_model.dart';
+import 'package:crosspay_app/models/analytics_model.dart';
 import 'package:crosspay_app/models/beneficiary_model.dart';
+import 'package:crosspay_app/models/market_depth_model.dart';
 import 'package:crosspay_app/models/quote_model.dart';
+import 'package:crosspay_app/models/trade_event_model.dart';
 import 'package:crosspay_app/models/trade_model.dart';
 import 'package:crosspay_app/models/user_model.dart';
 import 'package:crosspay_app/repositories/auth_repository.dart';
@@ -176,6 +179,37 @@ class _PreviewRatesRepository extends RatesRepository {
       bankSweepPercent: 88,
     );
   }
+
+  /// F4.2 — simulated corridor depth for the Rates tab.
+  @override
+  Future<List<CorridorDepth>> fetchDepth(AppConfig config) async {
+    await _wait(_latency);
+    final tzs = config.currencyByCode('TZS');
+    final kes = config.currencyByCode('KES');
+    if (tzs == null || kes == null) return const [];
+    return [
+      CorridorDepth(
+        from: tzs,
+        to: kes,
+        queueDepth: 12,
+        estimatedSettleSeconds: 900,
+        status: const CorridorStatus(
+          code: 'balanced_p2p',
+          level: CorridorLevel.healthy,
+        ),
+      ),
+      CorridorDepth(
+        from: kes,
+        to: tzs,
+        queueDepth: 4,
+        estimatedSettleSeconds: 420,
+        status: const CorridorStatus(
+          code: 'active_clearing',
+          level: CorridorLevel.limited,
+        ),
+      ),
+    ];
+  }
 }
 
 class _PreviewAuthRepository extends AuthRepository {
@@ -270,12 +304,16 @@ class _PreviewBeneficiaryRepository extends BeneficiaryRepository {
 
   final Duration _latency;
 
+  /// Simulated recipients, seeded once so add / edit / delete stick in the demo.
+  List<Beneficiary>? _items;
+  int _nextId = 5;
+
   @override
   Future<List<Beneficiary>> list(AppConfig config) async {
     await _wait(_latency);
     if (config.payoutRails.isEmpty) return const [];
     final rail = config.payoutRails.first;
-    return [
+    _items ??= [
       Beneficiary(
         id: 'b1',
         name: 'Eastleigh Textiles',
@@ -304,6 +342,54 @@ class _PreviewBeneficiaryRepository extends BeneficiaryRepository {
         kycVerified: true,
       ),
     ];
+    return List<Beneficiary>.unmodifiable(_items!);
+  }
+
+  /// F5.2 — the demo accepts a new recipient and keeps it for the session.
+  @override
+  Future<Beneficiary> add({
+    required AppConfig config,
+    required PayoutRail rail,
+    required String name,
+    required String accountOrPhone,
+  }) async {
+    await _wait(_latency);
+    final item = Beneficiary(
+      id: 'p${_nextId++}',
+      name: name,
+      rail: rail,
+      accountOrPhone: accountOrPhone,
+    );
+    _items?.add(item);
+    return item;
+  }
+
+  /// F5.2 — edits a recipient already in the demo list.
+  @override
+  Future<Beneficiary> update({
+    required AppConfig config,
+    required String id,
+    required PayoutRail rail,
+    required String name,
+    required String accountOrPhone,
+  }) async {
+    await _wait(_latency);
+    final item = Beneficiary(
+      id: id,
+      name: name,
+      rail: rail,
+      accountOrPhone: accountOrPhone,
+    );
+    final index = _items?.indexWhere((b) => b.id == id) ?? -1;
+    if (index >= 0) _items![index] = item;
+    return item;
+  }
+
+  /// F5.2 — removes a recipient from the demo list.
+  @override
+  Future<void> remove(String id) async {
+    await _wait(_latency);
+    _items?.removeWhere((b) => b.id == id);
   }
 
   /// An account ending in 0 is "not found". A name containing "mismatch" does
@@ -610,6 +696,123 @@ class _PreviewTradeRepository extends TradeRepository {
       );
     }
     _shared = true;
+  }
+
+  /// F4.1 — simulated trade history, newest first.
+  @override
+  Future<List<Trade>> getTrades(AppConfig config) async {
+    await _wait(_latency);
+    final tzs = config.currencyByCode('TZS') ?? _tzs;
+    final kes = config.currencyByCode('KES') ?? _kes;
+    final now = DateTime.now();
+    return [
+      Trade(
+        id: 'pv-1041',
+        reference: 'PV-1041',
+        route: RouteType.p2p,
+        status: TradeStatus.pendingDeposit,
+        sendCurrency: tzs,
+        receiveCurrency: kes,
+        sendAmountMinor: 1200000,
+        feeMinor: 12000,
+        feeBps: 100,
+        receiveAmountMinor: 24300,
+        rate: 0.0504,
+        beneficiaryName: 'Eastleigh Textiles',
+        createdAt: now.subtract(const Duration(hours: 3)),
+      ),
+      Trade(
+        id: 'pv-1040',
+        reference: 'PV-1040',
+        route: RouteType.p2p,
+        status: TradeStatus.completed,
+        sendCurrency: tzs,
+        receiveCurrency: kes,
+        sendAmountMinor: 2400000,
+        feeMinor: 24000,
+        feeBps: 100,
+        receiveAmountMinor: 48600,
+        rate: 0.0504,
+        beneficiaryName: 'Lusaka Import Export',
+        createdAt: now.subtract(const Duration(days: 12)),
+      ),
+      Trade(
+        id: 'pv-1039',
+        reference: 'PV-1039',
+        route: RouteType.bank,
+        status: TradeStatus.failed,
+        sendCurrency: kes,
+        receiveCurrency: tzs,
+        sendAmountMinor: 80000,
+        feeMinor: 800,
+        feeBps: 100,
+        receiveAmountMinor: 1588000,
+        rate: 19.85,
+        beneficiaryName: 'Nairobi Motors',
+        createdAt: now.subtract(const Duration(days: 45)),
+      ),
+    ];
+  }
+
+  /// F4.1 — a status timeline for the trade on screen.
+  @override
+  Future<List<TradeEvent>> fetchTimeline(String tradeId) async {
+    await _wait(_latency);
+    final now = DateTime.now();
+    return [
+      TradeEvent(
+        status: TradeStatus.pendingDeposit,
+        at: now.subtract(const Duration(minutes: 42)),
+      ),
+      TradeEvent(
+        status: TradeStatus.escrowed,
+        at: now.subtract(const Duration(minutes: 38)),
+        noteCode: 'payment_seen',
+      ),
+      TradeEvent(
+        status: TradeStatus.matching,
+        at: now.subtract(const Duration(minutes: 31)),
+      ),
+    ];
+  }
+
+  /// F4.1 — an export link to copy (nothing is actually served).
+  @override
+  Future<ExportTicket> requestExport() async {
+    await _wait(_latency);
+    return ExportTicket(
+      downloadUrl: 'preview://trades/export.csv',
+      expiresAt: DateTime.now().add(const Duration(minutes: 15)),
+    );
+  }
+
+  /// F4.1 — simulated analytics for the spending screen.
+  @override
+  Future<TradeAnalytics> fetchAnalytics(AppConfig config) async {
+    await _wait(_latency);
+    final tzs = config.currencyByCode('TZS') ?? _tzs;
+    final kes = config.currencyByCode('KES') ?? _kes;
+    return TradeAnalytics(
+      trades: 3,
+      sentMinor: 2480000,
+      sentCurrency: tzs,
+      receivedMinor: 72900,
+      receivedCurrency: kes,
+      corridors: const [
+        CorridorSpend(
+          from: _tzs,
+          to: _kes,
+          trades: 2,
+          sentMinor: 3600000,
+        ),
+        CorridorSpend(
+          from: _kes,
+          to: _tzs,
+          trades: 1,
+          sentMinor: 80000,
+        ),
+      ],
+    );
   }
 
   bool get shared => _shared;

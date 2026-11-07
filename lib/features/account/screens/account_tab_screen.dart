@@ -1,44 +1,64 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crosspay_app/core/constants/app_colors.dart';
 import 'package:crosspay_app/core/constants/app_routes.dart';
+import 'package:crosspay_app/providers/localization_provider.dart';
 
-/// F4.1 / F5.3 — Account tab: the entry point to Security, History and
-/// Language. Replaces the temporary "Next: F5.1 account" placeholder;
-/// F5.1 profile and F5.2 saved recipients slot in here later.
-class AccountTabScreen extends StatelessWidget {
+/// F4.1 / F5.1 / F5.2 / F5.3 — Account tab: the entry point to Profile,
+/// Recipients, History, Spending, Security and Language. Every tile leads to a
+/// real screen; none of them shows invented data.
+class AccountTabScreen extends ConsumerWidget {
   const AccountTabScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(24),
-        children: const [
+        children: [
           Text(
-            'Account',
-            style: TextStyle(
+            ref.tr('account.title'),
+            style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w700,
               color: AppColors.navy,
             ),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
+          _Tile(
+            icon: Icons.person_outline,
+            title: ref.tr('account.profile'),
+            subtitle: ref.tr('account.profile_sub'),
+            route: AppRoutes.profile,
+          ),
+          _Tile(
+            icon: Icons.people_outline,
+            title: ref.tr('account.recipients'),
+            subtitle: ref.tr('account.recipients_sub'),
+            route: AppRoutes.recipients,
+          ),
           _Tile(
             icon: Icons.history,
-            title: 'Transaction history',
-            subtitle: 'Search your past trades',
+            title: ref.tr('account.history'),
+            subtitle: ref.tr('account.history_sub'),
             route: AppRoutes.history,
           ),
           _Tile(
+            icon: Icons.insights_outlined,
+            title: ref.tr('account.analytics'),
+            subtitle: ref.tr('account.analytics_sub'),
+            route: AppRoutes.analytics,
+          ),
+          _Tile(
             icon: Icons.lock_outline,
-            title: 'Security',
-            subtitle: 'PIN lock and session settings',
+            title: ref.tr('account.security'),
+            subtitle: ref.tr('account.security_sub'),
             route: AppRoutes.security,
           ),
           _Tile(
             icon: Icons.language,
-            title: 'Language',
-            subtitle: 'English / Kiswahili',
+            title: ref.tr('account.language'),
+            subtitle: ref.tr('account.language_sub'),
             route: AppRoutes.language,
           ),
         ],

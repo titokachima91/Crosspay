@@ -8,6 +8,7 @@ import 'package:crosspay_app/providers/trade_provider.dart';
 import 'package:crosspay_app/widgets/custom_button.dart';
 import 'package:crosspay_app/features/transaction/widgets/verification_hash_card.dart';
 import 'package:crosspay_app/features/transaction/widgets/trade_status_bar.dart';
+import 'package:crosspay_app/features/transaction/widgets/trade_timeline_card.dart';
 
 class TradeTrackerScreen extends ConsumerStatefulWidget {
   const TradeTrackerScreen({super.key});
@@ -107,6 +108,8 @@ class _TradeTrackerScreenState extends ConsumerState<TradeTrackerScreen> {
                   Text('Trade reference: ${trade.reference}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary)),
                   const SizedBox(height: 24),
                   TradeStatusBar(status: trade.status),
+                  const SizedBox(height: 20),
+                  TradeTimelineCard(tradeId: trade.id),
                   const SizedBox(height: 24),
                   Container(
                     padding: const EdgeInsets.all(20),
