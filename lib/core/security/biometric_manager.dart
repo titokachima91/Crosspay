@@ -1,8 +1,5 @@
-import 'dart:async';
-
 import 'package:flutter/services.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:flutter_local_authentication/flutter_local_authentication.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:flutter/material.dart';
 
 /// F5.3 - biometric unlock manager (fingerprint / face).
@@ -14,25 +11,13 @@ import 'package:flutter/material.dart';
 /// platform implementation, every call degrades gracefully: unlock becomes
 /// "unavailable" and the gate falls back to the PIN dialog.
 class BiometricManager {
-  BiometricManager([FlutterSecureStorage? storage])
-      : _storage = storage ?? const FlutterSecureStorage();
-
-  final FlutterSecureStorage _storage;
-
-  /// True when the person has enrolled biometrics on this device.
-  Future<bool> isEnrolled() async {
-    try {
-      final types = await AvailableBiometricType.instance.getAvailableBiometricTypes();
-      return types.isNotEmpty;
-    } catch (_) {
-      return false;
-    }
-  }
+  BiometricManager();
 
   /// True when the device currently offers biometrics.
   Future<bool> isAvailable() async {
     try {
-      final types = await AvailableBiometricType.instance.getAvailableBiometricTypes();
+      final localAuth = LocalAuthentication();
+      final types = await localAuth.getAvailableBiometrics();
       return types.isNotEmpty;
     } catch (_) {
       return false;
@@ -41,12 +26,14 @@ class BiometricManager {
 
   /// True when the current authentication (fingerprint/face) succeeds.
   /// False on denial, cancellation, or when unavailable.
-  Future<bool> authenticate({required String dialogTitle, required String dialogMessage}) async {
+  Future<bool> authenticate({required String localizedReason}) async {
     try {
-      final localAuth = LocalAuthentication.instance;
+      final localAuth = LocalAuthentication();
       final ok = await localAuth.authenticate(
-        authenticationRequired: true,
-        options: const AuthenticationOptions(biometricOnly: true),
+        localizedReason: localizedReason,
+        options: const AuthenticationOptions(
+          biometricOnly: true,
+        ),
       );
       return ok;
     } catch (_) {
@@ -60,7 +47,7 @@ class BiometricManager {
     Future<bool> Function(String pin) verifyPin,
   ) async {
     if (await isAvailable()) {
-      final ok = await authenticate(dialogTitle: 'Biometric unlock', dialogMessage: 'Confirm with fingerprint or face');
+      final ok = await authenticate(localizedReason: 'Confirm with fingerprint or face');
       if (ok) return true;
     }
     // Fall back to the plain PIN dialog.
