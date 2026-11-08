@@ -13,8 +13,7 @@ class SecuritySettingsScreen extends StatefulWidget {
   const SecuritySettingsScreen({super.key});
 
   @override
-  State<SecuritySettingsScreen> createState() =>
-      _SecuritySettingsScreenState();
+  State<SecuritySettingsScreen> createState() => _SecuritySettingsScreenState();
 }
 
 class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
@@ -58,7 +57,8 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: Text(setup ? 'Set app lock PIN' : 'Confirm PIN to turn off'),
+              title:
+                  Text(setup ? 'Set app lock PIN' : 'Confirm PIN to turn off'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -160,9 +160,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                       label: 'PIN lock',
                       subtitle: _checking
                           ? 'Checking…'
-                          : (_hasPin
-                              ? 'On — asked when the app opens'
-                              : 'Off'),
+                          : (_hasPin ? 'On — asked when the app opens' : 'Off'),
                       value: _hasPin && !_checking,
                       enabled: !_checking,
                       onChanged: _onPinToggle,
@@ -252,7 +250,7 @@ class _SectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border),
       ),
@@ -362,8 +360,8 @@ class _InfoRow extends StatelessWidget {
           ),
           Text(
             trailing,
-            style: const TextStyle(
-                fontSize: 13, color: AppColors.textSecondary),
+            style:
+                const TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
         ],
       ),

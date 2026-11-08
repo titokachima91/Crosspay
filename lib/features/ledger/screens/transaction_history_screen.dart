@@ -228,7 +228,7 @@ class _SearchField extends ConsumerWidget {
         hintStyle: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
         prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.textSecondary),
         filled: true,
-        fillColor: AppColors.surface,
+        fillColor: Theme.of(context).colorScheme.surface,
         contentPadding: const EdgeInsets.symmetric(vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -390,7 +390,7 @@ class _TradeTile extends StatelessWidget {
         trade.receiveAmountMinor, trade.receiveCurrency.decimals);
 
     return Material(
-      color: AppColors.surface,
+      color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),

@@ -21,18 +21,28 @@ import 'package:crosspay_app/features/account/screens/profile_screen.dart';
 import 'package:crosspay_app/features/account/screens/beneficiaries_screen.dart';
 
 class CrossPayApp extends StatelessWidget {
-  const CrossPayApp({super.key, this.builder});
+  const CrossPayApp({super.key, this.builder, this.themeMode});
 
   /// Optional wrapper drawn around every screen. The real app passes nothing;
   /// only the separate preview app uses it (to show its banner).
   final TransitionBuilder? builder;
 
+  /// Theme mode: light, dark, or system (defaults to system).
+  final AppThemeMode? themeMode;
+
   @override
   Widget build(BuildContext context) {
+    final effectiveMode = themeMode ?? AppThemeMode.system;
     return MaterialApp(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: effectiveMode == AppThemeMode.system
+          ? ThemeMode.system
+          : effectiveMode == AppThemeMode.light
+              ? ThemeMode.light
+              : ThemeMode.dark,
       builder: builder,
       initialRoute: AppRoutes.splash,
       routes: {
