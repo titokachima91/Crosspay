@@ -258,6 +258,15 @@
   "account.analytics_sub": "Where your money goes",
   "account.security": "Security",
   "account.security_sub": "PIN lock and session settings",
-  "account.language": "Language",
-  "account.language_sub": "English / Kiswahili"
+  "account.settings": "Settings",
+  "account.settings_sub": "Language, appearance and security",
+  "settings.title": "Settings",
+  "settings.language": "Language",
+  "settings.appearance": "Appearance",
+  "settings.security": "Security",
+  "settings.app_lock": "App lock",
+  "settings.app_lock_sub": "PIN, fingerprint or Face ID",
+  "settings.theme_light": "Light",
+  "settings.theme_dark": "Dark",
+  "settings.theme_system": "System"
 }

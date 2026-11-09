@@ -16,6 +16,7 @@ class AppRoutes {
   static const String compareRoutes = '/compare-routes';
   static const String history = '/history';
   static const String analytics = '/analytics';
+  static const String settings = '/settings';
   static const String security = '/security';
   static const String language = '/language';
 

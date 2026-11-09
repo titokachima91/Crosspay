@@ -1,11 +1,7 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crosspay_app/core/constants/app_colors.dart';
 import 'package:crosspay_app/core/localization/app_localizations.dart';
-import 'package:crosspay_app/core/storage/language_store.dart';
-import 'package:crosspay_app/core/theme/app_theme.dart';
 import 'package:crosspay_app/providers/localization_provider.dart';
 
 /// F5.3 Language selector — reuses the existing localeCodeProvider.
@@ -14,22 +10,17 @@ import 'package:crosspay_app/providers/localization_provider.dart';
 class LanguageSelectorScreen extends ConsumerWidget {
   const LanguageSelectorScreen({super.key});
 
-  static String _name(String code) => switch (code) {
-        'en' => 'English',
-        'sw' => 'Kiswahili',
-        _ => code.toUpperCase(),
-      };
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final current = ref.watch(localeCodeProvider);
+    final scheme = Theme.of(context).colorScheme;
     const codes = AppLocalizations.supportedCodes;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Language'),
+        title: Text(ref.tr('common.language')),
         backgroundColor: Colors.transparent,
-        foregroundColor: AppColors.navy,
+        foregroundColor: scheme.onSurface,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
         elevation: 0,
@@ -60,7 +51,7 @@ class LanguageSelectorScreen extends ConsumerWidget {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: selected ? AppColors.emerald : AppColors.border,
+                          color: selected ? AppColors.emerald : scheme.outline,
                           width: selected ? 2 : 1,
                         ),
                       ),
@@ -71,24 +62,26 @@ class LanguageSelectorScreen extends ConsumerWidget {
                                 ? Icons.radio_button_checked
                                 : Icons.radio_button_off,
                             size: 20,
-                            color: selected ? AppColors.emerald : AppColors.textSecondary,
+                            color: selected
+                                ? AppColors.emerald
+                                : scheme.onSurfaceVariant,
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              _name(code),
-                              style: const TextStyle(
+                              AppLocalizations.displayName(code),
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
-                                color: AppColors.textPrimary,
+                                color: scheme.onSurface,
                               ),
                             ),
                           ),
                           Text(
                             code.toUpperCase(),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
-                              color: AppColors.textSecondary,
+                              color: scheme.onSurfaceVariant,
                             ),
                           ),
                         ],

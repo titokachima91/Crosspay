@@ -47,9 +47,12 @@ class BiometricManager {
     Future<bool> Function(String pin) verifyPin,
   ) async {
     if (await isAvailable()) {
-      final ok = await authenticate(localizedReason: 'Confirm with fingerprint or face');
+      final ok = await authenticate(
+        localizedReason: 'Confirm with fingerprint or face',
+      );
       if (ok) return true;
     }
+    if (!context.mounted) return false;
     // Fall back to the plain PIN dialog.
     return await showDialog<bool>(
       context: context,

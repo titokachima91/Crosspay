@@ -9,6 +9,14 @@ class AppLocalizations {
 
   static const List<String> supportedCodes = ['en', 'sw'];
 
+  /// Display name for a shipped language code. Kept here so every language
+  /// selector uses the same names.
+  static String displayName(String code) => switch (code) {
+        'en' => 'English',
+        'sw' => 'Kiswahili',
+        _ => code.toUpperCase(),
+      };
+
   static Future<AppLocalizations> load(String code) async {
     final raw = await rootBundle.loadString('lib/core/localization/$code.json');
     final decoded = json.decode(raw) as Map<String, dynamic>;

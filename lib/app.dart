@@ -17,6 +17,7 @@ import 'package:crosspay_app/features/transaction/screens/route_comparison_scree
 import 'package:crosspay_app/features/ledger/screens/transaction_history_screen.dart';
 import 'package:crosspay_app/features/ledger/screens/analytics_screen.dart';
 import 'package:crosspay_app/features/account/screens/settings_screen.dart';
+import 'package:crosspay_app/features/account/screens/security_settings_screen.dart';
 import 'package:crosspay_app/features/account/screens/profile_screen.dart';
 import 'package:crosspay_app/features/account/screens/language_selector_screen.dart';
 import 'package:crosspay_app/features/account/screens/beneficiaries_screen.dart';
@@ -31,12 +32,10 @@ class CrossPayApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeMode = ref.watch(themeModeProvider);
-    final effectiveMode = switch (themeMode) {
-      AppThemeMode.system => AppThemeMode.dark,
-      AppThemeMode.light => AppThemeMode.light,
-      AppThemeMode.dark => AppThemeMode.dark,
-      AppThemeMode.system => AppThemeMode.light,
+    final themeMode = switch (ref.watch(themeModeProvider)) {
+      AppThemeMode.light => ThemeMode.light,
+      AppThemeMode.dark => ThemeMode.dark,
+      AppThemeMode.system => ThemeMode.system,
     };
 
     return MaterialApp(
@@ -44,11 +43,7 @@ class CrossPayApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: effectiveMode == AppThemeMode.system
-          ? ThemeMode.system
-          : effectiveMode == AppThemeMode.light
-              ? ThemeMode.light
-              : ThemeMode.dark,
+      themeMode: themeMode,
       builder: builder,
       initialRoute: AppRoutes.splash,
       routes: {
@@ -67,6 +62,7 @@ class CrossPayApp extends ConsumerWidget {
         AppRoutes.analytics: (_) => const AnalyticsScreen(),
         AppRoutes.profile: (_) => const ProfileScreen(),
         AppRoutes.recipients: (_) => const BeneficiariesScreen(),
+        AppRoutes.settings: (_) => const SettingsScreen(),
         AppRoutes.security: (_) => const SecuritySettingsScreen(),
         AppRoutes.language: (_) => const LanguageSelectorScreen(),
       },

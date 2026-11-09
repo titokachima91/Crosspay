@@ -71,7 +71,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             Text(
               ref.tr(state.errorKey ?? 'error.unknown'),
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
               ),
             ),
             const SizedBox(height: 12),
@@ -144,14 +144,14 @@ alignment: Alignment.center,
             children: [
               Text(
                 profile.displayName,
-                style: TextStyle(
+                style: const TextStyle(
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 2),
               Text(
                 profile.phone,
-                style: TextStyle(
+                style: const TextStyle(
                 ),
               ),
             ],
@@ -204,7 +204,7 @@ class _Details extends ConsumerWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
             ),
           ),
           Flexible(
@@ -249,7 +249,7 @@ class _LimitBar extends ConsumerWidget {
         children: [
           Text(
             ref.tr('profile.limit.title').toUpperCase(),
-            style: TextStyle(
+            style: const TextStyle(
             ),
           ),
           const SizedBox(height: 12),
@@ -270,7 +270,7 @@ class _LimitBar extends ConsumerWidget {
               'used': '$code $used',
               'limit': '$code $limit',
             }),
-            style: TextStyle(
+            style: const TextStyle(
             ),
           ),
           const SizedBox(height: 2),
@@ -278,7 +278,7 @@ class _LimitBar extends ConsumerWidget {
             ref.tr('profile.limit.remaining', params: {
               'amount': '$code $remaining',
             }),
-            style: TextStyle(
+            style: const TextStyle(
             ),
           ),
         ],

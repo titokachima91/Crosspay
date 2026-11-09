@@ -258,6 +258,15 @@
   "account.analytics_sub": "Pesa zako zinaenda wapi",
   "account.security": "Usalama",
   "account.security_sub": "PIN na mipangilio ya kipindi",
-  "account.language": "Lugha",
-  "account.language_sub": "Kiingereza / Kiswahili"
+  "account.settings": "Mipangilio",
+  "account.settings_sub": "Lugha, muonekano na usalama",
+  "settings.title": "Mipangilio",
+  "settings.language": "Lugha",
+  "settings.appearance": "Muonekano",
+  "settings.security": "Usalama",
+  "settings.app_lock": "Kufunga programu",
+  "settings.app_lock_sub": "PIN, alama ya kidole au Face ID",
+  "settings.theme_light": "Nuru",
+  "settings.theme_dark": "Giza",
+  "settings.theme_system": "Mfumo"
 }

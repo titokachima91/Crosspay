@@ -57,7 +57,7 @@ class _MarketDepthScreenState extends ConsumerState<MarketDepthScreen> {
                 children: [
                   Text(
                     ref.tr('market.subtitle'),
-                    style: TextStyle(
+                    style: const TextStyle(
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -162,7 +162,7 @@ class _CorridorCard extends ConsumerWidget {
                   '${countryFlag(depth.from.countryCode)} ${depth.from.code}'
                   '  \u21C4  '
                   '${countryFlag(depth.to.countryCode)} ${depth.to.code}',
-                  style: TextStyle(
+                  style: const TextStyle(
                   ),
                 ),
               ),
@@ -180,7 +180,7 @@ class _CorridorCard extends ConsumerWidget {
                   child: Text(
                     statusLabel,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: const TextStyle(
                     ),
                   ),
                 ),

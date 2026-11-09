@@ -45,12 +45,12 @@ class _EventRow extends ConsumerWidget {
                 children: [
                   Text(
                     ref.tr(event.status.labelKey),
-                    style: TextStyle(),
+                    style: const TextStyle(),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     DateFormatX.dayTime(event.at),
-                    style: TextStyle(),
+                    style: const TextStyle(),
                   ),
                 ],
               ),
@@ -138,7 +138,7 @@ class _TradeTimelineCardState extends ConsumerState<TradeTimelineCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            ref.tr('history.timeline-title').toUpperCase(),
+            ref.tr('history.timeline.title').toUpperCase(),
             style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,

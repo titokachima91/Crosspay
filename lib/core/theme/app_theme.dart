@@ -8,8 +8,27 @@ enum AppThemeMode {
   system,
 }
 
+/// The single place the two palettes are defined.
+///
+/// Screens must read colours from `Theme.of(context).colorScheme` (or the
+/// `AppColors` status colours) rather than hardcoding light-theme values, so
+/// both palettes stay readable.
 class AppTheme {
   AppTheme._();
+
+  // Dark palette. The brand navy stays the app-bar colour; the interactive
+  // primary is the lighter indigo Material uses for text/icons on dark
+  // surfaces, so swept screens remain legible.
+  static const Color _darkBackground = Color(0xFF12121C);
+  static const Color _darkSurface = Color(0xFF1E1E2E);
+  static const Color _darkSurfaceHigh = Color(0xFF252538);
+  static const Color _darkPrimary = Color(0xFF9FA8DA);
+  static const Color _darkOnPrimary = Color(0xFF0A1033);
+  static const Color _darkOnSurface = Color(0xFFF1F2F6);
+  static const Color _darkOnSurfaceVariant = Color(0xFFB9BCCC);
+  static const Color _darkOutline = Color(0xFF8A8DA0);
+  static const Color _darkOutlineVariant = Color(0xFF3A3D52);
+  static const Color _darkError = Color(0xFFFF8A80);
 
   static OutlineInputBorder _border(Color color, double width) {
     return OutlineInputBorder(
@@ -26,8 +45,13 @@ class AppTheme {
       primary: AppColors.navy,
       onPrimary: Colors.white,
       secondary: AppColors.emerald,
-      onSecondary: Colors.white,
+      onSecondary: Colors.black,
       error: AppColors.danger,
+      // Keep the verified light look exactly as it was before the theme work.
+      surface: Colors.white,
+      onSurface: AppColors.textPrimary,
+      onSurfaceVariant: AppColors.textSecondary,
+      outlineVariant: AppColors.border,
     );
 
     final base = ThemeData(useMaterial3: true, colorScheme: scheme);
@@ -37,14 +61,14 @@ class AppTheme {
       textTheme: base.textTheme.copyWith(
         headlineMedium: base.textTheme.headlineMedium?.copyWith(
           fontWeight: FontWeight.w700,
-          color: AppColors.navy,
+          color: scheme.primary,
         ),
         titleLarge: base.textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w600,
-          color: AppColors.textPrimary,
+          color: scheme.onSurface,
         ),
         bodyMedium: base.textTheme.bodyMedium?.copyWith(
-          color: AppColors.textSecondary,
+          color: scheme.onSurfaceVariant,
         ),
       ),
       appBarTheme: const AppBarTheme(
@@ -55,8 +79,8 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.navy,
-          foregroundColor: Colors.white,
+          backgroundColor: scheme.primary,
+          foregroundColor: scheme.onPrimary,
           minimumSize: const Size.fromHeight(52), // 52dp CTA from the spec
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -66,59 +90,64 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white,
+        fillColor: scheme.surface,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        border: _border(AppColors.border, 1),
-        enabledBorder: _border(AppColors.border, 1),
-        focusedBorder: _border(AppColors.navy, 2),
-        errorBorder: _border(AppColors.danger, 1),
+        border: _border(scheme.outlineVariant, 1),
+        enabledBorder: _border(scheme.outlineVariant, 1),
+        focusedBorder: _border(scheme.primary, 2),
+        errorBorder: _border(scheme.error, 1),
       ),
     );
   }
 
-  /// Dark theme with Material3 color scheme.
+  /// Dark theme with the same typography and shapes as [light].
   static ThemeData get dark {
     final scheme = ColorScheme.fromSeed(
       seedColor: AppColors.navy,
       brightness: Brightness.dark,
     ).copyWith(
-      primary: AppColors.navy,
-      onPrimary: Colors.white,
+      primary: _darkPrimary,
+      onPrimary: _darkOnPrimary,
       secondary: AppColors.emerald,
-      onSecondary: Colors.white,
-      error: AppColors.danger,
-      surface: const Color(0xFF1E1E2E),
-      onSurface: Colors.white,
+      onSecondary: Colors.black,
+      error: _darkError,
+      onError: Colors.black,
+      surface: _darkSurface,
+      onSurface: _darkOnSurface,
+      onSurfaceVariant: _darkOnSurfaceVariant,
+      surfaceContainerHighest: _darkSurfaceHigh,
+      outline: _darkOutline,
+      outlineVariant: _darkOutlineVariant,
     );
 
     final base = ThemeData(useMaterial3: true, colorScheme: scheme);
 
     return base.copyWith(
-      scaffoldBackgroundColor: AppColors.background,
+      scaffoldBackgroundColor: _darkBackground,
       textTheme: base.textTheme.copyWith(
         headlineMedium: base.textTheme.headlineMedium?.copyWith(
           fontWeight: FontWeight.w700,
-          color: AppColors.navy,
+          color: scheme.onSurface,
         ),
         titleLarge: base.textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w600,
-          color: AppColors.textPrimary,
+          color: scheme.onSurface,
         ),
         bodyMedium: base.textTheme.bodyMedium?.copyWith(
-          color: AppColors.textSecondary,
+          color: scheme.onSurfaceVariant,
         ),
       ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.navy,
-        foregroundColor: Colors.white,
+      appBarTheme: AppBarTheme(
+        backgroundColor: _darkSurface,
+        foregroundColor: scheme.onSurface,
         elevation: 0,
         centerTitle: true,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.navy,
-          foregroundColor: Colors.white,
+          backgroundColor: scheme.primary,
+          foregroundColor: scheme.onPrimary,
           minimumSize: const Size.fromHeight(52),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -128,13 +157,13 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white,
+        fillColor: _darkSurfaceHigh,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        border: _border(AppColors.border, 1),
-        enabledBorder: _border(AppColors.border, 1),
-        focusedBorder: _border(AppColors.navy, 2),
-        errorBorder: _border(AppColors.danger, 1),
+        border: _border(scheme.outlineVariant, 1),
+        enabledBorder: _border(scheme.outlineVariant, 1),
+        focusedBorder: _border(scheme.primary, 2),
+        errorBorder: _border(scheme.error, 1),
       ),
     );
   }

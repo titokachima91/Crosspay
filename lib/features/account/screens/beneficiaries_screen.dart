@@ -82,7 +82,7 @@ class _BeneficiariesScreenState extends ConsumerState<BeneficiariesScreen> {
             Text(
               ref.tr(state.errorKey ?? 'error.unknown'),
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
               ),
             ),
             const SizedBox(height: 12),
@@ -219,7 +219,7 @@ class _RecipientTile extends ConsumerWidget {
                       child: Text(
                         item.name,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                         ),
                       ),
                     ),
@@ -237,7 +237,7 @@ class _RecipientTile extends ConsumerWidget {
                 Text(
                   '${item.rail.name} · ${item.accountOrPhone}',
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                   ),
                 ),
               ],
