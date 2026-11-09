@@ -10,6 +10,10 @@
 .svn/
 migrate_working_dir/
 
+# Dart compiler leftovers and stray process output
+*.d
+nohup.out
+
 # IntelliJ related
 *.iml
 *.ipr
