@@ -88,6 +88,8 @@ class AppTheme {
       secondary: AppColors.emerald,
       onSecondary: Colors.white,
       error: AppColors.danger,
+      surface: const Color(0xFF1E1E2E),
+      onSurface: Colors.white,
     );
 
     final base = ThemeData(useMaterial3: true, colorScheme: scheme);

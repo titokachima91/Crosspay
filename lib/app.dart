@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:crosspay_app/core/constants/app_constants.dart';
 import 'package:crosspay_app/core/constants/app_routes.dart';
 import 'package:crosspay_app/core/theme/app_theme.dart';
+import 'package:crosspay_app/providers/theme_provider.dart';
 import 'package:crosspay_app/features/onboarding/screens/kyc_profile_screen.dart';
 import 'package:crosspay_app/features/onboarding/screens/otp_verification_screen.dart';
 import 'package:crosspay_app/features/onboarding/screens/phone_entry_screen.dart';
@@ -15,24 +16,29 @@ import 'package:crosspay_app/features/transaction/screens/invoice_screen.dart';
 import 'package:crosspay_app/features/transaction/screens/route_comparison_screen.dart';
 import 'package:crosspay_app/features/ledger/screens/transaction_history_screen.dart';
 import 'package:crosspay_app/features/ledger/screens/analytics_screen.dart';
-import 'package:crosspay_app/features/account/screens/security_settings_screen.dart';
-import 'package:crosspay_app/features/account/screens/language_selector_screen.dart';
+import 'package:crosspay_app/features/account/screens/settings_screen.dart';
 import 'package:crosspay_app/features/account/screens/profile_screen.dart';
+import 'package:crosspay_app/features/account/screens/language_selector_screen.dart';
 import 'package:crosspay_app/features/account/screens/beneficiaries_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class CrossPayApp extends StatelessWidget {
-  const CrossPayApp({super.key, this.builder, this.themeMode});
+class CrossPayApp extends ConsumerWidget {
+  const CrossPayApp({super.key, this.builder});
 
   /// Optional wrapper drawn around every screen. The real app passes nothing;
   /// only the separate preview app uses it (to show its banner).
   final TransitionBuilder? builder;
 
-  /// Theme mode: light, dark, or system (defaults to system).
-  final AppThemeMode? themeMode;
-
   @override
-  Widget build(BuildContext context) {
-    final effectiveMode = themeMode ?? AppThemeMode.system;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
+    final effectiveMode = switch (themeMode) {
+      AppThemeMode.system => AppThemeMode.dark,
+      AppThemeMode.light => AppThemeMode.light,
+      AppThemeMode.dark => AppThemeMode.dark,
+      AppThemeMode.system => AppThemeMode.light,
+    };
+
     return MaterialApp(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,

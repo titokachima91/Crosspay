@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:crosspay_app/app.dart';
 import 'package:crosspay_app/core/constants/app_routes.dart';
 import 'package:crosspay_app/core/localization/app_localizations.dart';
 import 'package:crosspay_app/core/storage/language_store.dart';
@@ -19,8 +18,9 @@ Future<void> main() async {
   // F5.3 — reopen in the language last chosen on this device.
   var language = 'en';
   try {
-    final stored = await SecureLanguageStore().read();
-    if (stored != null && AppLocalizations.supportedCodes.contains(stored)) {
+    final stored = await ref.read(languageStoreProvider).read();
+    if (stored != null &&
+        AppLocalizations.supportedCodes.contains(stored)) {
       language = stored;
     }
   } catch (_) {
@@ -28,13 +28,8 @@ Future<void> main() async {
   }
 
   // Theme preference — defaults to system.
-  AppThemeMode themeMode = AppThemeMode.system;
-  try {
-    final storedTheme = await SecureThemeStore().read();
-    if (storedTheme != null) themeMode = storedTheme;
-  } catch (_) {
-    // No stored choice: keep system.
-  }
+  // Theme mode is now watched via Riverpod provider in CrossPayApp.
+  final themeMode = AppThemeMode.system;
 
   runApp(
     ProviderScope(
@@ -47,7 +42,7 @@ Future<void> main() async {
           SecureThemeStore(),
         ),
       ],
-      child: CrossPayApp(themeMode: themeMode),
+      child: const CrossPayApp(),
     ),
   );
 }
