@@ -19,7 +19,7 @@ F3 ends at F3.6.**
 | F3.2 | Route selection & rate lock | done | - |
 | F3.3 | Recipient details & name check | done | - |
 | F3.4 | Payment prompt & manual fallback | done | - |
-| F3.5 | Live escrow & queue tracker + support | done | `FEATURE_SPEC/F3/F3.5.md` |
+| F3.5 | Live escrow & queue tracker + support | done (frontend; support channels server-driven) | `FEATURE_SPEC/F3/F3.5.md` |
 | F3.6 | Digital invoice & share sheet | done | `FEATURE_SPEC/F3/F3.6.md` |
 | F4.1 | Searchable ledger, timeline, export, analytics | done (frontend) | `FEATURE_SPEC/F4/F4.1.md` |
 | F4.2 | Market depth & queue health | done (frontend) | `FEATURE_SPEC/F4/F4.2.md` |
@@ -33,6 +33,9 @@ F3 ends at F3.6.**
 - `done (frontend)` - screen, provider, repository call, contract and tests are
   in place; it renders an honest "not connected" state until the matching
   backend endpoint exists.
+- `done (frontend; support channels server-driven)` - F3.5 is complete on the
+  frontend; contact details appear only when the server publishes
+  `/config.support`, and in-app messaging is not connected.
 - `partial` - part shipped, part blocked (see the spec file for exactly what).
 
 **Blocked, needs a decision or a backend**
@@ -40,6 +43,7 @@ F3 ends at F3.6.**
 |------|------------|
 | F5.3 biometrics | wiring into the gate + platform permission entries (`local_auth` and `BiometricManager` already exist) |
 | F5.3 stay signed in | `POST /auth/refresh` + a validation call at boot |
+| Support messaging | real `/config.support` values + a ticket submission endpoint |
 | Every "not connected" screen | its backend endpoint (PART 2) |
 
 ---

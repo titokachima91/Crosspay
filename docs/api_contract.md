@@ -241,7 +241,46 @@ means it did not complete. (Live push updates may replace polling later.)
 
 ## POST /api/v1/trades/{id}/payment-claim   (login required)
 The payer says they paid manually. This only asks the server to re-check the
-aggregator now; it never marks anything as paid by itself.
+aggregator now; it never marks anything as paid by itself. The app sends
+X-Idempotency-Key and must get the original result for a repeated key. The
+response body is not used; the payment step keeps polling GET /trades/{id}.
 
 ## POST /api/v1/trades/{id}/cancel   (login required)  -> trade object
 4xx codes: CANNOT_CANCEL, ALREADY_PAID (the app then keeps watching the trade).
+
+## GET /api/v1/trades   (login required)
+```
+{ "trades": [ <trade object> ] }
+```
+Newest first. The app currently reads the whole list and filters date windows on
+the device; a future `nextCursor` can be added without changing this shape.
+
+## GET /api/v1/trades/{id}/history   (login required)
+```
+{ "events": [ { "status": "<status code>", "at": "<ISO-8601 UTC>",
+                "noteCode": "<optional code>" } ] }
+```
+Oldest first. The app renders the events in the order received. `noteCode` is
+optional and not displayed yet; an unknown value is ignored while the status
+label is still shown. An unknown `status` means the response is broken and the
+timeline says so plainly. The endpoint must never invent a step for the app.
+
+## GET /api/v1/trades/analytics   (login required)
+```
+{
+  "totals": { "trades": <int>, "sentMinor": <int>, "sentCurrency": "<code>",
+              "receivedMinor": <int>, "receivedCurrency": "<code>" },
+  "corridors": [ { "from": "<code>", "to": "<code>",
+                   "trades": <int>, "sentMinor": <int> } ]
+}
+```
+Every number is calculated by the server. Currency codes must exist in /config;
+an unknown code means the response is broken. Corridors are shown in the
+server's order.
+
+## GET /api/v1/trades/export   (login required)
+```
+{ "downloadUrl": "<one-time link>", "expiresAt": "<ISO-8601 UTC>" }
+```
+The file is built and served by the server; the app only hands the link over
+and copies it with the built-in clipboard. No new dependency.

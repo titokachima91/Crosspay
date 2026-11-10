@@ -93,7 +93,7 @@ CrossPay is engineered as a non-custodial, server-driven cross-border payments e
 
 ## PART 3: TESTING
 
-- [x] Widget & unit suites - `flutter test` -> **177/177 passing** (2026-11-07)
+- [x] Widget & unit suites - `flutter test` -> **218/218 passing** (2026-11-10)
 - [ ] T1.1 End-to-end sandbox run
 - [ ] T1.2 KYC/sanctions
 - [ ] T1.3 Pilot
@@ -103,8 +103,12 @@ CrossPay is engineered as a non-custodial, server-driven cross-border payments e
 ## FEATURE SPECIFICATION DOCUMENTATION
 
 ### Completed Specifications
-- [x] `FEATURE_SPEC/F3/F3.5.md` - Live Escrow & Queue Tracker
+- [x] `FEATURE_SPEC/F3/F3.5.md` - Live Escrow & Queue Tracker + support
 - [x] `FEATURE_SPEC/F3/F3.6.md` - Digital Invoice & Share Sheet
+- [x] `FEATURE_SPEC/F4/F4.1.md` - Searchable Ledger, Timeline, CSV Export & Analytics
+- [x] `FEATURE_SPEC/F4/F4.2.md` - Market Depth & Queue Health
+- [x] `FEATURE_SPEC/F5/F5.1.md` - Profile & Limit Bar
+- [x] `FEATURE_SPEC/F5/F5.2.md` - Saved Recipients CRUD
 
 ### Active Specifications (partially built features)
 - [ ] `FEATURE_SPEC/F5/F5.3.md` - Security / language (partial + implementation log)
@@ -151,7 +155,7 @@ Private GitHub repo; secrets only in host settings; staging separate from produc
 5. Final name + domain/trademark
 6. Partner conversations (SMS, mobile money aggregator, licensed bank/PSP)
 7. Escrow partner | Name-lookup access | Payment collection callbacks
-8. Logo | Privacy policy text | Swahili review (sw.json, 169 keys)
+8. Logo | Privacy policy text | Swahili review (`sw.json`, 306 keys, parity checked 2026-11-10)
 9. Decide the FX spread that covers the rate lock
 
 ---
@@ -180,7 +184,7 @@ Private GitHub repo; secrets only in host settings; staging separate from produc
 - route_selection_screen still has its own private lock pill; switch to shared RateLockPill when next touched
 
 ### TEMPORARY
-- Logo letter mark | Ledger/Rates/Account tabs | Tracker destination (F3.5)
+- Logo letter mark (real asset pending)
 
 ---
 
@@ -189,13 +193,15 @@ Private GitHub repo; secrets only in host settings; staging separate from produc
 Backend MUST:
 - Honor X-Idempotency-Key (repeated key returns original result, never collects twice)
 - Error shape: {error: {code, message}}
-- GET /config (+currency decimals, payout rail kind)
+- GET /config (+currency decimals, payout rail kind, optional `support` block)
 - /rates | POST /auth/otp/request|verify
 - /auth/refresh | PUT /me/kyc | GET /me
 - GET /trade/estimate | POST /trade/quote
 - GET /beneficiaries | POST /beneficiaries/check
 - POST /trade/initiate (+collection details)
-- GET /trades/{id} | POST /trades/{id}/payment-claim | POST /trades/{id}/cancel
+- GET /trades | GET /trades/{id} | GET /trades/{id}/history
+- POST /trades/{id}/payment-claim | POST /trades/{id}/cancel
+- GET /trades/analytics | GET /trades/export
 - Fee on top; refuse transactions until verified
 - Never log request bodies
 - Licensed partner for escrow
@@ -209,7 +215,7 @@ Backend MUST:
 |---------|--------|---------------|-------|----------|
 | F3.3 | Complete | Complete | Passing | 0 issues |
 | F3.4 | Complete | Complete | Passing | 0 issues |
-| F3.5 | Complete | Complete | Passing | 0 issues |
+| F3.5 | Frontend complete; support channels server-driven | `FEATURE_SPEC/F3/F3.5.md` | Passing | 0 issues |
 | F3.6 | Complete | Complete | Passing | 0 issues |
 | F4.1 | Done (frontend) - history, timeline, CSV export, analytics | `FEATURE_SPEC/F4/F4.1.md` | Passing | 0 issues |
 | F4.2 | Done (frontend) - market depth & queue health | `FEATURE_SPEC/F4/F4.2.md` | Passing | 0 issues |
@@ -230,22 +236,45 @@ Backend MUST:
 - Payment provider tests wait on state, not on fixed timers (`_waitFor`, 2026-11-10)
 
 ### Documentation Files
-- `FEATURE_SPEC/F3/F3.5.md` - Live Escrow & Queue Tracker specification
-- `FEATURE_SPEC/F3/F3.6.md` - Digital Invoice & Share Sheet specification
-- `FEATURE_SPEC/F4/F4.1.md` - Searchable Ledger & Filters (done frontend + implementation log)
+- `FEATURE_SPEC/F3/F3.5.md` - Live Escrow & Queue Tracker + support
+- `FEATURE_SPEC/F3/F3.6.md` - Digital Invoice & Share Sheet
+- `FEATURE_SPEC/F4/F4.1.md` - Searchable Ledger, Timeline, Export & Analytics
+- `FEATURE_SPEC/F4/F4.2.md` - Market Depth & Queue Health
+- `FEATURE_SPEC/F5/F5.1.md` - Profile & Limit Bar
+- `FEATURE_SPEC/F5/F5.2.md` - Saved Recipients CRUD
 - `FEATURE_SPEC/F5/F5.3.md` - Security / language (partial + implementation log)
+- `FEATURE_SPEC/INDEX.md` - plan ID -> spec -> real state
+- `docs/api_contract.md` - server contract
+- `docs/BUILD_LOG.md` - append-only build history
 
 ---
 
-## CURRENT PHASE: F4 - LEDGER & MARKET
+## CURRENT PHASE: PART 2 - BACKEND
 
-**F3 is closed at F3.6. F4 opens now, with part of F4.1 (and F5.3) already built.**
+**The frontend build is complete for every plan item except F5.3, which remains
+partial by design** (PIN, language and theme shipped; biometrics and
+refresh-token stay-signed-in are still open). The next increment is the backend
+(PART 2). A backend plan will be audited against `docs/api_contract.md` and the
+existing frontend expectations before implementation. No backend exists in this
+repository yet.
 
-- **F4.1 (partial, built 2026-11-06; date-range added 2026-11-07):** transaction history screen (`/history`) with search, status filter and date windows (7/30/90 days, filtered on the device over the server rows - `HistoryRange` + `_RangeChips`), `trade_history_provider`, `getTrades()` in the trade repository, `ApiEndpoints.trades/tradeInvoice/tradeShare`. Chip rows use `Wrap` (the old `Row` overflowed on phone widths). Remaining: CSV export, status timeline, analytics dashboard; backend `GET /trades` plus history/analytics/export endpoints. Spec: `FEATURE_SPEC/F4/F4.1.md`.
-- **F4.2 (not started):** market depth & queue health.
-- **F5.3 (partial, built early 2026-11-06):** PIN lock (`lib/core/security/pin_manager.dart`), app-shell PIN gate, language selector (`/language`), security settings (`/security`), Account tab hub. Remaining: `local_auth` biometrics, stay-signed-in / refresh-token rotation, language persistence, 3+ languages/RTL. Spec: `FEATURE_SPEC/F5/F5.3.md`.
-- **Verified (2026-11-06):** `dart analyze lib/ test/` -> **No issues found**; `flutter test` -> **169/169 passing**; `flutter build web --release -t preview/main.dart` -> preview served HTTP 200 (port 8000).
-- **Git:** pushed to `origin/main` (`github.com/titokachima91/Crosspay.git`) through `707b852`, plus this documentation commit.
+Frontend state on 2026-11-10:
+
+- F3.5 tracker and support are complete on the frontend. Support channels appear
+  only when the server publishes `/config.support`; in-app support messaging is
+  not connected.
+- F4.1 history, timeline, CSV export and analytics are built; F4.2 market depth
+  is built. Every screen renders an honest "not connected" state until its
+  endpoint exists.
+- F5.1 profile and F5.2 saved recipients are built. F5.3 has PIN lock, language
+  persistence and theme mode; biometrics and stay-signed-in remain blocked.
+- Known follow-up: the status timeline presentation is functional but not final;
+  the product owner flagged it on 2026-11-10 for a later pass.
+- Verified: `dart analyze lib/ test/ preview/` -> **No issues found**;
+  `flutter test -j 4` -> **218/218 passing**;
+  `flutter build web --release -t preview/main.dart` -> **Built build/web**.
+- Git: branch `fix/theme-system` is local; nothing has been pushed. See
+  `git log` for the exact commit list.
 
 ### Provenance note (recorded 2026-11-07)
 

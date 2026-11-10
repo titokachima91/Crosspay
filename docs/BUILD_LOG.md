@@ -87,10 +87,6 @@ each commit.
 
 ---
 
-## Report End - No fluff. Just facts.
-
----
-
 ## 2026-11-10 - Theme repair (F1.2) and full dark-mode sweep
 
 **Session rule followed**: no invented data in `lib/`, no new dependency, the
@@ -145,10 +141,6 @@ server stays the source of truth, nothing pushed.
   missing. The security screen correctly says "Not available yet".
 - Stay signed in: needs `POST /auth/refresh` plus a validation call at boot.
 - No push was made; the branch stays local until the product owner confirms.
-
----
-
-## Report End - No fluff. Just facts.
 
 ---
 
