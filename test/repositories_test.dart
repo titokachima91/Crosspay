@@ -59,7 +59,9 @@ void main() {
         "countries": [{"code": "ZZ", "name": "Testland", "dialCode": "+999",
                        "nationalNumberLength": 9}],
         "carriers": [{"id": "c1", "name": "Test Carrier", "countryCode": "ZZ",
-                      "prefixPattern": "^71"}]
+                      "prefixPattern": "^71"}],
+        "support": {"email": "help@example.test", "phone": "+999700000",
+                    "whatsapp": "+999700001", "hours": "Mon-Fri 08:00-18:00"}
       }
     '''));
 
@@ -72,6 +74,22 @@ void main() {
     expect(config.countries.single.dialCode, '999');
     expect(config.countries.single.nationalNumberLength, 9);
     expect(config.carriers.single.prefixPattern, '^71');
+    expect(config.support?.email, 'help@example.test');
+    expect(config.support?.phone, '+999700000');
+    expect(config.support?.whatsapp, '+999700001');
+    expect(config.support?.hours, 'Mon-Fri 08:00-18:00');
+    expect(config.support?.hasChannels, true);
+  });
+
+  test('a config without a support block is still valid', () async {
+    final repo = ConfigRepository(_dioReturning('''
+      {"currencies": [], "hubs": [], "payoutRails": [],
+       "countries": [], "carriers": []}
+    '''));
+
+    final config = await repo.fetch();
+
+    expect(config.support, isNull);
   });
 
   test('rates are read, unknown currencies skipped, status parsed', () async {

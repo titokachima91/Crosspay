@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:crosspay_app/core/constants/app_routes.dart';
 import 'package:crosspay_app/core/localization/app_localizations.dart';
 import 'package:crosspay_app/core/storage/language_store.dart';
 import 'package:crosspay_app/core/storage/theme_store.dart';
@@ -96,5 +97,38 @@ void main() {
 
     expect(container.read(localeCodeProvider), 'sw');
     expect(languageStore.stored, 'sw');
+  });
+
+  testWidgets('settings opens the support screen', (tester) async {
+    final container = ProviderContainer(
+      overrides: [
+        translationsProvider.overrideWithValue(translations),
+        themeStoreProvider.overrideWithValue(_FakeThemeStore()),
+        languageStoreProvider.overrideWithValue(_FakeLanguageStore()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.binding.setSurfaceSize(const Size(500, 1100));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const SettingsScreen(),
+          routes: {
+            AppRoutes.support: (_) =>
+                const Scaffold(body: Text('support-screen')),
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Help & support'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('support-screen'), findsOneWidget);
   });
 }
