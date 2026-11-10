@@ -18,6 +18,7 @@ class _EventRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -33,8 +34,7 @@ class _EventRow extends ConsumerWidget {
           ),
           if (!isLast)
             Expanded(
-              child: Container(
-                  width: 2, color: Theme.of(context).colorScheme.outline),
+              child: Container(width: 2, color: scheme.outlineVariant),
             ),
           const SizedBox(width: 12),
           Expanded(
@@ -45,12 +45,19 @@ class _EventRow extends ConsumerWidget {
                 children: [
                   Text(
                     ref.tr(event.status.labelKey),
-                    style: const TextStyle(),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurface,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     DateFormatX.dayTime(event.at),
-                    style: const TextStyle(),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -92,6 +99,7 @@ class _TradeTimelineCardState extends ConsumerState<TradeTimelineCard> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final timeline = ref.watch(tradeTimelineProvider);
 
     final Widget body;
@@ -130,9 +138,9 @@ class _TradeTimelineCardState extends ConsumerState<TradeTimelineCard> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Theme.of(context).colorScheme.outline),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -143,7 +151,7 @@ class _TradeTimelineCardState extends ConsumerState<TradeTimelineCard> {
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.6,
-                color: Theme.of(context).colorScheme.onSurface),
+                color: scheme.onSurface),
           ),
           const SizedBox(height: 12),
           body,
@@ -155,7 +163,6 @@ class _TradeTimelineCardState extends ConsumerState<TradeTimelineCard> {
   Widget _note(String text) => Text(
         text,
         style: TextStyle(
-            fontSize: 13,
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+            fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
       );
 }

@@ -112,10 +112,11 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
     final countries = ref.watch(appConfigProvider).config.countries;
     final challenge = auth.otpChallenge;
     final phone = auth.phone;
+    final scheme = Theme.of(context).colorScheme;
 
     final appBar = AppBar(
       backgroundColor: Colors.transparent,
-      foregroundColor: AppColors.navy,
+      foregroundColor: scheme.primary,
       surfaceTintColor: Colors.transparent,
       scrolledUnderElevation: 0,
       elevation: 0,

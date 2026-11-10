@@ -32,6 +32,7 @@ class TradeStatusBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final current = _currentIndex(status);
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -56,7 +57,7 @@ class TradeStatusBar extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 4),
                 color: index < current
                     ? AppColors.emerald
-                    : AppColors.border,
+                    : scheme.outlineVariant,
               ),
             );
           }),
@@ -79,6 +80,7 @@ class _StageDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -86,14 +88,14 @@ class _StageDot extends StatelessWidget {
           width: 20,
           height: 20,
           decoration: BoxDecoration(
-            color: active ? AppColors.emerald : AppColors.border,
+            color: active ? AppColors.emerald : scheme.outlineVariant,
             shape: BoxShape.circle,
             border: isCurrent
-                ? Border.all(color: AppColors.navy, width: 2)
+                ? Border.all(color: scheme.primary, width: 2)
                 : null,
           ),
           child: active
-              ? const Icon(Icons.check, size: 12, color: Colors.white)
+              ? Icon(Icons.check, size: 12, color: scheme.onSecondary)
               : null,
         ),
         const SizedBox(height: 6),
@@ -101,7 +103,7 @@ class _StageDot extends StatelessWidget {
           label,
           style: TextStyle(
             fontSize: 10,
-            color: active ? AppColors.textPrimary : AppColors.textSecondary,
+            color: active ? scheme.onSurface : scheme.onSurfaceVariant,
             fontWeight: active ? FontWeight.w600 : FontWeight.normal,
           ),
           textAlign: TextAlign.center,

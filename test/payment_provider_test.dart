@@ -31,6 +31,19 @@ ProviderContainer _ready(FakeTradeRepository repo) {
 Future<void> _wait(int milliseconds) =>
     Future<void>.delayed(Duration(milliseconds: milliseconds));
 
+/// Waits for a provider state instead of assuming the event loop ran within a
+/// fixed window. Keeps the assertions, removes machine-speed flakiness.
+Future<void> _waitFor(
+  ProviderContainer container,
+  bool Function() done, {
+  int timeoutMs = 2000,
+}) async {
+  final deadline = DateTime.now().add(Duration(milliseconds: timeoutMs));
+  while (!done() && DateTime.now().isBefore(deadline)) {
+    await _wait(10);
+  }
+}
+
 void main() {
   test('starting sends the attempt key once and begins waiting', () async {
     final repo = FakeTradeRepository(
@@ -76,7 +89,10 @@ void main() {
     final container = _ready(repo);
 
     await container.read(paymentProvider.notifier).start();
-    await _wait(150);
+    await _waitFor(
+      container,
+      () => container.read(paymentProvider).status == PaymentStatus.paid,
+    );
 
     expect(container.read(paymentProvider).status, PaymentStatus.paid);
     expect(container.read(tradeProvider).activeTrade?.status, TradeStatus.escrowed);
@@ -94,7 +110,11 @@ void main() {
     final container = _ready(repo);
 
     await container.read(paymentProvider.notifier).start();
-    await _wait(100);
+    await _waitFor(
+      container,
+      () => container.read(paymentProvider).status ==
+          PaymentStatus.notCompleted,
+    );
 
     expect(container.read(paymentProvider).status, PaymentStatus.notCompleted);
   });
@@ -109,7 +129,10 @@ void main() {
     await container.read(paymentProvider.notifier).start();
     expect(container.read(paymentProvider).fallbackOpen, false);
 
-    await _wait(120);
+    await _waitFor(
+      container,
+      () => container.read(paymentProvider).fallbackOpen,
+    );
     expect(container.read(paymentProvider).fallbackOpen, true);
   });
 
@@ -185,7 +208,10 @@ void main() {
     final container = _ready(repo);
 
     await container.read(paymentProvider.notifier).start();
-    await _wait(80);
+    await _waitFor(
+      container,
+      () => container.read(paymentProvider).pollErrorKey != null,
+    );
 
     final state = container.read(paymentProvider);
     expect(state.status, PaymentStatus.waiting);

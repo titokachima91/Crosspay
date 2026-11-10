@@ -60,6 +60,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _body(ProfileState state) {
+    final scheme = Theme.of(context).colorScheme;
     if (state.status == ProfileStatus.loading && state.profile == null) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -71,8 +72,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             Text(
               ref.tr(state.errorKey ?? 'error.unknown'),
               textAlign: TextAlign.center,
-              style: const TextStyle(
-              ),
+              style: TextStyle(fontSize: 15, color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
             TextButton.icon(
@@ -91,8 +91,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         child: Text(
           ref.tr('profile.unavailable'),
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
-      ));
+          style: TextStyle(fontSize: 15, color: scheme.onSurfaceVariant),
+        ),
+      );
     }
 
     return ListView(
@@ -114,6 +115,7 @@ class _Header extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     final initial = profile.displayName.trim().isEmpty
         ? '?'
         : profile.displayName.trim().characters.first.toUpperCase();
@@ -123,17 +125,17 @@ class _Header extends ConsumerWidget {
         Container(
           width: 52,
           height: 52,
-alignment: Alignment.center,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.onSurface,
+            color: scheme.primary,
             shape: BoxShape.circle,
           ),
           child: Text(
             initial,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w700,
-              color: Colors.white,
+              color: scheme.onPrimary,
             ),
           ),
         ),
@@ -144,15 +146,17 @@ alignment: Alignment.center,
             children: [
               Text(
                 profile.displayName,
-                style: const TextStyle(
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurface,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 2),
               Text(
                 profile.phone,
-                style: const TextStyle(
-                ),
+                style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
               ),
             ],
           ),
@@ -169,12 +173,13 @@ class _Details extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Theme.of(context).colorScheme.outline),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Column(
         children: [
@@ -199,28 +204,35 @@ class _Details extends ConsumerWidget {
     );
   }
 
-  Widget _row(String label, String value, {Color? valueColor, required BuildContext context}) => Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
+  Widget _row(
+    String label,
+    String value, {
+    Color? valueColor,
+    required BuildContext context,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
+        ),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: valueColor ?? scheme.onSurface,
             ),
           ),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: valueColor ?? Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-          ),
-        ],
-      );
+        ),
+      ],
+    );
+  }
 }
 
 class _LimitBar extends ConsumerWidget {
@@ -230,6 +242,7 @@ class _LimitBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     final decimals = profile.limitCurrency.decimals;
     final used = MoneyFormat.format(profile.dailyUsedMinor, decimals);
     final limit = MoneyFormat.format(profile.dailyLimitMinor, decimals);
@@ -240,16 +253,20 @@ class _LimitBar extends ConsumerWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Theme.of(context).colorScheme.outline),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             ref.tr('profile.limit.title').toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+              color: scheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 12),
@@ -258,7 +275,7 @@ class _LimitBar extends ConsumerWidget {
             child: LinearProgressIndicator(
               value: profile.dailyUsedFraction,
               minHeight: 10,
-              backgroundColor: Theme.of(context).colorScheme.outline,
+              backgroundColor: scheme.outlineVariant,
               valueColor: const AlwaysStoppedAnimation<Color>(
                 AppColors.emerald,
               ),
@@ -270,16 +287,14 @@ class _LimitBar extends ConsumerWidget {
               'used': '$code $used',
               'limit': '$code $limit',
             }),
-            style: const TextStyle(
-            ),
+            style: TextStyle(fontSize: 13, color: scheme.onSurface),
           ),
           const SizedBox(height: 2),
           Text(
             ref.tr('profile.limit.remaining', params: {
               'amount': '$code $remaining',
             }),
-            style: const TextStyle(
-            ),
+            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
           ),
         ],
       ),

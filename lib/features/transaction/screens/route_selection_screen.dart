@@ -81,6 +81,7 @@ class _RouteSelectionScreenState extends ConsumerState<RouteSelectionScreen> {
     final state = ref.watch(quoteProvider);
     final quote = state.quote;
     final expired = state.status == QuoteStatus.expired;
+    final scheme = Theme.of(context).colorScheme;
     final hasQuote =
         quote != null &&
         (state.status == QuoteStatus.ready || state.status == QuoteStatus.expired);
@@ -113,7 +114,7 @@ class _RouteSelectionScreenState extends ConsumerState<RouteSelectionScreen> {
             ref.tr('route.title'),
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: AppColors.navy,
+                  color: scheme.primary,
                 ),
           ),
           const SizedBox(height: 16),
@@ -151,7 +152,7 @@ class _RouteSelectionScreenState extends ConsumerState<RouteSelectionScreen> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        foregroundColor: AppColors.navy,
+        foregroundColor: scheme.primary,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
         elevation: 0,
@@ -223,7 +224,9 @@ class _LockPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = expired ? AppColors.danger : AppColors.navy;
+    final color = expired
+        ? AppColors.danger
+        : Theme.of(context).colorScheme.primary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(

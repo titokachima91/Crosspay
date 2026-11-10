@@ -139,7 +139,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
       appBar: AppBar(
         title: const Text('Security'),
         backgroundColor: Colors.transparent,
-        foregroundColor: AppColors.navy,
+        foregroundColor: Theme.of(context).colorScheme.primary,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
         elevation: 0,
@@ -164,7 +164,10 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                       enabled: !_checking,
                       onChanged: _onPinToggle,
                     ),
-                    const Divider(height: 1, color: AppColors.border),
+                    Divider(
+                      height: 1,
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
                     const _InfoRow(
                       icon: Icons.lock_outline,
                       label: 'Biometric unlock',
@@ -174,16 +177,19 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                 ),
                 const SizedBox(height: 16),
                 // --- Session --------------------------------------------------
-                const _SectionCard(
+                _SectionCard(
                   title: 'Session',
                   children: [
-                    _InfoRow(
+                    const _InfoRow(
                       icon: Icons.schedule,
                       label: 'Stay signed in',
                       trailing: 'Server decides',
                     ),
-                    Divider(height: 1, color: AppColors.border),
-                    _InfoRow(
+                    Divider(
+                      height: 1,
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                    const _InfoRow(
                       icon: Icons.language,
                       label: 'Remembered language',
                       trailing: 'This device',
@@ -192,11 +198,11 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                 ),
                 const SizedBox(height: 16),
                 // --- Privacy note ---------------------------------------------
-                const _SectionCard(
+                _SectionCard(
                   title: 'Your safety',
                   children: [
                     Padding(
-                      padding: EdgeInsets.only(top: 4, bottom: 4),
+                      padding: const EdgeInsets.only(top: 4, bottom: 4),
                       child: Text(
                         'Your PIN never leaves this device and is never '
                         'sent to CrossPay. We only store an unreadable '
@@ -205,7 +211,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                         style: TextStyle(
                           fontSize: 14,
                           height: 1.5,
-                          color: AppColors.textSecondary,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -247,11 +253,12 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -260,10 +267,10 @@ class _SectionCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
             child: Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
+                color: scheme.onSurfaceVariant,
                 letterSpacing: 0.3,
               ),
             ),
@@ -292,6 +299,7 @@ class _SwitchRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
       child: Row(
@@ -302,17 +310,17 @@ class _SwitchRow extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
-                    color: AppColors.textPrimary,
+                    color: scheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary),
+                  style: TextStyle(
+                      fontSize: 13, color: scheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -341,26 +349,26 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: AppColors.textSecondary),
+          Icon(icon, size: 18, color: scheme.onSurfaceVariant),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
-                color: AppColors.textPrimary,
+                color: scheme.onSurface,
               ),
             ),
           ),
           Text(
             trailing,
-            style:
-                const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
           ),
         ],
       ),

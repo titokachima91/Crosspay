@@ -32,6 +32,7 @@ class InvoiceQrCode extends StatelessWidget {
     final pattern = _qrPattern();
     const size = 200.0;
     const cellSize = size / 25;
+    final scheme = Theme.of(context).colorScheme;
 
     return Column(
       children: [
@@ -41,7 +42,7 @@ class InvoiceQrCode extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: scheme.outlineVariant),
           ),
           child: CustomPaint(
             size: const Size(size, size),
@@ -53,7 +54,7 @@ class InvoiceQrCode extends StatelessWidget {
           'Scan to pay',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
+            color: scheme.onSurface,
           ),
         ),
         const SizedBox(height: 4),
@@ -61,14 +62,14 @@ class InvoiceQrCode extends StatelessWidget {
           reference,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             fontFamily: 'monospace',
-            color: AppColors.textSecondary,
+            color: scheme.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: 4),
         Text(
           'Valid for 24 hours',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: AppColors.textSecondary,
+            color: scheme.onSurfaceVariant,
           ),
         ),
       ],

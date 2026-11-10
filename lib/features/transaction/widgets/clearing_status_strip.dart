@@ -13,11 +13,12 @@ class ClearingStatusStrip extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     final rates = ref.watch(ratesProvider);
     final countries = ref.watch(appConfigProvider).config.countries;
 
     final String text;
-    Color dot = AppColors.border;
+    Color dot = scheme.outlineVariant;
 
     if (rates.status == RatesStatus.error ||
         (rates.status == RatesStatus.live && rates.rates.isEmpty)) {
@@ -50,7 +51,7 @@ class ClearingStatusStrip extends ConsumerWidget {
         CorridorLevel.healthy => AppColors.success,
         CorridorLevel.limited => AppColors.warning,
         CorridorLevel.down => AppColors.danger,
-        null => AppColors.border,
+        null => scheme.outlineVariant,
       };
       text = '$label  |  ${names.join('  \u21C4  ')}';
     }
@@ -58,9 +59,9 @@ class ClearingStatusStrip extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Row(
         children: [

@@ -64,7 +64,8 @@ class _TradeTrackerScreenState extends ConsumerState<TradeTrackerScreen> {
       case TradeStatus.completed: return AppColors.emerald;
       case TradeStatus.expired: return AppColors.danger;
       case TradeStatus.failed: return AppColors.danger;
-      case TradeStatus.cancelled: return AppColors.textSecondary;
+      case TradeStatus.cancelled:
+        return Theme.of(context).colorScheme.onSurfaceVariant;
       default: return AppColors.warning;
     }
   }
@@ -75,6 +76,7 @@ class _TradeTrackerScreenState extends ConsumerState<TradeTrackerScreen> {
     if (trade == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+    final scheme = Theme.of(context).colorScheme;
     final statusLabel = _statusLabel(trade.status);
     final isTerminal = trade.isTerminal;
     final amountFormatted = MoneyFormat.format(trade.sendAmountMinor, trade.sendCurrency.decimals);
@@ -82,7 +84,7 @@ class _TradeTrackerScreenState extends ConsumerState<TradeTrackerScreen> {
       appBar: AppBar(
         title: Text('Trade #${trade.reference}'),
         backgroundColor: Colors.transparent,
-        foregroundColor: AppColors.navy,
+        foregroundColor: scheme.primary,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
         elevation: 0,
@@ -103,9 +105,9 @@ class _TradeTrackerScreenState extends ConsumerState<TradeTrackerScreen> {
                 children: [
                   Icon(_statusIcon(trade.status), size: 48, color: _statusColor(trade.status)),
                   const SizedBox(height: 12),
-                  Text(statusLabel, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                  Text(statusLabel, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600, color: scheme.onSurface)),
                   const SizedBox(height: 8),
-                  Text('Trade reference: ${trade.reference}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary)),
+                  Text('Trade reference: ${trade.reference}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
                   const SizedBox(height: 24),
                   TradeStatusBar(status: trade.status),
                   const SizedBox(height: 20),
@@ -113,28 +115,28 @@ class _TradeTrackerScreenState extends ConsumerState<TradeTrackerScreen> {
                   const SizedBox(height: 24),
                   Container(
                     padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: scheme.outlineVariant)),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                          Text('You pay', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary)),
-                          Text(amountFormatted, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                          Text('You pay', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                          Text(amountFormatted, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: scheme.onSurface)),
                         ]),
                         const SizedBox(height: 12),
                         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                          Text('Recipient gets', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary)),
-                          Text(MoneyFormat.format(trade.receiveAmountMinor, trade.receiveCurrency.decimals), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                          Text('Recipient gets', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                          Text(MoneyFormat.format(trade.receiveAmountMinor, trade.receiveCurrency.decimals), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: scheme.onSurface)),
                         ]),
                         const Divider(height: 24),
                         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                          Text('Rate', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary)),
-                          Text('1 ${trade.sendCurrency.code} = ${trade.rate.toStringAsFixed(2)} ${trade.receiveCurrency.code}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+                          Text('Rate', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                          Text('1 ${trade.sendCurrency.code} = ${trade.rate.toStringAsFixed(2)} ${trade.receiveCurrency.code}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500, color: scheme.onSurface)),
                         ]),
                         const SizedBox(height: 8),
                         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                          Text('Fee', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary)),
-                          Text(MoneyFormat.format(trade.feeMinor, trade.sendCurrency.decimals), style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+                          Text('Fee', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                          Text(MoneyFormat.format(trade.feeMinor, trade.sendCurrency.decimals), style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500, color: scheme.onSurface)),
                         ]),
                       ],
                     ),

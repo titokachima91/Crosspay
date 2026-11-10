@@ -103,6 +103,7 @@ class _LogoMark extends StatelessWidget {
   Widget build(BuildContext context) {
     const name = AppConstants.appName;
     final initial = name.isEmpty ? '' : name.substring(0, 1);
+    final scheme = Theme.of(context).colorScheme;
 
     return Center(
       child: Container(
@@ -110,13 +111,13 @@ class _LogoMark extends StatelessWidget {
         height: 88,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: AppColors.navy,
+          color: scheme.primary,
           borderRadius: BorderRadius.circular(22),
         ),
         child: Text(
           initial,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: scheme.onPrimary,
             fontSize: 44,
             fontWeight: FontWeight.w700,
           ),
@@ -131,12 +132,13 @@ class _HowItWorksCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -150,7 +152,7 @@ class _HowItWorksCard extends ConsumerWidget {
                   ref.tr('splash.how_title').toUpperCase(),
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppColors.navy,
+                        color: scheme.primary,
                       ),
                 ),
               ),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:crosspay_app/core/constants/app_colors.dart';
 import 'package:crosspay_app/providers/beneficiaries_provider.dart';
 import 'package:crosspay_app/providers/localization_provider.dart';
 import 'package:crosspay_app/providers/trade_provider.dart';
@@ -17,6 +16,7 @@ class SavedRecipientsRow extends ConsumerWidget {
     final state = ref.watch(beneficiariesProvider);
     final selectedId = ref.watch(tradeProvider).beneficiary?.id;
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
     final Widget body;
     if (state.status == BeneficiariesStatus.error) {
@@ -55,13 +55,13 @@ class SavedRecipientsRow extends ConsumerWidget {
                     CircleAvatar(
                       radius: 26,
                       backgroundColor: selected
-                          ? AppColors.navy
-                          : AppColors.navy.withOpacity(0.1),
+                          ? scheme.primary
+                          : scheme.primary.withOpacity(0.1),
                       child: Text(
                         _initials(b.name),
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
-                          color: selected ? Colors.white : AppColors.navy,
+                          color: selected ? scheme.onPrimary : scheme.primary,
                         ),
                       ),
                     ),
@@ -99,7 +99,7 @@ class SavedRecipientsRow extends ConsumerWidget {
           ref.tr('home.recipients_title').toUpperCase(),
           style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w700,
-            color: AppColors.navy,
+            color: scheme.primary,
           ),
         ),
         const SizedBox(height: 12),

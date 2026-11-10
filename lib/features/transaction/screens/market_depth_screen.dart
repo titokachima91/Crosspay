@@ -57,7 +57,9 @@ class _MarketDepthScreenState extends ConsumerState<MarketDepthScreen> {
                 children: [
                   Text(
                     ref.tr('market.subtitle'),
-                    style: const TextStyle(
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -80,7 +82,7 @@ class _MarketDepthScreenState extends ConsumerState<MarketDepthScreen> {
         child: Text(
           ref.tr('market.unavailable'),
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+          style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       );
     }
@@ -94,7 +96,7 @@ class _MarketDepthScreenState extends ConsumerState<MarketDepthScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 15,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 12),
@@ -111,7 +113,7 @@ class _MarketDepthScreenState extends ConsumerState<MarketDepthScreen> {
       return Center(
         child: Text(
           ref.tr('market.empty'),
-          style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+          style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       );
     }
@@ -130,12 +132,13 @@ class _CorridorCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     final status = depth.status;
     final dotColor = switch (status?.level) {
       CorridorLevel.healthy => AppColors.success,
       CorridorLevel.limited => AppColors.warning,
       CorridorLevel.down => AppColors.danger,
-      null => Theme.of(context).colorScheme.outline,
+      null => scheme.outline,
     };
 
     String? statusLabel;
@@ -148,9 +151,9 @@ class _CorridorCard extends ConsumerWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Theme.of(context).colorScheme.outline),
+        border: Border.all(color: scheme.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -162,7 +165,10 @@ class _CorridorCard extends ConsumerWidget {
                   '${countryFlag(depth.from.countryCode)} ${depth.from.code}'
                   '  \u21C4  '
                   '${countryFlag(depth.to.countryCode)} ${depth.to.code}',
-                  style: const TextStyle(
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.primary,
                   ),
                 ),
               ),
@@ -180,7 +186,9 @@ class _CorridorCard extends ConsumerWidget {
                   child: Text(
                     statusLabel,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -190,13 +198,13 @@ class _CorridorCard extends ConsumerWidget {
           const SizedBox(height: 8),
           Text(
             ref.tr('market.queue', params: {'count': '${depth.queueDepth}'}),
-            style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
+            style: TextStyle(fontSize: 13, color: scheme.onSurface),
           ),
           Text(
             ref.tr('market.settle', params: {
               'time': DateFormatX.duration(depth.estimatedSettleSeconds),
             }),
-            style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+            style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
           ),
         ],
       ),

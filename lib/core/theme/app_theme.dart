@@ -16,9 +16,9 @@ enum AppThemeMode {
 class AppTheme {
   AppTheme._();
 
-  // Dark palette. The brand navy stays the app-bar colour; the interactive
-  // primary is the lighter indigo Material uses for text/icons on dark
-  // surfaces, so swept screens remain legible.
+  // Dark palette. The interactive primary is the lighter indigo Material uses
+  // for text/icons on dark surfaces, so swept screens remain legible; the app
+  // bar sits on the dark surface colour.
   static const Color _darkBackground = Color(0xFF12121C);
   static const Color _darkSurface = Color(0xFF1E1E2E);
   static const Color _darkSurfaceHigh = Color(0xFF252538);

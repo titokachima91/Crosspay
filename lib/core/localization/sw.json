@@ -265,7 +265,7 @@
   "settings.appearance": "Muonekano",
   "settings.security": "Usalama",
   "settings.app_lock": "Kufunga programu",
-  "settings.app_lock_sub": "PIN, alama ya kidole au Face ID",
+  "settings.app_lock_sub": "Kufuli ya PIN kwenye kifaa hiki",
   "settings.theme_light": "Nuru",
   "settings.theme_dark": "Giza",
   "settings.theme_system": "Mfumo"

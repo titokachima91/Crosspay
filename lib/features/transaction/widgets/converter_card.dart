@@ -117,12 +117,13 @@ class _ConverterCardState extends ConsumerState<ConverterCard> {
   }
 
   Widget _frame(Widget child) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: child,
     );
@@ -166,7 +167,7 @@ class _ConverterCardState extends ConsumerState<ConverterCard> {
             ref.tr('home.converter_title').toUpperCase(),
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w700,
-              color: AppColors.navy,
+              color: theme.colorScheme.primary,
             ),
           ),
           const SizedBox(height: 16),
@@ -210,13 +211,15 @@ class _ConverterCardState extends ConsumerState<ConverterCard> {
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.border),
+                    border: Border.all(
+                      color: theme.colorScheme.outlineVariant,
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.swap_vert,
-                          size: 18, color: AppColors.navy),
+                      Icon(Icons.swap_vert,
+                          size: 18, color: theme.colorScheme.primary),
                       if (shownRate != null) ...[
                         const SizedBox(width: 6),
                         Text(
@@ -253,9 +256,11 @@ class _ConverterCardState extends ConsumerState<ConverterCard> {
                   alignment: Alignment.centerRight,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
-                    color: AppColors.background,
+                    color: theme.colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.border),
+                    border: Border.all(
+                      color: theme.colorScheme.outlineVariant,
+                    ),
                   ),
                   child: Opacity(
                     opacity:
@@ -316,13 +321,14 @@ class _CurrencyDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<Currency>(

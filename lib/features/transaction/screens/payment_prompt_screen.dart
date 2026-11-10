@@ -143,6 +143,7 @@ class _PaymentPromptScreenState extends ConsumerState<PaymentPromptScreen> {
 
   Widget _fallbackCard(PaymentState state, CollectionInstructions collection) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final manual = collection.manual;
     final amount =
         '${MoneyFormat.format(collection.amountMinor, collection.currency.decimals)} '
@@ -155,9 +156,9 @@ class _PaymentPromptScreenState extends ConsumerState<PaymentPromptScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -171,7 +172,7 @@ class _PaymentPromptScreenState extends ConsumerState<PaymentPromptScreen> {
                 children: [
                   Icon(
                     state.fallbackOpen ? Icons.expand_less : Icons.expand_more,
-                    color: AppColors.navy,
+                    color: scheme.primary,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -179,7 +180,7 @@ class _PaymentPromptScreenState extends ConsumerState<PaymentPromptScreen> {
                       ref.tr('collect.fallback_title').toUpperCase(),
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppColors.navy,
+                        color: scheme.primary,
                       ),
                     ),
                   ),
@@ -227,6 +228,7 @@ class _PaymentPromptScreenState extends ConsumerState<PaymentPromptScreen> {
     if (collection == null) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final amount =
         MoneyFormat.format(collection.amountMinor, collection.currency.decimals);
     final network =
@@ -235,7 +237,7 @@ class _PaymentPromptScreenState extends ConsumerState<PaymentPromptScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
       children: [
-        const Icon(Icons.phone_android, size: 64, color: AppColors.navy),
+        Icon(Icons.phone_android, size: 64, color: scheme.primary),
         const SizedBox(height: 16),
         if (collection.pushSent) ...[
           Text(
@@ -243,7 +245,7 @@ class _PaymentPromptScreenState extends ConsumerState<PaymentPromptScreen> {
             textAlign: TextAlign.center,
             style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w700,
-              color: AppColors.navy,
+              color: scheme.primary,
             ),
           ),
           const SizedBox(height: 12),
@@ -319,6 +321,7 @@ class _PaymentPromptScreenState extends ConsumerState<PaymentPromptScreen> {
 
     final state = ref.watch(paymentProvider);
     final active = _isActive(state.status);
+    final scheme = Theme.of(context).colorScheme;
 
     final Widget body;
     switch (state.status) {
@@ -342,7 +345,7 @@ class _PaymentPromptScreenState extends ConsumerState<PaymentPromptScreen> {
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: Colors.transparent,
-          foregroundColor: AppColors.navy,
+          foregroundColor: scheme.primary,
           surfaceTintColor: Colors.transparent,
           scrolledUnderElevation: 0,
           elevation: 0,

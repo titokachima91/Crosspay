@@ -13,11 +13,12 @@ class StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final color = switch (tone) {
       BadgeTone.success => AppColors.success,
       BadgeTone.warning => AppColors.warning,
       BadgeTone.danger => AppColors.danger,
-      BadgeTone.neutral => AppColors.textSecondary,
+      BadgeTone.neutral => scheme.onSurfaceVariant,
     };
 
     return Container(

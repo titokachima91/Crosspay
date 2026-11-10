@@ -134,18 +134,19 @@ class _PinCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final borderColor = error
         ? AppColors.danger
         : active
-            ? AppColors.navy
-            : AppColors.border;
+            ? scheme.primary
+            : scheme.outlineVariant;
 
     return Container(
       width: 52,
       height: 60,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: borderColor,
@@ -154,10 +155,10 @@ class _PinCell extends StatelessWidget {
       ),
       child: Text(
         character,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 26,
           fontWeight: FontWeight.w700,
-          color: AppColors.navy,
+          color: scheme.primary,
         ),
       ),
     );

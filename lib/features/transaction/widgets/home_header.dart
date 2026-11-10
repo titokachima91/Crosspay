@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:crosspay_app/core/constants/app_colors.dart';
 import 'package:crosspay_app/core/utils/money_format.dart';
 import 'package:crosspay_app/models/user_model.dart';
 import 'package:crosspay_app/providers/localization_provider.dart';
@@ -58,7 +57,7 @@ class HomeHeader extends ConsumerWidget {
               profile.accountType == AccountType.business
                   ? Icons.business
                   : Icons.person,
-              color: AppColors.navy,
+              color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(width: 8),
             Expanded(

@@ -265,7 +265,7 @@
   "settings.appearance": "Appearance",
   "settings.security": "Security",
   "settings.app_lock": "App lock",
-  "settings.app_lock_sub": "PIN, fingerprint or Face ID",
+  "settings.app_lock_sub": "PIN lock on this device",
   "settings.theme_light": "Light",
   "settings.theme_dark": "Dark",
   "settings.theme_system": "System"

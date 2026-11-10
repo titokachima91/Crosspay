@@ -9,6 +9,7 @@ class CarrierBadgeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -25,9 +26,9 @@ class CarrierBadgeChip extends StatelessWidget {
           Flexible(
             child: Text(
               text,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w600,
-                color: AppColors.navy,
+                color: scheme.primary,
               ),
             ),
           ),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:crosspay_app/core/constants/app_colors.dart';
 import 'package:crosspay_app/core/utils/money_format.dart';
 import 'package:crosspay_app/models/quote_model.dart';
 import 'package:crosspay_app/providers/localization_provider.dart';
@@ -36,9 +35,9 @@ class FeeBreakdownCard extends ConsumerWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: Theme(
         data: theme.copyWith(dividerColor: Colors.transparent),
@@ -47,7 +46,7 @@ class FeeBreakdownCard extends ConsumerWidget {
             ref.tr('route.breakdown_title').toUpperCase(),
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w700,
-              color: AppColors.navy,
+              color: theme.colorScheme.primary,
             ),
           ),
           childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),

@@ -35,6 +35,7 @@ class _PhoneEntryScreenState extends ConsumerState<PhoneEntryScreen> {
   @override
   Widget build(BuildContext context) {
     final config = ref.watch(appConfigProvider);
+    final scheme = Theme.of(context).colorScheme;
 
     final Widget body;
     if (config.status == ConfigStatus.ready &&
@@ -57,7 +58,7 @@ class _PhoneEntryScreenState extends ConsumerState<PhoneEntryScreen> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        foregroundColor: AppColors.navy,
+        foregroundColor: scheme.primary,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
         elevation: 0,
@@ -190,6 +191,7 @@ class _PhoneFormState extends ConsumerState<_PhoneForm> {
     final country = _selectedCountry;
     final auth = ref.watch(authProvider);
     final sending = auth.status == AuthStatus.requestingOtp;
+    final scheme = Theme.of(context).colorScheme;
 
     final complete = PhoneUtils.isComplete(country, _controller.text);
     final carrier = PhoneUtils.detectCarrier(
@@ -212,7 +214,7 @@ class _PhoneFormState extends ConsumerState<_PhoneForm> {
                   ref.tr('phone.label').toUpperCase(),
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppColors.navy,
+                        color: scheme.primary,
                       ),
                 ),
                 const SizedBox(height: 8),
@@ -262,8 +264,8 @@ class _PhoneFormState extends ConsumerState<_PhoneForm> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.info_outline,
-                        size: 18, color: AppColors.textSecondary),
+                    Icon(Icons.info_outline,
+                        size: 18, color: scheme.onSurfaceVariant),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -312,12 +314,13 @@ class _CountryDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<Country>(

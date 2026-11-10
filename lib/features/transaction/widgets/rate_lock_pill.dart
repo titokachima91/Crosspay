@@ -17,7 +17,8 @@ class RateLockPill extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    final color = expired ? AppColors.danger : AppColors.navy;
+    final color =
+        expired ? AppColors.danger : Theme.of(context).colorScheme.primary;
     final text = expired
         ? ref.tr('route.rate_expired')
         : ref.tr('route.rate_locked', params: {'time': state.remainingLabel});

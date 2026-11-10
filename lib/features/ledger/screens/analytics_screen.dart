@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:crosspay_app/core/constants/app_colors.dart';
 import 'package:crosspay_app/core/utils/money_format.dart';
 import 'package:crosspay_app/models/analytics_model.dart';
 import 'package:crosspay_app/providers/analytics_provider.dart';
@@ -33,7 +32,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       appBar: AppBar(
         title: Text(ref.tr('analytics.title')),
         backgroundColor: Colors.transparent,
-        foregroundColor: AppColors.navy,
+        foregroundColor: Theme.of(context).colorScheme.primary,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
         elevation: 0,
@@ -68,7 +67,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         child: Text(
           ref.tr('analytics.unavailable'),
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+          style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       );
     }
@@ -82,7 +81,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 15,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 12),
@@ -101,7 +100,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       return Center(
         child: Text(
           ref.tr('analytics.none'),
-          style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+          style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       );
     }
@@ -116,7 +115,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             fontSize: 12,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.6,
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: 8),
@@ -134,6 +133,7 @@ class _TotalsCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     final sent = MoneyFormat.format(
       analytics.sentMinor,
       analytics.sentCurrency.decimals,
@@ -147,7 +147,7 @@ class _TotalsCard extends ConsumerWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.navy,
+        color: scheme.primary,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -155,23 +155,28 @@ class _TotalsCard extends ConsumerWidget {
         children: [
           Text(
             ref.tr('analytics.trades'),
-            style: const TextStyle(fontSize: 12, color: Colors.white70),
+            style: TextStyle(
+              fontSize: 12,
+              color: scheme.onPrimary.withOpacity(0.7),
+            ),
           ),
           Text(
             '${analytics.trades}',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w700,
-              color: Colors.white,
+              color: scheme.onPrimary,
             ),
           ),
           const SizedBox(height: 14),
           _line(
+            context,
             ref.tr('analytics.total_sent'),
             '${analytics.sentCurrency.code} $sent',
           ),
           const SizedBox(height: 6),
           _line(
+            context,
             ref.tr('analytics.total_received'),
             '${analytics.receivedCurrency.code} $received',
           ),
@@ -180,23 +185,29 @@ class _TotalsCard extends ConsumerWidget {
     );
   }
 
-  Widget _line(String label, String value) => Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 13, color: Colors.white70),
+  Widget _line(BuildContext context, String label, String value) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: scheme.onPrimary.withOpacity(0.7),
           ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: scheme.onPrimary,
           ),
-        ],
-      );
+        ),
+      ],
+    );
+  }
 }
 
 class _CorridorRow extends ConsumerWidget {
@@ -206,14 +217,15 @@ class _CorridorRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     final amount = MoneyFormat.format(spend.sentMinor, spend.from.decimals);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Row(
         children: [
@@ -223,10 +235,10 @@ class _CorridorRow extends ConsumerWidget {
               children: [
                 Text(
                   '${spend.from.code} → ${spend.to.code}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.navy,
+                    color: scheme.primary,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -237,7 +249,7 @@ class _CorridorRow extends ConsumerWidget {
                   }),
                   style: TextStyle(
                     fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                    color: scheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -248,7 +260,7 @@ class _CorridorRow extends ConsumerWidget {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: Theme.of(context).colorScheme.onSurface,
+              color: scheme.onSurface,
             ),
           ),
         ],

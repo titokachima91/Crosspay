@@ -46,12 +46,13 @@ class _RouteComparisonScreenState
     final routes = quote?.routes ?? const <RouteQuote>[];
     final sendDecimals = quote?.sendCurrency.decimals ?? 2;
     final receiveDecimals = quote?.receiveCurrency.decimals ?? 2;
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Compare routes'),
         backgroundColor: Colors.transparent,
-        foregroundColor: AppColors.navy,
+        foregroundColor: scheme.primary,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
         elevation: 0,
@@ -92,7 +93,7 @@ class _RouteComparisonScreenState
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.emerald,
-                      foregroundColor: Colors.white,
+                      foregroundColor: scheme.onSecondary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -141,10 +142,11 @@ class _RouteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Material(
       color: selected
           ? AppColors.emerald.withOpacity(0.08)
-          : Colors.white,
+          : scheme.surface,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -154,7 +156,7 @@ class _RouteCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: selected ? AppColors.emerald : AppColors.border,
+              color: selected ? AppColors.emerald : scheme.outlineVariant,
               width: selected ? 2 : 1,
             ),
           ),
@@ -167,18 +169,19 @@ class _RouteCard extends StatelessWidget {
                     selected
                         ? Icons.radio_button_checked
                         : Icons.radio_button_off,
-                    color:
-                        selected ? AppColors.emerald : AppColors.textSecondary,
+                    color: selected
+                        ? AppColors.emerald
+                        : scheme.onSurfaceVariant,
                     size: 20,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       _routeLabel,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.navy,
+                        color: scheme.primary,
                       ),
                     ),
                   ),
@@ -243,6 +246,7 @@ class _KeyValueRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -250,15 +254,15 @@ class _KeyValueRow extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
-                fontSize: 14, color: AppColors.textSecondary),
+            style: TextStyle(
+                fontSize: 14, color: scheme.onSurfaceVariant),
           ),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: AppColors.navy,
+              color: scheme.onSurface,
             ),
           ),
         ],
@@ -272,13 +276,14 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
       child: Padding(
-        padding: EdgeInsets.all(24),
+        padding: const EdgeInsets.all(24),
         child: Text(
           'No routes available yet.\nPlease go back and request a quote.',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 15, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 15, color: scheme.onSurfaceVariant),
         ),
       ),
     );

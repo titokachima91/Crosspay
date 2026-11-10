@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:crosspay_app/core/constants/app_colors.dart';
 
 /// Displays the trade verification hash with a copy option.
 class VerificationHashCard extends StatelessWidget {
@@ -9,25 +8,26 @@ class VerificationHashCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.receipt_long, size: 18, color: AppColors.navy),
+              Icon(Icons.receipt_long, size: 18, color: scheme.primary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Verification Hash',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: AppColors.navy,
+                    color: scheme.primary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -50,7 +50,7 @@ class VerificationHashCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.background,
+              color: scheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -58,10 +58,10 @@ class VerificationHashCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     hash,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 12,
-                      color: AppColors.textPrimary,
+                      color: scheme.onSurface,
                     ),
                   ),
                 ),

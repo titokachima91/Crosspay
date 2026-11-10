@@ -20,18 +20,22 @@ class CustomButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return ElevatedButton(
       onPressed: isLoading ? null : onPressed,
       style: accent
-          ? ElevatedButton.styleFrom(backgroundColor: AppColors.emerald)
+          ? ElevatedButton.styleFrom(
+              backgroundColor: AppColors.emerald,
+              foregroundColor: scheme.onSecondary,
+            )
           : null,
       child: isLoading
-          ? const SizedBox(
+          ? SizedBox(
               height: 22,
               width: 22,
               child: CircularProgressIndicator(
                 strokeWidth: 2.5,
-                color: Colors.white,
+                color: accent ? scheme.onSecondary : scheme.onPrimary,
               ),
             )
           : Text(label),

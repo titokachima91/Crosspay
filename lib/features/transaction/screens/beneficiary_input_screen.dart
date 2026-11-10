@@ -175,7 +175,7 @@ class _BeneficiaryInputScreenState
         text,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w600,
-              color: AppColors.navy,
+              color: Theme.of(context).colorScheme.primary,
             ),
       ),
     );
@@ -280,7 +280,7 @@ class _BeneficiaryInputScreenState
       return _note(
         Icons.info_outline,
         ref.tr('recipient.enter_name'),
-        AppColors.textSecondary,
+        Theme.of(context).colorScheme.onSurfaceVariant,
       );
     }
     switch (check.nameMatch) {
@@ -319,10 +319,11 @@ class _BeneficiaryInputScreenState
     final checkState = ref.watch(recipientCheckProvider);
     final quote = quoteState.quote;
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
     final appBar = AppBar(
       backgroundColor: Colors.transparent,
-      foregroundColor: AppColors.navy,
+      foregroundColor: scheme.primary,
       surfaceTintColor: Colors.transparent,
       scrolledUnderElevation: 0,
       elevation: 0,
@@ -436,9 +437,11 @@ class _BeneficiaryInputScreenState
                                       horizontal: 12),
                                   alignment: Alignment.center,
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: scheme.surface,
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: AppColors.border),
+                                    border: Border.all(
+                                      color: scheme.outlineVariant,
+                                    ),
                                   ),
                                   child: Text(
                                     '${countryFlag(country.code)} +${country.dialCode}',

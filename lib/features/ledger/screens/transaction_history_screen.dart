@@ -89,7 +89,8 @@ class _TransactionHistoryScreenState
         TradeStatus.completed => AppColors.emerald,
         TradeStatus.failed => AppColors.danger,
         TradeStatus.expired => AppColors.warning,
-        TradeStatus.cancelled => AppColors.textSecondary,
+        TradeStatus.cancelled =>
+          Theme.of(context).colorScheme.onSurfaceVariant,
         _ => AppColors.warning,
       };
 
@@ -114,12 +115,13 @@ class _TransactionHistoryScreenState
   Widget build(BuildContext context) {
     final history = ref.watch(tradeHistoryProvider);
     final rows = _apply(history.trades, DateTime.now());
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(ref.tr('ledger.title')),
         backgroundColor: Colors.transparent,
-        foregroundColor: AppColors.navy,
+        foregroundColor: scheme.primary,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
         elevation: 0,
@@ -187,9 +189,9 @@ class _TransactionHistoryScreenState
         child: Text(
           ref.tr('ledger.not_connected'),
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 15,
-            color: AppColors.textSecondary,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
       );
@@ -198,7 +200,9 @@ class _TransactionHistoryScreenState
       return Center(
         child: Text(
           ref.tr('ledger.empty'),
-          style: const TextStyle(fontSize: 15, color: AppColors.textSecondary),
+          style: TextStyle(
+              fontSize: 15,
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       );
     }
@@ -221,22 +225,23 @@ class _SearchField extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     return TextField(
       onChanged: onChanged,
       decoration: InputDecoration(
         hintText: ref.tr('ledger.search_hint'),
-        hintStyle: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
-        prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.textSecondary),
+        hintStyle: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
+        prefixIcon: Icon(Icons.search, size: 20, color: scheme.onSurfaceVariant),
         filled: true,
-        fillColor: Theme.of(context).colorScheme.surface,
+        fillColor: scheme.surface,
         contentPadding: const EdgeInsets.symmetric(vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: scheme.outlineVariant),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: scheme.outlineVariant),
         ),
       ),
     );
@@ -302,7 +307,8 @@ class _RangeChips extends ConsumerWidget {
               style: const TextStyle(fontSize: 13),
             ),
             selected: selected == option,
-            selectedColor: AppColors.navy.withOpacity(0.12),
+            selectedColor:
+                Theme.of(context).colorScheme.primary.withOpacity(0.12),
             onSelected: (_) => onSelected(option),
           ),
       ],
@@ -319,6 +325,7 @@ class _ExportSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -328,25 +335,25 @@ class _ExportSheet extends ConsumerWidget {
           children: [
             Text(
               ref.tr('ledger.export_ready'),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
-                color: AppColors.navy,
+                color: scheme.primary,
               ),
             ),
             const SizedBox(height: 8),
             SelectableText(
               ticket.downloadUrl,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
-                color: AppColors.textSecondary,
+                color: scheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: AppColors.navy),
+                style: FilledButton.styleFrom(backgroundColor: scheme.primary),
                 onPressed: () async {
                   final messenger = ScaffoldMessenger.of(context);
                   await Clipboard.setData(
@@ -384,13 +391,14 @@ class _TradeTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final send = MoneyFormat.format(
         trade.sendAmountMinor, trade.sendCurrency.decimals);
     final receive = MoneyFormat.format(
         trade.receiveAmountMinor, trade.receiveCurrency.decimals);
 
     return Material(
-      color: Theme.of(context).colorScheme.surface,
+      color: scheme.surface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -400,7 +408,7 @@ class _TradeTile extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: scheme.outlineVariant),
           ),
           child: Row(
             children: [
@@ -411,24 +419,24 @@ class _TradeTile extends StatelessWidget {
                     Text(
                       '${trade.sendCurrency.code} $send → '
                       '${trade.receiveCurrency.code} $receive',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.navy,
+                        color: scheme.primary,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${trade.reference} · ${trade.beneficiaryName}',
-                      style: const TextStyle(
-                          fontSize: 13, color: AppColors.textSecondary),
+                      style: TextStyle(
+                          fontSize: 13, color: scheme.onSurfaceVariant),
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Text(
                       _date,
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(
+                          fontSize: 12, color: scheme.onSurfaceVariant),
                     ),
                   ],
                 ),

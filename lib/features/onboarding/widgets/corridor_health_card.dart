@@ -19,6 +19,7 @@ class CorridorHealthCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(appConfigProvider);
     final rates = ref.watch(ratesProvider);
+    final scheme = Theme.of(context).colorScheme;
 
     final Widget body;
     if (config.status == ConfigStatus.error) {
@@ -55,9 +56,9 @@ class CorridorHealthCard extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -71,7 +72,7 @@ class CorridorHealthCard extends ConsumerWidget {
                   ref.tr('corridor.title').toUpperCase(),
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppColors.navy,
+                        color: scheme.primary,
                       ),
                 ),
               ),
@@ -127,11 +128,12 @@ class _RateRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final status = rate.status;
+    final scheme = Theme.of(context).colorScheme;
     final dotColor = switch (status?.level) {
       CorridorLevel.healthy => AppColors.success,
       CorridorLevel.limited => AppColors.warning,
       CorridorLevel.down => AppColors.danger,
-      null => AppColors.border,
+      null => scheme.outlineVariant,
     };
 
     String? statusLabel;

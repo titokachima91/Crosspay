@@ -33,12 +33,13 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
     if (trade == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+    final scheme = Theme.of(context).colorScheme;
     final amountFormatted = MoneyFormat.format(trade.sendAmountMinor, trade.sendCurrency.decimals);
     return Scaffold(
       appBar: AppBar(
         title: Text('Invoice #${trade.reference}'),
         backgroundColor: Colors.transparent,
-        foregroundColor: AppColors.navy,
+        foregroundColor: scheme.primary,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
         elevation: 0,
@@ -51,29 +52,29 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
               padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
-                  const Icon(Icons.receipt_long, size: 48, color: AppColors.navy),
+                  Icon(Icons.receipt_long, size: 48, color: scheme.primary),
                   const SizedBox(height: 16),
                   Text('Digital Invoice', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
-                  Text('Share this invoice so the recipient can pay', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary)),
+                  Text('Share this invoice so the recipient can pay', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
                   const SizedBox(height: 24),
                   Container(
                     padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+                    decoration: BoxDecoration(color: scheme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: scheme.outlineVariant)),
                     child: Column(
                       children: [
                         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                          Text('Trade reference', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary)),
+                          Text('Trade reference', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
                           Text(trade.reference, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
                         ]),
                         const SizedBox(height: 12),
                         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                          Text('Amount', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary)),
-                          Text(amountFormatted, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                          Text('Amount', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                          Text(amountFormatted, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: scheme.onSurface)),
                         ]),
                         const SizedBox(height: 12),
                         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                          Text('Status', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary)),
+                          Text('Status', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(color: AppColors.emerald.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),

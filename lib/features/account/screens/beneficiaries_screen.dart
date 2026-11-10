@@ -30,6 +30,7 @@ class _BeneficiariesScreenState extends ConsumerState<BeneficiariesScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(beneficiariesProvider);
     final rails = ref.watch(appConfigProvider).config.payoutRails;
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -51,7 +52,7 @@ class _BeneficiariesScreenState extends ConsumerState<BeneficiariesScreen> {
           ? null
           : FloatingActionButton.extended(
               backgroundColor: AppColors.emerald,
-              foregroundColor: Colors.white,
+              foregroundColor: scheme.onSecondary,
               onPressed: state.saving ? null : () => _openForm(rails),
               icon: const Icon(Icons.person_add_alt),
               label: Text(ref.tr('recipients.add')),
@@ -71,6 +72,7 @@ class _BeneficiariesScreenState extends ConsumerState<BeneficiariesScreen> {
   }
 
   Widget _body(BeneficiariesState state, List<PayoutRail> rails) {
+    final scheme = Theme.of(context).colorScheme;
     if (state.status == BeneficiariesStatus.loading && state.items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -82,8 +84,7 @@ class _BeneficiariesScreenState extends ConsumerState<BeneficiariesScreen> {
             Text(
               ref.tr(state.errorKey ?? 'error.unknown'),
               textAlign: TextAlign.center,
-              style: const TextStyle(
-              ),
+              style: TextStyle(fontSize: 15, color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
             TextButton.icon(
@@ -100,7 +101,7 @@ class _BeneficiariesScreenState extends ConsumerState<BeneficiariesScreen> {
         child: Text(
           ref.tr('recipients.unavailable'),
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+          style: TextStyle(fontSize: 15, color: scheme.onSurfaceVariant),
         ),
       );
     }
@@ -108,7 +109,7 @@ class _BeneficiariesScreenState extends ConsumerState<BeneficiariesScreen> {
       return Center(
         child: Text(
           ref.tr('recipients.empty'),
-          style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+          style: TextStyle(fontSize: 15, color: scheme.onSurfaceVariant),
         ),
       );
     }
@@ -200,12 +201,13 @@ class _RecipientTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Theme.of(context).colorScheme.outline),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Row(
         children: [
@@ -219,7 +221,10 @@ class _RecipientTile extends ConsumerWidget {
                       child: Text(
                         item.name,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: scheme.primary,
                         ),
                       ),
                     ),
@@ -237,7 +242,9 @@ class _RecipientTile extends ConsumerWidget {
                 Text(
                   '${item.rail.name} · ${item.accountOrPhone}',
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: scheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -245,7 +252,7 @@ class _RecipientTile extends ConsumerWidget {
           ),
           IconButton(
             icon: const Icon(Icons.edit_outlined, size: 18),
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            color: scheme.onSurfaceVariant,
             onPressed: onEdit,
           ),
           IconButton(

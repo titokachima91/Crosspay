@@ -91,13 +91,14 @@ class _KycProfileScreenState extends ConsumerState<KycProfileScreen> {
   }
 
   Widget _label(String text) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w600,
-              color: AppColors.navy,
+              color: scheme.primary,
             ),
       ),
     );
@@ -268,8 +269,11 @@ class _KycProfileScreenState extends ConsumerState<KycProfileScreen> {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.lock_outline,
-                                size: 18, color: AppColors.textSecondary),
+                            Icon(Icons.lock_outline,
+                                size: 18,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(

@@ -46,13 +46,14 @@ class RouteOptionCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final send = quote.sendCurrency;
     final receive = quote.receiveCurrency;
     final enabled = option.isAvailable;
     final status = option.status;
 
     String? statusText;
-    var statusColor = AppColors.textSecondary;
+    var statusColor = scheme.onSurfaceVariant;
     if (status != null) {
       final label = ref.trMaybe('route.status.${status.code}') ??
           ref.tr('corridor.level.${status.level.name}');
@@ -80,7 +81,7 @@ class RouteOptionCard extends ConsumerWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 18, color: color ?? AppColors.textSecondary),
+            Icon(icon, size: 18, color: color ?? scheme.onSurfaceVariant),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -101,10 +102,10 @@ class RouteOptionCard extends ConsumerWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: scheme.surface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: selected ? AppColors.navy : AppColors.border,
+              color: selected ? scheme.primary : scheme.outlineVariant,
               width: selected ? 2 : 1,
             ),
           ),
@@ -117,7 +118,7 @@ class RouteOptionCard extends ConsumerWidget {
                     selected
                         ? Icons.radio_button_checked
                         : Icons.radio_button_unchecked,
-                    color: AppColors.navy,
+                    color: scheme.primary,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -199,7 +200,7 @@ class RouteOptionCard extends ConsumerWidget {
                 }),
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: AppColors.navy,
+                  color: scheme.primary,
                 ),
               ),
             ],
