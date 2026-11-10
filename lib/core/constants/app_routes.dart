@@ -19,6 +19,7 @@ class AppRoutes {
   static const String settings = '/settings';
   static const String security = '/security';
   static const String language = '/language';
+  static const String support = '/support';
 
   // F5.1 (profile) / F5.2 (saved recipients)
   static const String profile = '/profile';

@@ -19,7 +19,16 @@ class ConfigRepository {
     try {
       final response = await _dio.get<dynamic>(ApiEndpoints.config);
       final root = JsonReader.of(response.data);
+      final support = root.optionalObject('support');
       return AppConfig(
+        support: support == null
+            ? null
+            : SupportInfo(
+                email: support.optionalString('email'),
+                phone: support.optionalString('phone'),
+                whatsapp: support.optionalString('whatsapp'),
+                hours: support.optionalString('hours'),
+              ),
         currencies: [
           for (final c in root.list('currencies'))
             Currency(

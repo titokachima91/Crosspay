@@ -21,6 +21,7 @@ import 'package:crosspay_app/features/account/screens/security_settings_screen.d
 import 'package:crosspay_app/features/account/screens/profile_screen.dart';
 import 'package:crosspay_app/features/account/screens/language_selector_screen.dart';
 import 'package:crosspay_app/features/account/screens/beneficiaries_screen.dart';
+import 'package:crosspay_app/features/support/screens/support_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class CrossPayApp extends ConsumerWidget {
@@ -65,6 +66,7 @@ class CrossPayApp extends ConsumerWidget {
         AppRoutes.settings: (_) => const SettingsScreen(),
         AppRoutes.security: (_) => const SecuritySettingsScreen(),
         AppRoutes.language: (_) => const LanguageSelectorScreen(),
+        AppRoutes.support: (_) => const SupportScreen(),
       },
     );
   }

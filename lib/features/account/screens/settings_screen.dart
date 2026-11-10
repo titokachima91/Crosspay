@@ -72,8 +72,16 @@ class SettingsScreen extends ConsumerWidget {
                   icon: Icons.lock_outline,
                   title: ref.tr('settings.app_lock'),
                   subtitle: ref.tr('settings.app_lock_sub'),
-                  onTap: () =>
-                      Navigator.pushNamed(context, AppRoutes.security),
+                  onTap: () => Navigator.pushNamed(context, AppRoutes.security),
+                ),
+                const SizedBox(height: 24),
+                _SectionTitle(ref.tr('settings.support')),
+                const SizedBox(height: 8),
+                _SettingsTile(
+                  icon: Icons.support_agent,
+                  title: ref.tr('settings.support_title'),
+                  subtitle: ref.tr('settings.support_sub'),
+                  onTap: () => Navigator.pushNamed(context, AppRoutes.support),
                 ),
                 const SizedBox(height: 40),
               ],
@@ -197,9 +205,7 @@ class _ChoiceTile extends StatelessWidget {
               Icon(
                 icon,
                 size: 20,
-                color: selected
-                    ? AppColors.emerald
-                    : scheme.onSurfaceVariant,
+                color: selected ? AppColors.emerald : scheme.onSurfaceVariant,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -208,9 +214,8 @@ class _ChoiceTile extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                    color: selected
-                        ? scheme.onSurface
-                        : scheme.onSurfaceVariant,
+                    color:
+                        selected ? scheme.onSurface : scheme.onSurfaceVariant,
                   ),
                 ),
               ),

@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crosspay_app/core/constants/app_colors.dart';
 import 'package:crosspay_app/models/trade_model.dart';
+import 'package:crosspay_app/providers/localization_provider.dart';
 
 /// Visual progress bar showing the trade's current escrow stage.
-class TradeStatusBar extends StatelessWidget {
+///
+/// Every stage gets an equal share of the width so the labels can wrap on a
+/// narrow phone instead of pushing the row past the screen edge.
+class TradeStatusBar extends ConsumerWidget {
   const TradeStatusBar({super.key, required this.status});
 
   final TradeStatus status;
@@ -17,52 +22,54 @@ class TradeStatusBar extends StatelessWidget {
     TradeStatus.completed,
   ];
 
-  static const Map<TradeStatus, String> _labels = {
-    TradeStatus.pendingDeposit: 'Waiting for payment',
-    TradeStatus.escrowed: 'Verifying payment',
-    TradeStatus.matching: 'Finding payout route',
-    TradeStatus.matched: 'Almost there',
-    TradeStatus.disbursing: 'Paying out',
-    TradeStatus.completed: 'Done',
-  };
-
   int _currentIndex(TradeStatus status) =>
       _stages.indexWhere((s) => s == status);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final current = _currentIndex(status);
     final scheme = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List.generate(_stages.length, (index) {
-            final stage = _stages[index];
-            final active = index <= current;
-            return _StageDot(
-              active: active,
-              label: _labels[stage] ?? stage.name,
-              isCurrent: index == current,
-            );
-          }),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: List.generate(_stages.length - 1, (index) {
-            return Expanded(
-              child: Container(
-                height: 2,
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                color: index < current
-                    ? AppColors.emerald
-                    : scheme.outlineVariant,
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columnWidth = constraints.maxWidth / _stages.length;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < _stages.length; i++)
+                  Expanded(
+                    child: _StageDot(
+                      active: i <= current,
+                      label: ref.tr(_stages[i].labelKey),
+                      isCurrent: i == current,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: columnWidth / 2),
+              child: Row(
+                children: [
+                  for (var i = 0; i < _stages.length - 1; i++)
+                    Expanded(
+                      child: Container(
+                        height: 2,
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        color: i < current
+                            ? AppColors.emerald
+                            : scheme.outlineVariant,
+                      ),
+                    ),
+                ],
               ),
-            );
-          }),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -90,9 +97,8 @@ class _StageDot extends StatelessWidget {
           decoration: BoxDecoration(
             color: active ? AppColors.emerald : scheme.outlineVariant,
             shape: BoxShape.circle,
-            border: isCurrent
-                ? Border.all(color: scheme.primary, width: 2)
-                : null,
+            border:
+                isCurrent ? Border.all(color: scheme.primary, width: 2) : null,
           ),
           child: active
               ? Icon(Icons.check, size: 12, color: scheme.onSecondary)

@@ -55,6 +55,28 @@ class Carrier {
   int get hashCode => id.hashCode;
 }
 
+/// Optional support channels the server controls. Every field is optional so
+/// the app can ship before a support desk is connected.
+class SupportInfo {
+  const SupportInfo({
+    this.email,
+    this.phone,
+    this.whatsapp,
+    this.hours,
+  });
+
+  final String? email;
+  final String? phone;
+  final String? whatsapp;
+  final String? hours;
+
+  bool get hasChannels => _has(email) || _has(phone) || _has(whatsapp);
+
+  bool get isEmpty => !hasChannels && !_has(hours);
+
+  static bool _has(String? value) => value != null && value.trim().isNotEmpty;
+}
+
 /// Reference data the server controls. Empty until the server has answered.
 class AppConfig {
   const AppConfig({
@@ -63,6 +85,7 @@ class AppConfig {
     this.payoutRails = const [],
     this.countries = const [],
     this.carriers = const [],
+    this.support,
   });
 
   final List<Currency> currencies;
@@ -70,6 +93,10 @@ class AppConfig {
   final List<PayoutRail> payoutRails;
   final List<Country> countries;
   final List<Carrier> carriers;
+
+  /// Support channels, when the server publishes them. Null means the support
+  /// block has not been configured yet.
+  final SupportInfo? support;
 
   bool get isEmpty => currencies.isEmpty;
 
