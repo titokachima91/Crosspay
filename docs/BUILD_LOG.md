@@ -149,3 +149,52 @@ server stays the source of truth, nothing pushed.
 ---
 
 ## Report End - No fluff. Just facts.
+
+---
+
+## 2026-11-10 - Tracker scroll fix and a real support screen (F3.5)
+
+**Session rule followed**: no invented data in `lib/`, no new dependency, the
+server stays the source of truth, honest "not connected" states, nothing pushed.
+
+### Tracker: scroll instead of overflow
+- `trade_tracker_screen.dart` body is a `ListView` inside the same 480dp column.
+- Contact support / Share invoice are pinned in `bottomNavigationBar`; terminal
+  trades pin Done alone. The buttons stretch to the bar width.
+- Amount rows right-align their values in an `Expanded` child; the six-stage
+  status bar gives every stage an equal-width column, wraps its label and now
+  reads its labels from the shipped dictionaries.
+- Status/action/reference strings moved to `en.json` / `sw.json`; the 360x640
+  tracker test proves the screen scrolls without horizontal or vertical
+  overflow.
+
+### Support: honest now, server-ready later
+- `GET /config.support` is optional: `email`, `phone`, `whatsapp`, `hours`, all
+  optional. `SupportInfo` is nullable on `AppConfig`; no channel is invented.
+- New `/support` screen shows the trade reference/status/hash, copy actions and
+  an optional message. It says "Checking support options..." while loading and
+  "Support contact options are not available yet" when the server has none.
+  Sending is not connected, so there is no fake send button: only copyable
+  details and request text.
+- Contact Support on the tracker now pushes `/support` with a typed
+  `SupportTradeContext` (legacy map arguments still parse). Settings has a
+  localized Help & support entry with no trade attached.
+- `docs/api_contract.md` documents the optional support block.
+
+### Verification (final tree)
+- `dart analyze lib test preview` -> **No issues found**.
+- `flutter test -j 4` -> **218/218 passing**.
+- `flutter test test/trade_tracker_screen_test.dart` -> **3/3 passing** after the
+  final pinned-bar layout.
+- `flutter build web --release -t preview/main.dart` -> **Built build/web**
+  (231.3 s).
+
+### Still open (not silently claimed as done)
+- Real support channel values and in-app ticket/message submission need the
+  server. The app says so instead of faking a contact path.
+- Biometrics and `POST /auth/refresh` stay-signed-in remain outside this fix.
+- No push was made; the branch stays local until the product owner confirms.
+
+---
+
+## Report End - No fluff. Just facts.

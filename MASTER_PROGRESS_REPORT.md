@@ -57,7 +57,7 @@ CrossPay is engineered as a non-custodial, server-driven cross-border payments e
 - [x] F3.2 Route selection & rate lock (fee on top)
 - [x] F3.3 Recipient details & name check - **COMPLETE & VERIFIED**
 - [x] F3.4 Payment prompt & manual fallback - **COMPLETE & VERIFIED**
-- [x] F3.5 Live escrow & queue tracker + support - **COMPLETE & DOCUMENTED**
+- [x] F3.5 Live escrow & queue tracker + support - **COMPLETE (support channels server-driven; in-app messaging pending)**
 - [x] F3.6 Digital invoice & share sheet - **COMPLETE & DOCUMENTED**
 
 ### F4 Ledger & Market
@@ -223,7 +223,7 @@ Backend MUST:
 
 ### Code Quality
 - `dart analyze lib/ test/ preview/` -> No issues found (verified 2026-11-10)
-- `flutter test` -> **210/210 all passing** (verified 2026-11-10); targeted rerun of the final tree -> **45/45 passing**
+- `flutter test` -> **218/218 all passing** (verified 2026-11-10); targeted tracker rerun after the final pinned-bar layout -> **3/3 passing**
 - `flutter build web --release -t preview/main.dart` -> **Built build/web** (verified 2026-11-10)
 - Every feature screen reads its colours from `Theme.of(context).colorScheme`; only brand/status colours and the QR module paint are fixed (2026-11-10 sweep)
 - Payment notifier ignores late results once disposed (`_disposed` guards in `start`/`_poll`, 2026-11-07)

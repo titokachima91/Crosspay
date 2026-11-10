@@ -16,10 +16,16 @@ Conventions
   "countries":   [ { "code": "<2 letters>", "name": "<name>", "dialCode": "<digits, e.g. 255>",
                      "nationalNumberLength": <digits after the dial code, no leading zero> } ],
   "carriers":    [ { "id": "<id>", "name": "<name>", "countryCode": "<2 letters>",
-                     "prefixPattern": "<regex matched from the START of the national number>" } ]
+                     "prefixPattern": "<regex matched from the START of the national number>" } ],
+  "support":     { "email": "<address>", "phone": "<number>", "whatsapp": "<number>",
+                   "hours": "<free text>" }   (optional, every field optional)
 }
 All five lists are required (they may be empty). The first country listed is
 the default on the phone screen. Carrier matching is a suggestion only.
+`support` is optional. Omit it, or omit individual fields, until a real support
+desk exists; the app then says support contact options are not available yet
+instead of inventing an address or number. The app only offers copy actions
+today; in-app message submission is not connected.
 
 ## GET /api/v1/rates   (no login)
 {
