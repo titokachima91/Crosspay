@@ -1,10 +1,10 @@
 # CROSSPAY: MASTER PROGRESS REPORT
 
-**Updated**: 2026-11-07
+**Updated**: 2026-11-10
 **Project**: CrossPay
 **Package**: crosspay_app
 **Environment**: macOS Monterey | Flutter 3.24.5 | Dart 3.5.4
-**Progress**: 15 of 33 done (45%); F4.1 and F5.3 partially built (2026-11-06)
+**Progress**: 19 of 33 done (58%); F5.3 partially built (PIN, language, theme; biometrics not wired)
 
 ---
 
@@ -40,7 +40,7 @@ CrossPay is engineered as a non-custodial, server-driven cross-border payments e
 
 ### F1 Core
 - [x] F1.1 Scaffold & directory tree
-- [x] F1.2 Theme (Navy #1A237E, Emerald #00C853)
+- [x] F1.2 Theme (Navy #1A237E, Emerald #00C853; light/dark/system, remembered)
 - [x] F1.3 Localization engine (en | sw)
 - [x] F1.4 Riverpod state (auth, quote, trade, rates, config)
 - [x] F1.5 Network client (Dio, JWT, retry)
@@ -61,13 +61,13 @@ CrossPay is engineered as a non-custodial, server-driven cross-border payments e
 - [x] F3.6 Digital invoice & share sheet - **COMPLETE & DOCUMENTED**
 
 ### F4 Ledger & Market
-- [ ] F4.1 Searchable ledger & filters (+ ledger model/provider) - **partial: history screen w/ search + status filter (2026-11-06) and date-range windows (2026-11-07); CSV export, status timeline, analytics remain** -> `FEATURE_SPEC/F4/F4.1.md`
-- [ ] F4.2 Market depth & queue health
+- [x] F4.1 Searchable ledger, status timeline, CSV export, analytics - **done (frontend)** -> `FEATURE_SPEC/F4/F4.1.md`
+- [x] F4.2 Market depth & queue health - **done (frontend)** -> `FEATURE_SPEC/F4/F4.2.md`
 
 ### F5 Profile & Security
-- [ ] F5.1 Profile & limit bar
-- [ ] F5.2 Saved recipients CRUD
-- [ ] F5.3 Security: PIN/biometric lock, stay signed in, remember language - **partial (2026-11-06): PIN lock + app-shell gate + language selector built; biometrics, stay-signed-in, language persistence remain** -> `FEATURE_SPEC/F5/F5.3.md`
+- [x] F5.1 Profile & limit bar - **done (frontend)** -> `FEATURE_SPEC/F5/F5.1.md`
+- [x] F5.2 Saved recipients CRUD - **done (frontend)** -> `FEATURE_SPEC/F5/F5.2.md`
+- [ ] F5.3 Security: PIN/biometric lock, stay signed in, remember language - **partial: PIN lock, app-shell gate, language persistence and theme mode shipped; biometrics present but not wired; stay-signed-in blocked on `POST /auth/refresh`** -> `FEATURE_SPEC/F5/F5.3.md`
 
 ---
 
@@ -107,7 +107,6 @@ CrossPay is engineered as a non-custodial, server-driven cross-border payments e
 - [x] `FEATURE_SPEC/F3/F3.6.md` - Digital Invoice & Share Sheet
 
 ### Active Specifications (partially built features)
-- [ ] `FEATURE_SPEC/F4/F4.1.md` - Searchable Ledger & Filters (partial + implementation log)
 - [ ] `FEATURE_SPEC/F5/F5.3.md` - Security / language (partial + implementation log)
 
 ---
@@ -205,30 +204,35 @@ Backend MUST:
 
 ## IMPLEMENTATION STATUS SUMMARY
 
-### Completed Features (15/33)
+### Completed Features (19/33)
 | Feature | Status | Documentation | Tests | Analysis |
 |---------|--------|---------------|-------|----------|
 | F3.3 | Complete | Complete | Passing | 0 issues |
 | F3.4 | Complete | Complete | Passing | 0 issues |
 | F3.5 | Complete | Complete | Passing | 0 issues |
 | F3.6 | Complete | Complete | Passing | 0 issues |
+| F4.1 | Done (frontend) - history, timeline, CSV export, analytics | `FEATURE_SPEC/F4/F4.1.md` | Passing | 0 issues |
+| F4.2 | Done (frontend) - market depth & queue health | `FEATURE_SPEC/F4/F4.2.md` | Passing | 0 issues |
+| F5.1 | Done (frontend) - profile & limit bar | `FEATURE_SPEC/F5/F5.1.md` | Passing | 0 issues |
+| F5.2 | Done (frontend) - saved recipients CRUD | `FEATURE_SPEC/F5/F5.2.md` | Passing | 0 issues |
 
-### Partially Built (tracked under their real plan IDs, built 2026-11-06)
+### Partially Built (tracked under their real plan IDs)
 | Feature | Status | Documentation | Tests | Analysis |
 |---------|--------|---------------|-------|----------|
-| F4.1 | Partial - history search, status + date-window filters shipped | `FEATURE_SPEC/F4/F4.1.md` | Passing | 0 issues |
-| F5.3 | Partial - PIN lock + language selector shipped | `FEATURE_SPEC/F5/F5.3.md` | Passing | 0 issues |
+| F5.3 | Partial - PIN lock, language persistence, theme mode, `/settings` hub; biometrics not wired | `FEATURE_SPEC/F5/F5.3.md` | Passing | 0 issues |
 
 ### Code Quality
-- `dart analyze lib/ test/` → No issues found (verified 2026-11-07)
-- `flutter test` → **177/177 all passing** (verified 2026-11-07)
-- Payment notifier ignores late results once disposed (`_disposed` guards in `start`/`_poll`, 2026-11-07) - the fallback-timeout test exposed a poll landing on an already-disposed container
-- Preview/fakes errors resolved
+- `dart analyze lib/ test/ preview/` -> No issues found (verified 2026-11-10)
+- `flutter test` -> **210/210 all passing** (verified 2026-11-10); targeted rerun of the final tree -> **45/45 passing**
+- `flutter build web --release -t preview/main.dart` -> **Built build/web** (verified 2026-11-10)
+- Every feature screen reads its colours from `Theme.of(context).colorScheme`; only brand/status colours and the QR module paint are fixed (2026-11-10 sweep)
+- Payment notifier ignores late results once disposed (`_disposed` guards in `start`/`_poll`, 2026-11-07)
+- Payment provider tests wait on state, not on fixed timers (`_waitFor`, 2026-11-10)
 
 ### Documentation Files
 - `FEATURE_SPEC/F3/F3.5.md` - Live Escrow & Queue Tracker specification
 - `FEATURE_SPEC/F3/F3.6.md` - Digital Invoice & Share Sheet specification
-- `FEATURE_SPEC/F4/F4.1.md` - Searchable Ledger & Filters (partial + implementation log)
+- `FEATURE_SPEC/F4/F4.1.md` - Searchable Ledger & Filters (done frontend + implementation log)
 - `FEATURE_SPEC/F5/F5.3.md` - Security / language (partial + implementation log)
 
 ---

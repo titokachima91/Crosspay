@@ -1,5 +1,11 @@
 # Theme-Color Migration Summary
 
+> **Status update (2026-11-10):** the 5-file color fixes below are real, but the
+> "0 errors / theme complete" lines were stale by the next commit. The theme
+> toggle is wired, the analyzer is clean, and the remaining screens were swept
+> on 2026-11-10 (see `docs/BUILD_LOG.md`). Only brand/status colours and the QR
+> module paint intentionally stay fixed.
+
 ## Project: Crosspay Application
 
 ## Document: Theme-Color Migration Summary

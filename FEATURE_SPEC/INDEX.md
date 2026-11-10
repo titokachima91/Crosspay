@@ -7,7 +7,7 @@ F3 ends at F3.6.**
 | ID | Name | State | Spec |
 |----|------|-------|------|
 | F1.1 | Scaffold & directory tree | done | - |
-| F1.2 | Theme (navy / emerald) | done | - |
+| F1.2 | Theme (navy / emerald; light, dark, system; remembered) | done | - |
 | F1.3 | Localization engine (en / sw) | done | - |
 | F1.4 | Riverpod state | done | - |
 | F1.5 | Network client (Dio, JWT, retry) | done | - |
@@ -38,7 +38,7 @@ F3 ends at F3.6.**
 **Blocked, needs a decision or a backend**
 | Item | Blocked on |
 |------|------------|
-| F5.3 biometrics | a `local_auth` dependency decision (none in `pubspec.yaml`) |
+| F5.3 biometrics | wiring into the gate + platform permission entries (`local_auth` and `BiometricManager` already exist) |
 | F5.3 stay signed in | `POST /auth/refresh` + a validation call at boot |
 | Every "not connected" screen | its backend endpoint (PART 2) |
 

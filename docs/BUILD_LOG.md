@@ -88,3 +88,64 @@ each commit.
 ---
 
 ## Report End - No fluff. Just facts.
+
+---
+
+## 2026-11-10 - Theme repair (F1.2) and full dark-mode sweep
+
+**Session rule followed**: no invented data in `lib/`, no new dependency, the
+server stays the source of truth, nothing pushed.
+
+### Step 1 - restore the build and persist the choice
+- `ThemeStore` / `SecureThemeStore` moved to `lib/core/storage/theme_store.dart`;
+  `main()` reads the saved language and theme mode before `runApp`, and falls
+  back to the defaults when secure storage is unavailable.
+- `AppThemeMode` (`light` / `dark` / `system`) maps to Flutter's `ThemeMode` in
+  `app.dart`; `themeModeProvider` persists every change write-through.
+- `/settings` is now a real hub (language, appearance, security). The Account
+  tab tile opens it; every new string exists in both `en.json` and `sw.json`.
+
+### Step 2 - one palette source
+- `AppTheme` defines both palettes; screens read
+  `Theme.of(context).colorScheme`. Dark scaffold `#12121C`, surface `#1E1E2E`,
+  highest surface `#252538`, primary `#9FA8DA`, body text `#F1F2F6`, outline
+  variant `#3A3D52`, error `#FF8A80`.
+- Light `onSecondary` is black so emerald buttons meet the 4.5:1 text contrast.
+- `test/app_theme_test.dart` checks WCAG AA contrast for surface/primary/
+  secondary/error pairs in both palettes and that dark no longer paints light
+  surfaces.
+
+### Step 3 - sweep the screens
+- 34 UI files (screens/widgets) replaced hardcoded `AppColors.navy/textPrimary/
+  textSecondary/border/surface/background` and `Colors.white` surfaces with
+  scheme colours.
+- Only the brand/status palette (emerald, warning, danger, success) and the QR
+  module paint stay fixed, by design.
+- Removed 15 empty `TextStyle()` artifacts left behind by the earlier colour
+  stripping; fixed a Settings subtitle that claimed fingerprint/Face ID before
+  biometrics are wired.
+
+### Step 4 - tests that do not race the clock
+- `test/payment_provider_test.dart` now polls provider state through `_waitFor`
+  instead of assuming a fixed 80-150 ms window; the assertions are unchanged.
+- Theme coverage: `test/theme_provider_test.dart` (persistence + choices),
+  `test/settings_screen_test.dart` (hub choices), `test/app_theme_test.dart`
+  (contrast + dark surfaces).
+
+### Verification
+- `dart analyze lib test preview` -> **No issues found** (final tree).
+- `flutter test -j 4` -> **210/210 passing**.
+- Targeted rerun on the final tree (9 affected files) -> **45/45 passing**.
+- `flutter build web --release -t preview/main.dart` -> **Built build/web**
+  (578.2 s).
+
+### Still open (not silently claimed as done)
+- Biometrics: `local_auth` and `BiometricManager` are in the tree but are not
+  wired into the app-lock gate; Android/iOS permission entries are still
+  missing. The security screen correctly says "Not available yet".
+- Stay signed in: needs `POST /auth/refresh` plus a validation call at boot.
+- No push was made; the branch stays local until the product owner confirms.
+
+---
+
+## Report End - No fluff. Just facts.
