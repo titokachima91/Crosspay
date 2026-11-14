@@ -1,0 +1,230 @@
+import { randomInt } from 'node:crypto';
+import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import type { AppContext } from '../context.js';
+import { withTransaction } from '../../db/pool.js';
+import { createOtpChallenge, verifyOtpChallenge } from '../../auth/otp.js';
+import {
+  issueRefreshToken,
+  RefreshTokenExpiredError,
+  RefreshTokenInvalidError,
+  rotateRefreshToken,
+} from '../../auth/refresh-tokens.js';
+import { signAccessToken } from '../auth.js';
+import { parseBody } from '../validation.js';
+import {
+  serviceUnavailable,
+  tooManyRequests,
+  unauthorized,
+  unprocessable,
+} from '../errors.js';
+import { SmsNotConfiguredError } from '../../providers/sms.js';
+import { consumeRateLimit } from '../../services/rate-limit.js';
+import { findOrCreateUserByPhone, isProfileComplete } from '../../services/users.js';
+
+const phoneSchema = z.string().regex(/^\+[1-9][0-9]{7,14}$/);
+
+const otpRequestSchema = z.object({ phone: phoneSchema });
+const otpVerifySchema = z.object({
+  phone: phoneSchema,
+  code: z.string().regex(/^[0-9]{4,10}$/),
+});
+const refreshSchema = z.object({ refreshToken: z.string().min(1).max(512) });
+
+export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void {
+  app.post('/auth/otp/request', async (request, reply) => {
+    const { phone } = parseBody(otpRequestSchema, request.body);
+
+    const limit = await consumeRateLimit(ctx.pool, {
+      scope: 'otp.request',
+      key: phone,
+      limit: 5,
+      windowSeconds: 900,
+      crypto: ctx.crypto,
+    });
+    if (!limit.allowed) {
+      throw tooManyRequests(
+        'RATE_LIMITED',
+        'Too many verification code requests; try again later',
+        limit.retryAfterSeconds,
+      );
+    }
+
+    const ipLimit = await consumeRateLimit(ctx.pool, {
+      scope: 'otp.request.ip',
+      key: request.ip,
+      limit: 30,
+      windowSeconds: 900,
+      crypto: ctx.crypto,
+    });
+    if (!ipLimit.allowed) {
+      throw tooManyRequests(
+        'RATE_LIMITED',
+        'Too many verification code requests; try again later',
+        ipLimit.retryAfterSeconds,
+      );
+    }
+
+    const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
+    const challenge = await withTransaction(ctx.pool, (client) =>
+      createOtpChallenge(client, { phone, code }, ctx.crypto),
+    );
+
+    try {
+      await ctx.smsSender.sendOtp(phone, code);
+    } catch (error) {
+      await ctx.pool
+        .query(`UPDATE otp_challenges SET superseded_at = now() WHERE id = $1`, [
+          challenge.id,
+        ])
+        .catch(() => undefined);
+      if (error instanceof SmsNotConfiguredError) {
+        throw serviceUnavailable(
+          'SMS_NOT_CONFIGURED',
+          'Verification messages are not connected yet',
+        );
+      }
+      throw serviceUnavailable('SMS_DELIVERY_FAILED', 'Could not send the verification code');
+    }
+
+    return reply.code(200).send({
+      codeLength: challenge.codeLength,
+      resendAfterSeconds: challenge.resendAfterSeconds,
+      expiresInSeconds: challenge.expiresInSeconds,
+    });
+  });
+
+  app.post('/auth/otp/verify', async (request, reply) => {
+    const { phone, code } = parseBody(otpVerifySchema, request.body);
+
+    const limit = await consumeRateLimit(ctx.pool, {
+      scope: 'otp.verify',
+      key: phone,
+      limit: 10,
+      windowSeconds: 900,
+      crypto: ctx.crypto,
+    });
+    if (!limit.allowed) {
+      throw tooManyRequests(
+        'RATE_LIMITED',
+        'Too many verification attempts; try again later',
+        limit.retryAfterSeconds,
+      );
+    }
+
+    const ipLimit = await consumeRateLimit(ctx.pool, {
+      scope: 'otp.verify.ip',
+      key: request.ip,
+      limit: 50,
+      windowSeconds: 900,
+      crypto: ctx.crypto,
+    });
+    if (!ipLimit.allowed) {
+      throw tooManyRequests(
+        'RATE_LIMITED',
+        'Too many verification attempts; try again later',
+        ipLimit.retryAfterSeconds,
+      );
+    }
+
+    const result = await withTransaction(ctx.pool, async (client) => {
+      const verification = await verifyOtpChallenge(client, { phone, code }, ctx.crypto);
+      if (verification.state !== 'verified') {
+        return { kind: 'failed' as const, verification };
+      }
+
+      const user = await findOrCreateUserByPhone(client, phone);
+      const refresh = await issueRefreshToken(client, {
+        userId: user.id,
+        crypto: ctx.crypto,
+        ttlSeconds: ctx.refreshTokenTtlSeconds,
+      });
+      return { kind: 'ok' as const, user, refresh };
+    });
+
+    if (result.kind === 'failed') {
+      switch (result.verification.state) {
+        case 'expired':
+          throw unprocessable('OTP_EXPIRED', 'The verification code has expired');
+        case 'too_many_attempts':
+          throw tooManyRequests(
+            'OTP_TOO_MANY_ATTEMPTS',
+            'Too many incorrect attempts for this code',
+            900,
+          );
+        default:
+          throw unprocessable('OTP_INVALID', 'The verification code is invalid');
+      }
+    }
+
+    const accessToken = await signAccessToken({
+      userId: result.user.id,
+      secret: ctx.jwtSecret,
+      ttlSeconds: ctx.accessTokenTtlSeconds,
+    });
+
+    return reply.code(200).send({
+      accessToken,
+      refreshToken: result.refresh.token,
+      expiresInSeconds: ctx.accessTokenTtlSeconds,
+      profileComplete: isProfileComplete(result.user),
+    });
+  });
+
+  app.post('/auth/refresh', async (request, reply) => {
+    const { refreshToken } = parseBody(refreshSchema, request.body);
+
+    const ipLimit = await consumeRateLimit(ctx.pool, {
+      scope: 'auth.refresh.ip',
+      key: request.ip,
+      limit: 60,
+      windowSeconds: 900,
+      crypto: ctx.crypto,
+    });
+    if (!ipLimit.allowed) {
+      throw tooManyRequests(
+        'RATE_LIMITED',
+        'Too many refresh attempts; try again later',
+        ipLimit.retryAfterSeconds,
+      );
+    }
+
+    let result;
+    try {
+      result = await withTransaction(ctx.pool, (client) =>
+        rotateRefreshToken(client, {
+          token: refreshToken,
+          crypto: ctx.crypto,
+          ttlSeconds: ctx.refreshTokenTtlSeconds,
+        }),
+      );
+    } catch (error) {
+      if (error instanceof RefreshTokenInvalidError) {
+        throw unauthorized('REFRESH_TOKEN_INVALID', 'The refresh token is invalid');
+      }
+      if (error instanceof RefreshTokenExpiredError) {
+        throw unauthorized('REFRESH_TOKEN_EXPIRED', 'The refresh token has expired');
+      }
+      throw error;
+    }
+
+    if (result.state === 'reused') {
+      throw unauthorized(
+        'REFRESH_TOKEN_REUSED',
+        'This refresh token was already used; sign in again',
+      );
+    }
+
+    const accessToken = await signAccessToken({
+      userId: result.userId,
+      secret: ctx.jwtSecret,
+      ttlSeconds: ctx.accessTokenTtlSeconds,
+    });
+
+    return reply.code(200).send({
+      accessToken,
+      refreshToken: result.token,
+      expiresInSeconds: ctx.accessTokenTtlSeconds,
+    });
+  });
+}

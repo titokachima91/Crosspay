@@ -1,12 +1,15 @@
-# CrossPay API — B1 data foundation
+# CrossPay API
 
-Node.js + TypeScript service for CrossPay. B1 delivers the PostgreSQL schema,
-migrations, seed data, encryption helpers, idempotency primitives, quote
-lifecycle and the double-entry ledger. It does **not** expose HTTP endpoints
-yet; that is B2.
+Node.js + TypeScript service for CrossPay.
+
+- **B1** — PostgreSQL schema, migrations, seed, encryption, idempotency,
+  quote lifecycle and double-entry ledger. Built and verified 2026-11-14.
+- **B2.0** — HTTP bootstrap: `/config`, OTP sign-in, refresh rotation, `/me`,
+  KYC submission and saved-recipient CRUD. Built and verified 2026-11-15.
 
 The Flutter app remains the only client contract. `docs/api_contract.md` is the
-contract of record and `docs/B1_DATABASE_PLAN.md` is the approved build plan.
+contract of record. The B1 plan is `docs/B1_DATABASE_PLAN.md`; the build evidence
+is `docs/B1_IMPLEMENTATION.md` and `docs/B2_IMPLEMENTATION.md`.
 
 ---
 
@@ -30,11 +33,16 @@ server/
     migrate.ts         Apply pending migrations
     seed.ts            Apply reference data
     verify.ts          Post-deployment schema and config check
+    verify-local.ts    Fresh ephemeral database check
   src/
     crypto.ts          AES-256-GCM and HMAC helpers
     idempotency.ts     Replay-safe idempotency primitives
     quotes.ts          Single-use quote consumption and expiry
     ledger.ts          Balanced journal posting and reversals
+    auth/              OTP and refresh-token families
+    http/              Fastify server, auth, routes and error mapping
+    providers/         SMS adapter interface (disabled by default)
+    services/          Rate limiting and user/limit resolution
     db/                Pool, migration runner, seed runner
     repositories/      Read models such as GET /config
   test/                Integration tests against embedded PostgreSQL 17
@@ -45,33 +53,63 @@ server/
 ```sh
 cd server
 cp .env.example .env
-# edit DATABASE_URL and DATA_ENCRYPTION_KEY
+# edit DATABASE_URL, DATA_ENCRYPTION_KEY and JWT_SECRET
 npm ci
 npm run migrate
 npm run seed
 npm run verify
+npm run dev
 ```
 
-Generate the encryption key with:
+Generate both 32-byte keys with:
 
 ```sh
 openssl rand -base64 32
 ```
 
-The key belongs in the hosting secret manager. It is never written to the
+Keys belong in the hosting secret manager. They are never written to the
 database, a migration or a log line.
+
+## HTTP surface (B2.0)
+
+| Method | Path | Status |
+|---|---|---|
+| GET | `/health` | Live database check |
+| GET | `/api/v1/config` | Complete, server-driven five lists |
+| POST | `/api/v1/auth/otp/request` | Complete; SMS provider must be configured |
+| POST | `/api/v1/auth/otp/verify` | Complete; issues access + rotating refresh tokens |
+| POST | `/api/v1/auth/refresh` | Complete; reuse revokes the token family |
+| GET | `/api/v1/me` | Complete after KYC |
+| PUT | `/api/v1/me/kyc` | Complete; stores encrypted identifier, status `pending` |
+| GET/POST | `/api/v1/beneficiaries` | Complete, with idempotent writes |
+| PATCH/DELETE | `/api/v1/beneficiaries/{id}` | Complete, ownership-checked |
+| POST | `/api/v1/beneficiaries/check` | `503 NAME_CHECK_NOT_CONFIGURED` |
+| GET | `/api/v1/rates` | `503 PRICING_NOT_CONFIGURED` |
+| GET | `/api/v1/market/depth` | `503 MARKET_DATA_NOT_CONFIGURED` |
+| POST | `/api/v1/trade/*` | `503 PRICING_NOT_CONFIGURED` |
+| GET | `/api/v1/trades*` | `503 TRADING_NOT_CONFIGURED` |
+
+Every response error uses `{ "error": { "code": "...", "message": "..." } }`.
+Protected routes require `Authorization: Bearer <accessToken>`. The public
+routes are `/health`, `/config`, `/rates`, the OTP endpoints and `/auth/refresh`.
+
+`SMS_NOT_CONFIGURED` is returned until a real SMS partner is connected. This is
+deliberate: the server never pretends to send a code. Tests inject a capturing
+SMS transport through `buildServer()`.
 
 ## Verification
 
 ```sh
 npm run typecheck
 npm test
+npm run verify:local
 ```
 
 `npm test` starts an ephemeral PostgreSQL 17 cluster with `embedded-postgres`,
 applies every migration and the seed, then exercises the schema, quote
 lifecycle, trade timeline, idempotency race, ledger balance rules, append-only
-guards and encryption. No Docker or local PostgreSQL installation is required.
+guards, encryption, OTP limits, refresh rotation and the HTTP bootstrap.
+**36 tests pass.** No Docker or local PostgreSQL installation is required.
 
 `npm run verify` is for a real database. It checks migration state, the five
 `/config` lists, payout-rail kinds, seeded rows and ledger balance.
@@ -83,21 +121,29 @@ guards and encryption. No Docker or local PostgreSQL installation is required.
 | `DATABASE_URL` | yes | PostgreSQL connection string for migrations/API |
 | `DATABASE_SSL` | no | `true` enables TLS with the managed provider |
 | `DATA_ENCRYPTION_KEY` | yes | 32 random bytes, base64; application-level encryption |
+| `JWT_SECRET` | yes | 32 random bytes, base64; access-token signing |
 | `KYC_RETENTION_DAYS` | no | Provisional retention, default 2555 days |
 | `LIMIT_TIMEZONE` | no | Provisional daily-limit boundary, default `UTC` |
 | `IDEMPOTENCY_TTL_SECONDS` | no | Idempotency retention, default 86400 seconds |
+| `ACCESS_TOKEN_TTL_SECONDS` | no | Access-token lifetime, default 900 seconds |
+| `REFRESH_TOKEN_TTL_SECONDS` | no | Refresh lifetime, default 30 days |
+| `PORT` / `HOST` | no | HTTP listener, default `3000` / `0.0.0.0` |
+| `LOG_LEVEL` | no | Pino level, default `info` |
+| `CORS_ORIGINS` | no | Comma-separated web origins; empty for native-only |
 
 ## Deliberate data decisions
 
 - **No support details are seeded.** There is no real support desk yet; the app
   must show "support options are not available" rather than a placeholder.
-- **No daily limits are seeded.** Limits are a Product/Finance decision. The
-  server must never invent an amount.
-- **No corridor rates or market depth are seeded.** A pricing source and the
-  aggregation rules must be connected in B2.
-- **Ledger accounts are provisional.** The chart of accounts is seeded for every
-  active currency but marked `is_provisional = true` until Finance and Legal
-  approve it.
+- **No daily limits are seeded.** `/me` reports `dailyLimitMinor: 0` until
+  Product/Finance inserts an approved `tier_limits` row. The server never
+  invents a limit.
+- **No corridor rates or market depth are seeded.** The pricing endpoints return
+  `503` until a source is connected.
+- **KYC submissions are manual-review pending.** No KYC provider is connected;
+  the server stores the encrypted identifier and returns `pending`.
+- **Ledger accounts are provisional.** The chart is seeded for every active
+  currency but marked `is_provisional = true` until Finance and Legal approve it.
 - **Only real reference names are used.** Countries, currencies, carriers and
   payout rails are public data, not fake operational values.
 
@@ -108,15 +154,23 @@ guards and encryption. No Docker or local PostgreSQL installation is required.
 - KYC identifiers and recipient account numbers are encrypted with AES-256-GCM
   before they reach PostgreSQL. Lookups use HMAC-SHA-256 hashes.
 - OTP codes and refresh tokens are stored as hashes only.
+- Access tokens are short-lived HS256 JWTs. Refresh tokens rotate; reuse revokes
+  the family.
+- OTP request/verify are rate-limited by phone **and** by source IP using the
+  database, so multiple API instances share the limit.
 - The API must use a least-privilege database role. The migration role is
   separate. Ledger and timeline tables reject updates and deletes at the
-  database boundary, not only in application code.
-- Request bodies containing personal data must never be logged. The B2 logging
-  layer must redact `Authorization`, `X-Idempotency-Key`, phone numbers, names,
-  account numbers and KYC identifiers.
+  database boundary.
+- Request bodies containing personal data must never be logged. The Fastify
+  logger redacts `Authorization` and `X-Idempotency-Key`. No route logs a body.
+- The app never connects directly to PostgreSQL. Supabase is the database host,
+  not a public data API.
 
 ## Next step
 
-B2 starts with `B2.0` bootstrap endpoints in this order: `/config`, `/rates`,
-OTP, `/me` and KYC, beneficiaries, then trade estimate/quote/initiate. The data
-foundation above is ready for those handlers.
+1. Connect a real SMS partner behind `SmsSender`.
+2. Connect the pricing and payout providers, then implement estimate, quote and
+   initiate against the existing `quotes`, `quote_routes` and `trades` tables.
+3. Connect destination name checks for `/beneficiaries/check`.
+4. Add the trade list, history, analytics/export and invoice/share handlers.
+5. Add payment webhooks, payouts and refunds in B3.

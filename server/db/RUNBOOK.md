@@ -139,14 +139,19 @@ failure spike.
 - The desktop snapshot of this repository is a development backup, not a
   production database backup. It contains no real customer data.
 
-## 6. Encryption
+## 6. Encryption and signing keys
 
 - `DATA_ENCRYPTION_KEY` is a 32-byte base64 key in the hosting secret manager.
 - It encrypts KYC identifiers, recipient destinations, trade recipient
   snapshots and idempotency response bodies.
-- Losing the key makes restricted fields unreadable. Rotating it requires a
-  controlled re-encryption job; no rotation job is implemented in B1.
-- Never log the key, ciphertext, plaintext KYC identifier or a recipient account
+- `JWT_SECRET` is a separate 32-byte base64 key. Rotating it invalidates every
+  access token immediately; a client can obtain a new one with its still-valid
+  refresh token. Rotate both keys on a suspected compromise and record the
+  incident.
+- Losing the encryption key makes restricted fields unreadable. Rotating it
+  requires a controlled re-encryption job; no rotation job is implemented in
+  B1/B2.0.
+- Never log a key, ciphertext, plaintext KYC identifier or a recipient account
   number.
 
 ## 7. Incident playbooks
