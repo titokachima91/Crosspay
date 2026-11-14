@@ -194,7 +194,35 @@ Legal sign off.
 
 ---
 
-## 5. Intentional gaps and deferred decisions
+## 5. Desktop backups and restore verification
+
+No snapshot overwrites another. Each is a full working tree with `.git`,
+excluding only regenerable `build/`, `.dart_tool/` and `server/node_modules/`.
+
+| Snapshot | HEAD | Verification |
+|---|---|---|
+| `~/Desktop/crosspay_app_2026-11-14_214229_docs-b1-approved` | `af3b83c` | `git fsck --full` clean; source/backup tree hashes match |
+| `~/Desktop/crosspay_app_2026-11-15_000324_b1-built` | `84a5a8c` | `git fsck --full` clean; 292 tracked files; source/backup tree hashes match |
+
+The B1-built snapshot was restored into an isolated temporary directory and
+tested from scratch:
+
+```sh
+npm ci
+npm run typecheck
+npm test
+```
+
+Result: install succeeded, typecheck passed, **31/31 tests passed** against a
+fresh embedded PostgreSQL 17 cluster. This is a restore test of the code and
+migrations, not a production database backup.
+
+A third snapshot is created after the final documentation commit so the
+Desktop copy always matches the last committed tree.
+
+---
+
+## 6. Intentional gaps and deferred decisions
 
 These are deliberate; see section “Build authorisation and provisional
 assumptions” in `docs/B1_DATABASE_PLAN.md`.
@@ -218,7 +246,7 @@ assumptions” in `docs/B1_DATABASE_PLAN.md`.
 
 ---
 
-## 6. Next step — B2
+## 7. Next step — B2
 
 B2 should be built in boot order, not in the old B2/B3 order:
 
@@ -235,7 +263,7 @@ The database primitives for steps 2–6 already exist and are tested.
 
 ---
 
-## 7. Reference notes
+## 8. Reference notes
 
 The design was checked against public payment-industry practice and public
 numbering data:

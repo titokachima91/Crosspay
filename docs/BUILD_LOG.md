@@ -231,8 +231,10 @@ server stays the source of truth, honest "not connected" states, nothing pushed.
   encryption.
 - `npm run verify:local` -> `ok: true`, 7 migrations, 6 currencies, 18 payout
   rails, 48 provisional ledger accounts, no support/limits/corridors.
-- Desktop snapshots created before the build and after the docs commit; both
-  verified with `git fsck` and matching tree hashes.
+- Desktop snapshots created before the build, after the docs commit and after
+  the B1 build. All passed `git fsck` and matching tree hashes; the B1-built
+  snapshot was restored into an isolated directory and passed `npm ci`,
+  typecheck and 31/31 tests. Snapshots are never overwritten.
 
 ### Still open (not silently claimed as done)
 - Finance/Legal approval of the chart of accounts and escrow treatment.
