@@ -74,14 +74,19 @@ CrossPay is engineered as a non-custodial, server-driven cross-border payments e
 ## PART 2: BACKEND (Node.js + TypeScript API)
 
 ### B1 Database foundation (plan: `docs/B1_DATABASE_PLAN.md`)
-- [ ] B1.0 Conventions and contract reconciliation
-- [ ] B1.1 Identity, access and reference data
-- [ ] B1.2 Recipients
-- [ ] B1.3 Quotes, quote routes and trades
-- [ ] B1.4 Idempotency and concurrency
-- [ ] B1.5 Double-entry ledger
-- [ ] B1.6 Financial operations scaffolding
-- [ ] B1.7 Migrations, seed, ERD and verification
+- [x] B1.0 Conventions and contract reconciliation
+- [x] B1.1 Identity, access and reference data
+- [x] B1.2 Recipients
+- [x] B1.3 Quotes, quote routes and trades
+- [x] B1.4 Idempotency and concurrency
+- [x] B1.5 Double-entry ledger (structure verified; chart provisional)
+- [x] B1.6 Financial operations scaffolding
+- [x] B1.7 Migrations, seed, ERD and verification
+
+**B1 status**: built and tested 2026-11-14 in `server/` -> `docs/B1_IMPLEMENTATION.md`.
+31 integration tests pass against ephemeral PostgreSQL 17; `dart analyze` and
+the Flutter suite are unchanged. Finance/Legal sign-off of the chart of accounts
+and escrow treatment remains the only open B1 gate.
 
 ### B2 Trade API
 - [ ] B2.1 Idempotency

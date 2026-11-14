@@ -14,10 +14,14 @@ Conventions
 - Errors: { "error": { "code": "SOME_CODE", "message": "for logs" } }
 - Endpoints marked "no login" must work without a token.
 - Repeating a write with the same key and the same body returns the original
-  result. Reusing the key with a different body returns
-  `409 IDEMPOTENCY_KEY_REUSED`. A duplicate that arrives while the first request
-  is still running returns `409 IDEMPOTENCY_IN_PROGRESS` with a `Retry-After`
-  header; it must never execute the operation a second time.
+  result, marked with `Idempotency-Replay: true`.
+- Reusing the key with a different body returns
+  `409 IDEMPOTENCY_KEY_REUSED`.
+- A duplicate that arrives while the first request is still running normally
+  waits for that transaction and then replays its committed result. If the
+  server cannot wait, or observes a committed in-progress row, it returns
+  `409 IDEMPOTENCY_IN_PROGRESS` with a `Retry-After` header. It must never
+  execute the operation a second time.
 
 ## GET /api/v1/config   (no login)
 {

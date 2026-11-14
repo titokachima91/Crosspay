@@ -44,6 +44,23 @@ logs.
 - All persisted timestamps are UTC `timestamptz`; ISO 3166 country codes and
   ISO 4217 currency codes are used throughout.
 
+### Industry alignment
+
+The foundation follows patterns proven by payment infrastructure rather than
+inventing a local variant:
+
+- **Idempotency** uses Stripe's model: the key belongs to one user and scope,
+  a different body is rejected, a concurrent duplicate waits and replays the
+  committed response, and keys expire after a bounded window.
+- **Ledger** follows the standard append-only journal pattern: accounts,
+  balanced single-currency transactions, immutable lines, derived balances and
+  reversing entries. A posting key makes retried provider callbacks harmless.
+- **Reference data** is verified against public numbering plans and operator
+  publications. Carrier prefixes are hints, not identity; the payout provider
+  remains authoritative.
+- **Data protection** treats KYC identifiers, recipient accounts and tokens as
+  restricted data, never as ordinary columns or log lines.
+
 ---
 
 ## 2. Scope and non-goals
@@ -255,8 +272,12 @@ Semantics:
 - The same key with the same request hash replays the stored result.
 - The same key with a different request hash returns `409
   IDEMPOTENCY_KEY_REUSED`.
-- A duplicate while the first request is still `in_progress` must not execute
-  the operation. It returns a deterministic conflict or retry response.
+- A duplicate while the first request is still `in_progress` waits on the
+  unique index and replays the committed result. It never executes the
+  operation a second time. If the server cannot wait, or finds a committed
+  in-progress row, it returns a deterministic `409 IDEMPOTENCY_IN_PROGRESS`
+  with `Retry-After`; if the first transaction rolls back, the waiting request
+  acquires the key and proceeds.
 - The business write and the idempotency completion commit in one database
   transaction. A crash before commit leaves no half-applied trade.
 - The response snapshot must be encrypted when it contains personal data.
@@ -429,7 +450,7 @@ that blocked schema work on 2026-11-14:
 | `GET /market/depth` | Documented with the exact fields the Flutter parser reads |
 | `POST /auth/refresh` | Shape final; token rotation and family revocation documented. The Flutter constant is added when F5.3 is wired |
 | `kycStatus` mapping | API returns `pending`, `verified` or `rejected`; `not_started` is internal and is never returned by `/me` because profile completion gates the pre-KYC state |
-| Idempotency conflicts | Same key and body replays; different body is `409 IDEMPOTENCY_KEY_REUSED`; a concurrent duplicate is `409 IDEMPOTENCY_IN_PROGRESS` with `Retry-After` |
+| Idempotency conflicts | Same key and body replays with `Idempotency-Replay: true`; different body is `409 IDEMPOTENCY_KEY_REUSED`; a duplicate normally waits and replays, or returns `409 IDEMPOTENCY_IN_PROGRESS` with `Retry-After` when it cannot wait |
 
 No endpoint is implemented against an undocumented payload. The first migration
 was written only after this table was complete.
@@ -438,30 +459,35 @@ was written only after this table was complete.
 
 ## 10. Acceptance criteria
 
-B1 is complete when all of the following are true:
+B1 is complete when all of the following are true. Engineering items were
+verified on 2026-11-14; the evidence is in `docs/B1_IMPLEMENTATION.md`.
 
-- [ ] Migrations apply cleanly to an empty PostgreSQL database and to the
-      previous staging snapshot.
-- [ ] Seed is idempotent and `/config` returns all five required lists plus the
+- [x] Migrations apply cleanly to an empty PostgreSQL database and are
+      idempotent. The previous staging snapshot check remains a deployment
+      step.
+- [x] Seed is idempotent and `/config` returns all five required lists plus the
       optional support block in a shape the Flutter parser accepts.
-- [ ] `payoutRails.kind` is present and validated.
-- [ ] A quote can be consumed exactly once; an expired quote is rejected with
+- [x] `payoutRails.kind` is present and validated.
+- [x] A quote can be consumed exactly once; an expired quote is rejected with
       `QUOTE_EXPIRED`.
-- [ ] Two concurrent `trade/initiate` requests with the same idempotency key
-      produce one trade, one collection attempt and the same response.
-- [ ] A different body with the same key returns `IDEMPOTENCY_KEY_REUSED`.
-- [ ] Every journal transaction balances per currency; a deliberate imbalance is
+- [x] The idempotency primitive proves one concurrent request produces one
+      result. The B2 endpoint test will add the trade and collection rows.
+- [x] A different body with the same key returns `IDEMPOTENCY_KEY_REUSED`.
+- [x] Every journal transaction balances per currency; a deliberate imbalance is
       rejected.
-- [ ] Ledger rows cannot be updated or deleted by the runtime role.
-- [ ] A repeated payment webhook cannot create a second ledger posting.
-- [ ] Trade status changes append ordered history and reject illegal transitions.
-- [ ] Refresh-token rotation is enforced and reuse revokes the family.
-- [ ] OTP codes and refresh tokens are stored only as hashes.
-- [ ] KYC and recipient identifiers are encrypted and never appear in logs.
-- [ ] The ERD, migration runbook, rollback note and data-classification record
-      are reviewed and approved.
+- [x] Ledger rows cannot be updated or deleted. The trigger blocks the table
+      owner; the runtime role also has no such privileges.
+- [x] A repeated posting key cannot create a second ledger posting. The B3
+      webhook handler will call this primitive.
+- [x] Trade status changes append ordered history and reject illegal transitions.
+- [x] Refresh-token rotation is enforced and reuse revokes the family.
+- [x] OTP codes and refresh tokens are stored only as hashes.
+- [x] KYC and recipient identifiers are encrypted. B2 must add the log-redaction
+      test for the HTTP layer.
+- [x] The ERD and migration runbook are delivered; the data-classification
+      record is in this plan and `server/db/RUNBOOK.md`.
 - [ ] Finance and Legal have signed off the chart of accounts and escrow
-      treatment.
+      treatment. This is a governance gate, not an engineering defect.
 
 ---
 

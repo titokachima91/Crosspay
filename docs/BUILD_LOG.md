@@ -189,4 +189,58 @@ server stays the source of truth, honest "not connected" states, nothing pushed.
 
 ---
 
+## 2026-11-14/15 - B1 backend database foundation
+
+**Session rule followed**: the Flutter tree is unchanged; the server is a new
+`server/` workspace. No mocks or invented operational data. No push.
+
+### Documentation and contract first (B1.0)
+- Approved `docs/B1_DATABASE_PLAN.md` for build with explicit provisional
+  assumptions for the four deferred decisions.
+- Reconciled `docs/api_contract.md`: beneficiary `POST`/`PATCH`/`DELETE`,
+  `GET /market/depth`, invoice/share endpoints, payout-rail `kind`, refresh
+  rotation and idempotency replay semantics.
+- Linked the plan from `MASTER_PROGRESS_REPORT.md`.
+
+### Database (B1.1–B1.7)
+- Seven forward-only migrations under `server/db/migrations/`:
+  reference data; identity/KYC/OTP/refresh; recipients/quotes/trades; idempotency;
+  financial operations; double-entry ledger; transition and append-only guards.
+- Idempotent reference seed with East African countries, currencies, carriers,
+  hubs, 18 payout rails, a starter tier and provisional ledger accounts for six
+  currencies. Support, tier limits and corridor pricing are deliberately empty.
+- Checksum-locked migration runner, seed runner, `npm run verify` and
+  `npm run verify:local`.
+- ERD and migration/incident runbook in `server/db/`.
+
+### Application primitives
+- `crypto.ts`: AES-256-GCM, HKDF-derived keys, HMAC lookups, stable request
+  hashes.
+- `idempotency.ts`: concurrent acquisition, replay, different-body rejection,
+  encrypted response snapshots, pruning.
+- `quotes.ts`: single-use consumption and expiry worker.
+- `auth/otp.ts`: hashed codes, one active code per phone, attempt limits.
+- `auth/refresh-tokens.ts`: hashed tokens, rotation families, revocation on reuse.
+- `ledger.ts`: balanced posting, append-only history, reversing entries.
+
+### Verification
+- `npm run typecheck` -> **clean**.
+- `npm test` -> **31/31 passing** against embedded PostgreSQL 17, covering
+  migrations, seed, `/config`, quote expiry, trade timeline, concurrent
+  idempotency, ledger balance/immutability, OTP and refresh rotation, and
+  encryption.
+- `npm run verify:local` -> `ok: true`, 7 migrations, 6 currencies, 18 payout
+  rails, 48 provisional ledger accounts, no support/limits/corridors.
+- Desktop snapshots created before the build and after the docs commit; both
+  verified with `git fsck` and matching tree hashes.
+
+### Still open (not silently claimed as done)
+- Finance/Legal approval of the chart of accounts and escrow treatment.
+- B2 HTTP endpoints, real SMS/pricing/KYC providers and log redaction tests.
+- Deferred product decisions: KYC retention, daily-limit timezone, invoice/export
+  persistence and P2P matching.
+- No push was made; the branch stays local until the product owner confirms.
+
+---
+
 ## Report End - No fluff. Just facts.
