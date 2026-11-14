@@ -73,10 +73,15 @@ CrossPay is engineered as a non-custodial, server-driven cross-border payments e
 
 ## PART 2: BACKEND (Node.js + TypeScript API)
 
-### B1 Schema
-- [ ] B1.1 schema.sql
-- [ ] B1.2 Double-entry ledger
-- [ ] B1.3 Quote expiry store (DB)
+### B1 Database foundation (plan: `docs/B1_DATABASE_PLAN.md`)
+- [ ] B1.0 Conventions and contract reconciliation
+- [ ] B1.1 Identity, access and reference data
+- [ ] B1.2 Recipients
+- [ ] B1.3 Quotes, quote routes and trades
+- [ ] B1.4 Idempotency and concurrency
+- [ ] B1.5 Double-entry ledger
+- [ ] B1.6 Financial operations scaffolding
+- [ ] B1.7 Migrations, seed, ERD and verification
 
 ### B2 Trade API
 - [ ] B2.1 Idempotency

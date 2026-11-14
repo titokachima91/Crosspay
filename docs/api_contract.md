@@ -1,18 +1,31 @@
-# CrossPay API contract (working draft)
+# CrossPay API contract
+
+**Status**: Reconciled for the B1 database foundation — 2026-11-14
+**Authority**: This document is the contract of record for the Flutter client and
+the Node.js API. `docs/B1_DATABASE_PLAN.md` defines the storage that serves it.
 
 Conventions
 - Base path: /api/v1
-- Money: whole integers in minor units (1/100). Times: ISO-8601 UTC.
+- Money: whole integers in minor units (for example, kobo or cents), scaled by
+  the currency's `decimals` from /config. Rates are decimal numbers.
+- IDs are opaque server-issued strings. Clients never parse them.
+- Times: ISO-8601 UTC. The server clock is authoritative for expiry and limits.
 - Writes carry X-Idempotency-Key; the server must honor it.
 - Errors: { "error": { "code": "SOME_CODE", "message": "for logs" } }
 - Endpoints marked "no login" must work without a token.
+- Repeating a write with the same key and the same body returns the original
+  result. Reusing the key with a different body returns
+  `409 IDEMPOTENCY_KEY_REUSED`. A duplicate that arrives while the first request
+  is still running returns `409 IDEMPOTENCY_IN_PROGRESS` with a `Retry-After`
+  header; it must never execute the operation a second time.
 
 ## GET /api/v1/config   (no login)
 {
   "currencies":  [ { "code": "<ISO code>", "name": "<name>", "countryCode": "<2 letters>",
                      "decimals": <digits shown after the decimal point, e.g. 0 or 2> } ],
   "hubs":        [ { "id": "<id>", "name": "<name>", "countryCode": "<2 letters>" } ],
-  "payoutRails": [ { "id": "<id>", "name": "<name>", "countryCode": "<2 letters>" } ],
+  "payoutRails": [ { "id": "<id>", "name": "<name>", "countryCode": "<2 letters>",
+                     "kind": "mobile_money | bank" } ],
   "countries":   [ { "code": "<2 letters>", "name": "<name>", "dialCode": "<digits, e.g. 255>",
                      "nationalNumberLength": <digits after the dial code, no leading zero> } ],
   "carriers":    [ { "id": "<id>", "name": "<name>", "countryCode": "<2 letters>",
@@ -45,6 +58,26 @@ today; in-app message submission is not connected.
 - Order matters: the splash shows each pair once, in the first direction listed.
 - Known status codes the app translates: balanced_p2p, high_liquidity,
   active_clearing. Unknown codes fall back to the level.
+
+## GET /api/v1/market/depth   (login required)
+{
+  "corridors": [
+    {
+      "from": "<currency code>",
+      "to": "<currency code>",
+      "queueDepth": <int>,
+      "estimatedSettleSeconds": <int>,
+      "status": { "code": "<status code>", "level": "healthy | limited | down" }  (optional)
+    }
+  ]
+}
+- Every number is the server's. The app never estimates, smooths or invents
+  queue data; without this endpoint the screen says it is not connected.
+- `queueDepth` is the number of trades waiting on the corridor; it is zero or
+  greater. `estimatedSettleSeconds` is a positive estimate.
+- Currency codes must exist in /config; corridors naming an unknown code are
+  ignored by the app. Corridors appear in the server's order.
+- Status codes use the same values and fallback behavior as /rates.
 
 ## POST /api/v1/auth/otp/request   (no login)
 Request:  { "phone": "+<dial code><national number>" }
@@ -88,6 +121,10 @@ Response: { "kycStatus": "verified" | "pending" }
 Request:  { "refreshToken": "<token>" }
 Response: { "accessToken": "<JWT>", "refreshToken": "<token>", "expiresInSeconds": <int> }
 Used from F5.3 (stay signed in). Refresh tokens rotate on every use.
+- The Flutter endpoint constant is added when F5.3 is wired; the shape above is
+  final and the backend stores only a hash of the refresh token.
+- Reuse of a rotated token revokes the token family and returns 401 with
+  `REFRESH_TOKEN_REUSED`.
 
 ## GET /api/v1/me   (login required)
 {
@@ -99,6 +136,11 @@ Used from F5.3 (stay signed in). Refresh tokens rotate on every use.
   "tier": "<server-defined tier code>",
   "limit": { "currency": "<code>", "dailyLimitMinor": <int>, "dailyUsedMinor": <int> }
 }
+- `kycStatus` is one of `verified`, `pending` or `rejected`. The database also
+  has an internal `not_started` state, but it is never returned here: OTP verify
+  sets `profileComplete` false and routes the person to KYC before Home.
+- `dailyUsedMinor` is derived from trades in the current UTC day that count
+  against the limit; it is never a stored wallet balance.
 
 ## Settled rules for endpoints not built yet
 - Fees are added ON TOP: totalDebit = amount + fee; the recipient receives the
@@ -130,6 +172,35 @@ Response:
   ]
 }
 - A recipient whose railId is not in /config is ignored by the app.
+
+## POST /api/v1/beneficiaries   (login required)
+Header: X-Idempotency-Key (one key per create attempt)
+Request:
+{ "railId": "<id from /config>", "name": "<person or business name>",
+  "accountOrPhone": "<number>" }
+Response 201: the saved recipient object, exactly as GET /beneficiaries returns it:
+{ "id": "<id>", "name": "<name>", "railId": "<id>", "accountOrPhone": "<number>",
+  "kycVerified": <true | false> }
+- The server validates the rail and the destination format, stores the account
+  encrypted and returns only what the owner may see.
+- 4xx codes: INVALID_RAIL, INVALID_ACCOUNT, BENEFICIARY_EXISTS, RATE_LIMITED.
+
+## PATCH /api/v1/beneficiaries/{id}   (login required)
+Header: X-Idempotency-Key
+Request: the same three fields as POST. The server treats the body as the full
+editable state, so a retry cannot apply a partial edit twice.
+Response 200: the updated recipient object.
+- 4xx codes: BENEFICIARY_NOT_FOUND, INVALID_RAIL, INVALID_ACCOUNT,
+  BENEFICIARY_EXISTS, RATE_LIMITED.
+- Only the owner can read or change a recipient. A non-owner gets 404, never a
+  hint that the id exists.
+
+## DELETE /api/v1/beneficiaries/{id}   (login required)
+Header: X-Idempotency-Key
+Response 204 with no body. Deletion is a soft delete server-side and repeated
+requests for the same owned recipient stay successful so a retry is safe.
+- A non-owner gets 404. The server never deletes a trade snapshot because a
+  recipient was removed.
 
 ## POST /api/v1/trade/quote   (login required)
 Request:  { "sendCurrency": "<code>", "receiveCurrency": "<code>", "sendAmountMinor": <int> }
@@ -247,6 +318,31 @@ response body is not used; the payment step keeps polling GET /trades/{id}.
 
 ## POST /api/v1/trades/{id}/cancel   (login required)  -> trade object
 4xx codes: CANNOT_CANCEL, ALREADY_PAID (the app then keeps watching the trade).
+
+## GET /api/v1/trades/{id}/invoice   (login required)
+{
+  "qrCodeUrl": "<https URL for the invoice QR image>",
+  "shareUrl": "<https URL a payer can open>",
+  "validUntil": "<ISO-8601 UTC>",
+  "amountMinor": <int, amount the payer must pay>,
+  "currency": "<ISO currency code of amountMinor>"
+}
+- The server issues both URLs and controls `validUntil`; the app never builds
+  or extends an invoice link.
+- 4xx codes: TRADE_NOT_FOUND, INVOICE_NOT_AVAILABLE, INVOICE_EXPIRED.
+
+## POST /api/v1/trades/{id}/share   (login required)
+Header: X-Idempotency-Key
+Response:
+{
+  "shareUrl": "<https URL a payer can open>",
+  "validUntil": "<ISO-8601 UTC>",
+  "verificationHash": "<server-issued hash>"
+}
+- The response carries a shareable link and its metadata. A repeated key
+  returns the original result and does not create a second link.
+- 4xx codes: TRADE_NOT_FOUND, INVOICE_NOT_AVAILABLE, INVOICE_EXPIRED,
+  RATE_LIMITED.
 
 ## GET /api/v1/trades   (login required)
 ```
