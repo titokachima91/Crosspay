@@ -62,6 +62,9 @@ today; in-app message submission is not connected.
 - Order matters: the splash shows each pair once, in the first direction listed.
 - Known status codes the app translates: balanced_p2p, high_liquidity,
   active_clearing. Unknown codes fall back to the level.
+- Until a live pricing source is connected, the endpoint returns
+  `503 PRICING_NOT_CONFIGURED`. The app shows its "rates are not connected"
+  state; the server never returns invented rates.
 
 ## GET /api/v1/market/depth   (login required)
 {
@@ -82,6 +85,8 @@ today; in-app message submission is not connected.
 - Currency codes must exist in /config; corridors naming an unknown code are
   ignored by the app. Corridors appear in the server's order.
 - Status codes use the same values and fallback behavior as /rates.
+- Until a real aggregation source exists, the endpoint returns
+  `503 MARKET_DATA_NOT_CONFIGURED`. Queue numbers are never estimated.
 
 ## POST /api/v1/auth/otp/request   (no login)
 Request:  { "phone": "+<dial code><national number>" }
@@ -101,6 +106,18 @@ Response: { "accessToken": "<JWT>", "refreshToken": "<token>",
 ## Error codes the app already translates (error.code.<lowercase code>)
 OTP_INVALID, OTP_EXPIRED, OTP_TOO_MANY_ATTEMPTS, RATE_LIMITED
 Any other code falls back to a general message for its HTTP class.
+
+B2.0 adds these stable codes:
+UNAUTHORIZED, PROFILE_INCOMPLETE, VALIDATION_FAILED,
+IDEMPOTENCY_KEY_REQUIRED, IDEMPOTENCY_KEY_REUSED, IDEMPOTENCY_IN_PROGRESS,
+BENEFICIARY_EXISTS, BENEFICIARY_NOT_FOUND, INVALID_RAIL, INVALID_ACCOUNT,
+KYC_ALREADY_SUBMITTED, KYC_ALREADY_VERIFIED, ID_NUMBER_ALREADY_USED,
+REFRESH_TOKEN_INVALID, REFRESH_TOKEN_EXPIRED, REFRESH_TOKEN_REUSED,
+SMS_NOT_CONFIGURED, PRICING_NOT_CONFIGURED, MARKET_DATA_NOT_CONFIGURED,
+TRADING_NOT_CONFIGURED, NAME_CHECK_NOT_CONFIGURED.
+A `503` with a `*_NOT_CONFIGURED` code means the server is reachable but that
+provider is not connected yet. The app must show its unavailable state; it must
+not retry as if the data existed.
 
 ## PUT /api/v1/me/kyc   (login required)
 Request:
@@ -142,9 +159,11 @@ Used from F5.3 (stay signed in). Refresh tokens rotate on every use.
 }
 - `kycStatus` is one of `verified`, `pending` or `rejected`. The database also
   has an internal `not_started` state, but it is never returned here: OTP verify
-  sets `profileComplete` false and routes the person to KYC before Home.
+  sets `profileComplete` false and routes the person to KYC before Home. A
+  request made before KYC completes returns `409 PROFILE_INCOMPLETE`.
 - `dailyUsedMinor` is derived from trades in the current UTC day that count
-  against the limit; it is never a stored wallet balance.
+  against the limit; it is never a stored wallet balance. Until Product/Finance
+  inserts an approved tier limit, `dailyLimitMinor` is `0`.
 
 ## Settled rules for endpoints not built yet
 - Fees are added ON TOP: totalDebit = amount + fee; the recipient receives the
@@ -267,6 +286,8 @@ Response:
 - "unavailable" means the destination cannot check names automatically (for
   example some banks). The app then allows paying but warns the person.
 - Rejections are 4xx with a code, e.g. RATE_LIMITED, RAIL_UNAVAILABLE.
+- Until a destination name-check provider is connected, the endpoint returns
+  `503 NAME_CHECK_NOT_CONFIGURED`.
 
 ## Authorization attempts (used by the payment step, F3.4)
 The app creates ONE unique key per authorization attempt (same quote and same
@@ -297,6 +318,9 @@ Response:
   collection. A different quote or different recipient details are a new key.
 - Rejections are 4xx with a code: QUOTE_EXPIRED, LIMIT_EXCEEDED,
   VERIFICATION_REQUIRED, RECIPIENT_REJECTED, CORRIDOR_UNAVAILABLE.
+- Until a pricing and payout provider are connected, estimate, quote and
+  initiate return `503 PRICING_NOT_CONFIGURED`; they never return a simulated
+  rate or start a fake collection.
 
 Trade object:
 {

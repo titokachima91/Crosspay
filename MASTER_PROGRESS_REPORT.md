@@ -1,10 +1,10 @@
 # CROSSPAY: MASTER PROGRESS REPORT
 
-**Updated**: 2026-11-10
+**Updated**: 2026-11-15
 **Project**: CrossPay
 **Package**: crosspay_app
-**Environment**: macOS Monterey | Flutter 3.24.5 | Dart 3.5.4
-**Progress**: 19 of 33 done (58%); F5.3 partially built (PIN, language, theme; biometrics not wired)
+**Environment**: macOS Monterey | Flutter 3.24.5 | Dart 3.5.4 | Node 24 | PostgreSQL 17
+**Progress**: 36 of 48 tracked items done (75%); B1 data foundation complete; B2.0 bootstrap built; pricing/SMS/provider integrations pending
 
 ---
 
@@ -12,7 +12,7 @@
 
 CrossPay is engineered as a non-custodial, server-driven cross-border payments engine. The app only displays state; it never holds customer funds. Escrow deposits flow to licensed partner bank/PSP omnibus trust accounts.
 
-**Real App**: `flutter run -d chrome (+ --dart-define=API_BASE_URL=<address>)` - Only splash + phone screens work until a backend exists.
+**Real App**: `flutter run -d chrome (+ --dart-define=API_BASE_URL=<address>)` - The API now serves `/config`, OTP (when an SMS partner is configured), `/me`, KYC and recipients. Rates, market depth and trading return honest "not connected" states until their providers exist.
 
 **Preview**: `flutter run -d chrome -t preview/main.dart` - Simulated data, code 1234
 
@@ -88,11 +88,17 @@ CrossPay is engineered as a non-custodial, server-driven cross-border payments e
 the Flutter suite are unchanged. Finance/Legal sign-off of the chart of accounts
 and escrow treatment remains the only open B1 gate.
 
-### B2 Trade API
-- [ ] B2.1 Idempotency
-- [ ] B2.2 /trade/quote
-- [ ] B2.3 /trade/initiate
-- [ ] B2.4 /payments/disburse
+### B2 API (plan: `docs/B2_IMPLEMENTATION.md`)
+- [x] B2.0 Bootstrap: `/config`, OTP, refresh rotation, `/me`, KYC, recipients
+- [x] B2.1 Idempotency: database primitive plus HTTP wrapper on every recipient write
+- [ ] B2.2 `/trade/quote` — blocked on an approved pricing source
+- [ ] B2.3 `/trade/initiate` — blocked on pricing and payout-provider contracts
+- [ ] B2.4 `/payments/disburse` — blocked on the payout provider
+
+**B2.0 status**: built and tested 2026-11-15 in `server/src/http/`.
+36 integration tests pass. Rates, market depth, trade and name-check endpoints
+return honest `503` states; no price or queue number is invented. SMS delivery
+requires a real partner behind `SmsSender`.
 
 ### B3 Payments
 - [ ] B3.1 Inbound webhook

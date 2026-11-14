@@ -245,4 +245,42 @@ server stays the source of truth, honest "not connected" states, nothing pushed.
 
 ---
 
+## 2026-11-15 - B2.0 HTTP bootstrap
+
+**Session rule followed**: no frontend changes, no invented pricing or queue
+data, no fake SMS delivery, no push.
+
+### HTTP service
+- Fastify service with secure-by-default authentication, structured
+  `{error:{code,message}}` responses, 1 MiB body limit, redacted authorization
+  and idempotency headers, and public-route allow-list.
+- `GET /health`, `GET /config`.
+- OTP request/verify with six-digit hashed codes, attempt limits and
+  database-backed per-phone/per-IP rate limiting.
+- HS256 access tokens (15 minutes) and rotating refresh tokens (30 days);
+  reuse revokes the family.
+- `GET /me` with tier, currency-derived daily limit and derived usage.
+- `PUT /me/kyc` with encrypted ID/TIN storage, duplicate detection and manual
+  review status `pending`.
+- Recipient list/create/update/delete with ownership checks, encryption and
+  idempotent replay.
+- Honest `503` for rates, market depth, trade endpoints and name checks.
+
+### Verification
+- `npm run typecheck` -> clean.
+- `npm test` -> **36/36 passing**, 8 suites, embedded PostgreSQL 17.
+- HTTP tests cover config shape, OTP wrong/correct codes, KYC gate, `/me`,
+  recipient replay/conflict/update/delete, refresh reuse and rate limiting.
+- `npm run verify:local` -> `ok: true` (7 migrations; B1 reference-data counts
+  unchanged).
+
+### Still open (not silently claimed as done)
+- Real SMS partner; OTP returns `SMS_NOT_CONFIGURED` until configured.
+- Pricing source, payout provider and name-check provider; trade/rates/name
+  endpoints return `503` rather than fake data.
+- KYC provider/manual review, tier limits, and the deferred policy decisions.
+- No push was made; the branch stays local until the product owner confirms.
+
+---
+
 ## Report End - No fluff. Just facts.

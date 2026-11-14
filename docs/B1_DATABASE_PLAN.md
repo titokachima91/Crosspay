@@ -2,7 +2,7 @@
 
 **Program**: CrossPay — PART 2 Backend
 **Workstream**: B1 — Schema, double-entry ledger and quote lifecycle
-**Status**: Approved for build — implementation authorised 2026-11-14
+**Status**: Built and verified 2026-11-14; Finance/Legal chart approval remains open
 **Prepared**: 2026-11-11
 **Owner**: Backend Engineering
 **Approvers**: Product, Finance, Legal & Compliance, Security

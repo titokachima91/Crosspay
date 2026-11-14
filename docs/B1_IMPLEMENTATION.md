@@ -124,13 +124,14 @@ npm run typecheck
 # tsc --noEmit -> no output, exit 0
 
 npm test
-# 31 tests, 7 suites, 0 failures
+# 31 B1 tests, 7 suites, 0 failures at B1 sign-off
+# (36 tests after the B2.0 HTTP slice)
 
 npm run verify:local
 # ok: true, fresh PostgreSQL 17 database
 ```
 
-`npm run verify:local` output:
+`npm run verify:local` output at B1 sign-off (unchanged after B2.0):
 
 ```json
 {
@@ -247,6 +248,10 @@ assumptions” in `docs/B1_DATABASE_PLAN.md`.
 ---
 
 ## 7. Next step — B2
+
+> **Update 2026-11-15**: the B2.0 bootstrap slice is now built and verified.
+> See `docs/B2_IMPLEMENTATION.md` for endpoints, tests and the remaining
+> provider work. The sequence below is retained as the original plan.
 
 B2 should be built in boot order, not in the old B2/B3 order:
 
