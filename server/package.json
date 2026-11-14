@@ -1,0 +1,34 @@
+{
+  "name": "crosspay-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CrossPay API and PostgreSQL data foundation",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "migrate": "tsx scripts/migrate.ts",
+    "seed": "tsx scripts/seed.ts",
+    "verify": "tsx scripts/verify.ts",
+    "verify:local": "tsx scripts/verify-local.ts",
+    "test": "node --import tsx --test --test-concurrency=1 --test-reporter=tap test/*.test.ts",
+    "test:spec": "node --import tsx --test --test-concurrency=1 --test-force-exit test/*.test.ts"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/pg": "^8.15.6",
+    "embedded-postgres": "17.11.0-beta.19",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  },
+  "allowScripts": {
+    "@embedded-postgres/darwin-x64@17.11.0-beta.19": true,
+    "esbuild@0.28.2": true
+  }
+}
