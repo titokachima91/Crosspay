@@ -230,7 +230,7 @@ Flutter app can use directly.
 
 ### Sandbox verification
 
-- `npm test` → **32/32** (14 facade + 9 simulator + 9 provider customers),
+- `npm test` → **33/33** (14 facade + 9 simulator + 10 provider customers),
   temporary SQLite.
 - Live end-to-end smoke: config → OTP → KYC → beneficiary → quote → initiate →
   collect → payout → completed → invoice/QR/payer page → export → analytics →
@@ -285,10 +285,10 @@ The CrossPay API does not initiate or pay yet; that is B2.3/B2.4.
 | CrossPay API `typecheck` | **clean** | 2026-11-15 |
 | CrossPay API `build` | **clean** | 2026-11-15 |
 | CrossPay API tests | **53/53, 12 suites** | 2026-11-15 |
-| Sandbox tests | **32/32** (14 facade + 9 simulator + 9 customers) | 2026-11-15 |
+| Sandbox tests | **33/33** (14 facade + 9 simulator + 10 customers) | 2026-11-15 |
 | B2.0 snapshot restore | `npm ci` + typecheck + build + **36/36** | 2026-11-15 |
 | B2.2 snapshot restore | `npm ci` + typecheck + build + **42/42** | 2026-11-15 |
-| Sandbox snapshot restore | `npm ci` + **32/32** | 2026-11-15 |
+| Sandbox snapshot restore | `npm ci` + **33/33** | 2026-11-15 |
 | Ledger integrity | `PRAGMA integrity_check` → **ok**, schema v3 | 2026-11-15 |
 
 Live provider check through the real `SandboxPricingProvider`:
@@ -309,12 +309,13 @@ Commit `5e00d9e`, 346 files, 3.8 MB. Restored into an isolated directory:
 `npm ci`, typecheck, build and **42/42** tests passed.
 
 **Latest sandbox snapshot**
-`~/Desktop/kachi-fintech-sandbox_accounts-final_2026-11-15_140352`
-109 files, 1.9 MB. Restored into an isolated directory: `npm ci` and **32/32**
+`~/Desktop/kachi-fintech-sandbox_providers-final_2026-11-15_144948`
+109 files, 2.2 MB. Restored into an isolated directory: `npm ci` and **33/33**
 tests passed. The live Flutter contract test also passed against a fresh
 instance of this tree.
 
 Earlier checkpoints remain on the Desktop:
+- `kachi-fintech-sandbox_accounts-final_2026-11-15_140352` — 32/32
 - `kachi-fintech-sandbox_revenue_2026-11-15_135756` — 32/32
 - `kachi-fintech-sandbox_customers_2026-11-15_133224` — 30/30
 - `kachi-fintech-sandbox_pricing_2026-11-15_072912` — 22/22
