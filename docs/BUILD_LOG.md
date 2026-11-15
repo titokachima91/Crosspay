@@ -334,4 +334,30 @@ fake payment, no push.
 
 ---
 
+## 2026-11-15 - Planning: provider customers, matching engine and database status
+
+**No code built in this step.** Plans and boundaries were corrected.
+
+- The sandbox is a provider simulator only. It must enforce real provider
+  rules and must not contain CrossPay's matching engine or quote logic.
+- The matching engine lives in CrossPay. It runs only on funded/escrowed trades:
+  FIFO, full-fill, platform-quoted rate, two-leg payout saga with compensation.
+- Provider customers come first: PSP wallets, bank customers and KYC identity
+  records, each with a ledger account and balance.
+- Build order: sandbox provider customers → CrossPay provider adapters →
+  B2.3/B2.4 payments → matching engine → app integration → liquidity/partial
+  fills.
+- CrossPay decides the customer quote and spread, not the underlying market
+  rate. It follows provider rate validity, limits, cutoffs and settlement rules.
+- Supabase is intentionally not configured yet. The API tests use embedded
+  PostgreSQL 17; the sandbox uses SQLite. Configure a hosted staging database
+  only after the payment and matching contracts stabilize.
+
+Plans:
+- `kachi-fintech-sandbox/docs/INSTITUTION_CUSTOMERS_PLAN.md`
+- `docs/P2P_MATCHING_PLAN.md`
+- `MASTER_PROGRESS_REPORT.md` database status section
+
+---
+
 ## Report End - No fluff. Just facts.

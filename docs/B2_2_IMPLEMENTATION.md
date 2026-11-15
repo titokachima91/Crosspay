@@ -171,6 +171,9 @@ quote     feeBps 150, feeMinor 1500, totalDebitMinor 101500,
 | Approved tier limits | Empty in the seed by design; quotes reject until inserted |
 | Cross-currency limit conversion | Needs the B2.3 FX/payment decision |
 | Payout/refund webhooks | B2.4 |
+| Provider customers | Sandbox PSP wallets/bank accounts/KYC identities are planned separately |
+| P2P matching engine | CrossPay B4; plan in `docs/P2P_MATCHING_PLAN.md` |
 
-The sandbox remains the reference provider and the only end-to-end demo path
-until those integrations exist.
+The sandbox remains the reference provider and contract-test surface. Its
+`/api/v1` facade is a demo harness, not the production app backend; the app
+moves to the CrossPay API once B2.3/B2.4 exist.

@@ -4,7 +4,7 @@
 **Project**: CrossPay
 **Package**: crosspay_app
 **Environment**: macOS Monterey | Flutter 3.24.5 | Dart 3.5.4 | Node 24 | PostgreSQL 17 for the API | SQLite for the sandbox
-**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0 and B2.2 complete · sandbox reference implementation complete · live end-to-end flow verified · B2.3/B2.4 and B3 remain
+**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0 and B2.2 complete · sandbox reference implementation complete · live end-to-end flow verified · B2.3/B2.4, the P2P matching engine and B3 remain
 
 ---
 
@@ -161,6 +161,17 @@ connected.
 - [ ] B3.1 Inbound webhook
 - [ ] B3.2 P2P queue
 - [ ] B3.3 Refund worker
+
+### B4 P2P matching engine (planned)
+- [ ] B4.1 Funded-trade queue and eligibility
+- [ ] B4.2 FIFO full-fill matcher with row locks
+- [ ] B4.3 Two-leg payout saga and compensation
+- [ ] B4.4 Corridor exposure and liquidity providers
+- [ ] B4.5 CrossPay ops dashboard and app matching states
+
+**Plan**: `docs/P2P_MATCHING_PLAN.md`. The matching engine lives in CrossPay,
+not in the sandbox. The sandbox remains a provider simulator and must follow
+real provider rules, not CrossPay's convenience.
 
 ---
 
@@ -330,7 +341,9 @@ These cannot be finished by engineering alone:
 10. Finance/Legal approval of the chart of accounts and escrow treatment.
 11. Approved tier limits and the daily-limit timezone decision.
 12. KYC retention, encryption and data-residency decision.
-13. Invoice/export persistence and P2P matching policy.
+13. Liquidity provider model, matching policy, match deadline and corridor
+    exposure caps. Plan: `docs/P2P_MATCHING_PLAN.md`.
+14. Invoice/export persistence and the signed-link policy.
 
 Engineering blockers:
 - Real SMS delivery (OTP returns `SMS_NOT_CONFIGURED` without a partner).
@@ -353,6 +366,32 @@ Not Vercel for the API (Hobby is non-commercial; serverless fits workers
 poorly). Vercel only for a future website/admin dashboard. Private GitHub repo;
 secrets only in host settings; staging separate from production.
 
+### Database status (2026-11-15)
+
+- The CrossPay API is PostgreSQL-native. Its tests run against **embedded
+  PostgreSQL 17**; migrations, seed and verification scripts are in `server/`.
+- **No Supabase project is configured yet.** There is no production database,
+  no hosted connection string and no Render deployment.
+- The sandbox uses **SQLite** for its own ledger and must not be moved into the
+  CrossPay Supabase database.
+- Supabase is a hosting choice, not a code dependency. Local development and
+  tests do not need it.
+
+**Decision: do not configure Supabase yet.** Wait until B2.3/B2.4 and the
+matching engine have stable contracts. Then create the staging project:
+
+1. Supabase project and region (data residency decision).
+2. Separate migration and runtime roles; least privilege.
+3. Apply the seven migrations; verify seed and reference counts.
+4. Decide RLS posture (the API uses its own auth; direct client access stays
+   closed).
+5. Connection pooling for Render.
+6. Backups/PITR and a restore drill.
+7. Secrets only in host settings; staging separate from production.
+8. Run `verify:local` and the full API suite against the hosted database.
+
+Until then, embedded PostgreSQL remains the source of truth for tests.
+
 ---
 
 ## CURRENT PHASE AND NEXT STEPS
@@ -369,17 +408,26 @@ Completed:
 - Verified snapshots of both projects.
 
 Next, in order:
-1. **B2.3 `/trade/initiate`** — consume the quote, snapshot the recipient,
-   create a payment attempt, start the sandbox PSP collection, return collection
+1. **Sandbox provider customers** — PSP wallets, bank customers and KYC
+   identities, with real provider rules and dashboard management. Plan:
+   `kachi-fintech-sandbox/docs/INSTITUTION_CUSTOMERS_PLAN.md`.
+2. **CrossPay provider adapters** — collections, payouts, refunds, status,
+   callbacks and KYC/name-check against the sandbox provider primitives.
+3. **B2.3 `/trade/initiate`** — consume the quote, snapshot the recipient,
+   create a payment attempt, start the collection, return collection
    instructions; trade-first/resume so an outage cannot orphan a charge.
-2. **B2.4 payouts and refunds** — payout to mobile money/bank, signed webhooks,
+4. **B2.4 payouts and refunds** — payout to mobile money/bank, signed webhooks,
    ledger postings, failure refund and reversal.
-3. **F5.3 remainder** — biometrics and app-side refresh-token handling.
-4. Replace the sandbox pricing/collection/payout adapters with approved real
+5. **B4 P2P matching engine** — funded-trade queue, FIFO full-fill, two-leg
+   payout saga, exposure and liquidity controls. Plan:
+   `docs/P2P_MATCHING_PLAN.md`. The engine lives in CrossPay, never in the
+   sandbox.
+6. **F5.3 remainder** — biometrics and app-side refresh-token handling.
+7. Replace the sandbox pricing/collection/payout adapters with approved real
    providers when contracts exist.
 
-Git: branch `fix/theme-system` is local; latest commits are `dfbd6a8`,
-`5e00d9e` and `64c8b34`. Nothing has been pushed.
+Git: branch `fix/theme-system` is local; latest commits are `25eb292`,
+`805a94b`, `dfbd6a8`, `5e00d9e` and `64c8b34`. Nothing has been pushed.
 
 ---
 
