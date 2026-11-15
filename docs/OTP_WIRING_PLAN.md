@@ -5,8 +5,10 @@ real-SMS path are built 2026-11-15. Real SMS is opt-in and allowlisted.
 **Provisional sender**: `+255767304776` (from local `0767304776`), Tanzania.
 This is the SIM/device number for the current sandbox gateway, not a recipient
 and not a secret.
-**First real test**: sent through the sandbox to `+255714604777` on
-2026-11-15; the API response contained no code.
+**Real tests**: `+255714604777` and `+255712123456` on 2026-11-15; both API
+responses contained no code. The app failed once with the generic "request was
+not accepted" message because `+255712123456` was not yet on the allowlist; the
+API returned `403 SMS_RECIPIENT_NOT_ALLOWED`, not a phone-number validation error.
 
 ---
 
@@ -84,7 +86,7 @@ The sandbox facade can now send the OTP through the existing protected
 
 ```bash
 FACADE_SMS_DELIVERY=true
-SMS_ALLOWED_RECIPIENTS=+255714604777
+SMS_ALLOWED_RECIPIENTS=+255714604777,+255712123456
 FACADE_SMS_SENDER_PHONE=+255767304776
 FACADE_SMS_SIM_SUBSCRIPTION_ID=1
 SMS_GATEWAY_URL=http://127.0.0.1:8080/v1/send-sms
