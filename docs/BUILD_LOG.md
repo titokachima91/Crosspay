@@ -379,13 +379,63 @@ customers.
   disabled. The opening balance is a real ledger cash-in.
 - Seeded demo wallets for the dashboard, contract tests and live app test.
 
-Verification: sandbox **30/30** tests pass (13 facade + 9 simulator + 8
+Verification: sandbox **32/32** tests pass (14 facade + 9 simulator + 9
 provider customers). The live Flutter contract test passed against a fresh
 server, and a TZS→KES wallet-backed smoke debited the payer wallet by 101,500
 TZS and credited the recipient by 571,430 KES minor.
 
 Still open: strict KYC identity verification, CrossPay provider adapters,
 matching engine (CrossPay only).
+
+---
+
+## 2026-11-15 - Account taxonomy and clearing boundary
+
+**No CrossPay app/API code changed.** The sandbox now distinguishes provider
+customer accounts from CrossPay partner accounts.
+
+- `sandbox_bank_accounts` carries `owner_type` (`CUSTOMER`, `CROSSPAY`,
+  `TRUST`) and `purpose` (`CUSTOMER_DEPOSIT`, `SETTLEMENT`, `TRUST`,
+  `CLEARING`, `OPERATING`, `LEGACY`).
+- Customer accounts belong to the PSP/bank. CrossPay's accounts at a partner
+  bank are settlement/clearing/trust accounts, never customer accounts.
+- Partner accounts can be created under any bank; Stanbic TZ/KE are seeded
+  examples of a group with a shared cross-border balance sheet. They start at
+  zero and are funded by real flows, not a demo mint.
+- The facade resolver scans partner accounts (trust first) and does not
+  hardcode a bank. `PARTNER_BANK_<currency>` / `PARTNER_BANK` can select one.
+- Bank-route collections credit the partner trust account; payout releases from
+  trust. The dashboard shows institution, type, purpose and owner, and has a
+  partner-account form.
+- Legacy `ACC_KE_002`/`ACC_TZ_002` rows are relabeled `settlement` /
+  `CROSSPAY` / `LEGACY`; they are not customer accounts.
+
+Verification: sandbox **32/32** tests pass. The CrossPay book now recognises
+fees and settles them to operating cash; a full provider-platform settlement
+reconciliation is still planned.
+
+---
+
+## 2026-11-15 - CrossPay revenue book
+
+**No CrossPay app/API code changed.** CrossPay's commission route is now explicit.
+
+- The ledger has `PROVIDER` and `CROSSPAY` books; a journal cannot mix them.
+- CrossPay accounts: provider receivable, fee revenue, FX spread revenue,
+  operating cash, trust asset and beneficiary payable.
+- Provider book keeps `CROSSPAY-PAYABLE` for the platform fee the PSP holds on
+  CrossPay's behalf; the PSP fee stays in provider fee revenue.
+- On collection, the net platform fee is recognised as a CrossPay receivable
+  and fee revenue. `POST /api/sandbox/revenue/settle` moves it into CrossPay
+  operating cash. It never touches customer wallets or trust/escrow funds.
+- The dashboard has a **CrossPay Revenue** panel with revenue, receivable,
+  operating cash and trust/beneficiary balances, and a settle action.
+- Provider/customer accounts and CrossPay partner accounts remain separate;
+  Stanbic is only an example, any bank with a shared cross-border balance sheet
+  can be used.
+
+Verification: sandbox **32/32** tests pass. Still planned: the provider-side
+mirror of the fee settlement and partner reconciliation statements.
 
 ---
 

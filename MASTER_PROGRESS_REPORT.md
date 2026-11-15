@@ -185,13 +185,23 @@ Flutter app can use directly.
 
 - **Persistence**: SQLite (WAL, foreign keys), schema v2, append-only
   double-entry ledger, derived balances, unique posting keys, reversals.
-- **Institution factory**: 19 countries, 19 currencies, 36 seeded banks, PSPs
+- **Institution factory**: 19 countries, 19 currencies, 37 seeded banks, PSPs
   and KYC partners, all dynamic; unlimited additional institutions with
   country, currency and services.
 - **Provider customers**: PSP wallets, bank customers and KYC identity records
   under any institution; ledger balances, cash-in/out, freeze, statements and
   a dashboard Customers panel. Collections debit the payer wallet; payouts and
   refunds credit the recipient/payer wallet.
+- **Accounts and clearing**: customer accounts belong to the provider, not
+  CrossPay. CrossPay partner accounts at any bank with a shared cross-border
+  balance sheet are settlement/clearing/trust accounts with zero opening
+  balances; Stanbic TZ/KE are seeded examples. The dashboard shows owner, type
+  and purpose, and can create partner accounts under any bank. CrossPay never
+  holds customer cash or a customer wallet.
+- **CrossPay revenue book**: separate `CROSSPAY` ledger book for fee revenue,
+  FX spread, provider receivable, trust asset, beneficiary payable and
+  operating cash. Fees are recognised on collection and settled into operating
+  cash; never mixed with customer or trust funds.
 - **Bank**: accounts, statements, FX, settlement, clearing queue, approval,
   reversal, cancellation, deposit/withdraw, same-currency `transfer`, EOD,
   liquidity, reconciliation, alerts and audit.
