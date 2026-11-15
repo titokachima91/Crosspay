@@ -461,8 +461,9 @@ mirror of the fee settlement and partner reconciliation statements.
   and enforces `SMS_ALLOWED_RECIPIENTS`. GasLink and the protected SMS/AI files
   are untouched. A real test SMS was dispatched to `+255714604777` from the
   provisional SIM `+255767304776`.
-- Sandbox suite: **36/36** (14 facade + 9 simulator + 10 provider customers +
-  3 real-SMS).
+- Sandbox suite: **37/37** (14 facade + 9 simulator + 10 provider customers +
+  4 real-SMS). SIM pinning (`FACADE_SMS_SIM_SUBSCRIPTION_ID=1`) sends CrossPay
+  OTP from Vodacom SIM 1 without changing the shared/default SIM.
 
 Still open: configure the production SMS partner/sender ID and delivery
 monitoring.

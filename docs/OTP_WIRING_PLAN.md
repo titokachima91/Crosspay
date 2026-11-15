@@ -86,9 +86,15 @@ The sandbox facade can now send the OTP through the existing protected
 FACADE_SMS_DELIVERY=true
 SMS_ALLOWED_RECIPIENTS=+255714604777
 FACADE_SMS_SENDER_PHONE=+255767304776
+FACADE_SMS_SIM_SUBSCRIPTION_ID=1
 SMS_GATEWAY_URL=http://127.0.0.1:8080/v1/send-sms
 # SMS_GATEWAY_KEY defaults to API_KEY_CROSSPAY
 ```
+
+When `FACADE_SMS_SIM_SUBSCRIPTION_ID` is set, the facade calls the TextBee send
+endpoint directly with `deviceId` and `simSubscriptionId`, so CrossPay pins its
+own SIM. GasLink's default SIM and the protected `/v1/send-sms` route are not
+changed. When it is unset, the shared gateway route is used.
 
 When enabled:
 
@@ -98,6 +104,16 @@ When enabled:
 - the recipient must be on `SMS_ALLOWED_RECIPIENTS`;
 - a gateway failure returns `503 SMS_DELIVERY_FAILED` and invalidates the code;
 - a non-allowlisted number returns `403 SMS_RECIPIENT_NOT_ALLOWED`.
+
+The device used for the sandbox has two SIMs:
+
+- SIM 1 / `simSubscriptionId 1`: Vodacom Tanzania, the intended sender
+  `0767304776`.
+- SIM 2 / `simSubscriptionId 2`: YAS Tanzania.
+
+The first OTP send omitted `simSubscriptionId`, so the phone used its default
+SIM and the message did not appear as outgoing on `0767304776`. CrossPay now
+pins SIM 1 for its own OTP while leaving GasLink's default SIM untouched.
 
 ### Multi-tenant boundary
 
@@ -189,7 +205,8 @@ Built:
 - Existing rate-limit and refresh-rotation tests still pass.
 
 CrossPay API suite: **53/53**, 12 suites.
-Sandbox suite: **36/36**, including the real-SMS allowlist/failure path.
+Sandbox suite: **37/37**, including the real-SMS allowlist/failure/SIM-pinning
+path.
 
 ---
 

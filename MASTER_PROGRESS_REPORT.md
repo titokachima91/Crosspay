@@ -230,8 +230,8 @@ Flutter app can use directly.
 
 ### Sandbox verification
 
-- `npm test` → **36/36** (14 facade + 9 simulator + 10 provider customers +
-  3 real-SMS), temporary SQLite.
+- `npm test` → **37/37** (14 facade + 9 simulator + 10 provider customers +
+  4 real-SMS), temporary SQLite.
 - Live end-to-end smoke: config → OTP → KYC → beneficiary → quote → initiate →
   collect → payout → completed → invoice/QR/payer page → export → analytics →
   market depth → dashboard state.
@@ -285,10 +285,10 @@ The CrossPay API does not initiate or pay yet; that is B2.3/B2.4.
 | CrossPay API `typecheck` | **clean** | 2026-11-15 |
 | CrossPay API `build` | **clean** | 2026-11-15 |
 | CrossPay API tests | **53/53, 12 suites** | 2026-11-15 |
-| Sandbox tests | **36/36** (14 facade + 9 simulator + 10 customers + 3 real-SMS) | 2026-11-15 |
+| Sandbox tests | **37/37** (14 facade + 9 simulator + 10 customers + 4 real-SMS) | 2026-11-15 |
 | B2.0 snapshot restore | `npm ci` + typecheck + build + **36/36** | 2026-11-15 |
 | B2.2 snapshot restore | `npm ci` + typecheck + build + **42/42** | 2026-11-15 |
-| Sandbox snapshot restore | `npm ci` + **36/36** | 2026-11-15 |
+| Sandbox snapshot restore | `npm ci` + **37/37** | 2026-11-15 |
 | Ledger integrity | `PRAGMA integrity_check` → **ok**, schema v3 | 2026-11-15 |
 
 Live provider check through the real `SandboxPricingProvider`:
@@ -309,12 +309,13 @@ Commit `5e00d9e`, 346 files, 3.8 MB. Restored into an isolated directory:
 `npm ci`, typecheck, build and **42/42** tests passed.
 
 **Latest sandbox snapshot**
-`~/Desktop/kachi-fintech-sandbox_otp-sms_2026-11-15_152836`
-111 files, 2.2 MB. Restored into an isolated directory: `npm ci` and **36/36**
+`~/Desktop/kachi-fintech-sandbox_otp-sim_2026-11-15_153857`
+111 files, 2.3 MB. Restored into an isolated directory: `npm ci` and **37/37**
 tests passed. The live Flutter contract test also passed against a fresh
 instance of this tree.
 
 Earlier checkpoints remain on the Desktop:
+- `kachi-fintech-sandbox_otp-sms_2026-11-15_152836` — 36/36
 - `kachi-fintech-sandbox_providers-final_2026-11-15_144948` — 33/33
 - `kachi-fintech-sandbox_accounts-final_2026-11-15_140352` — 32/32
 - `kachi-fintech-sandbox_revenue_2026-11-15_135756` — 32/32
@@ -369,7 +370,7 @@ These cannot be finished by engineering alone:
 14. Invoice/export persistence and the signed-link policy.
 
 Engineering blockers:
-- Live SMS delivery: the sandbox real-SMS path is working and dispatched a test to `+255714604777`; the production SMS partner is not configured.
+- Live SMS delivery: the sandbox real-SMS path is working from Vodacom SIM 1 (`0767304776`) to `+255714604777`; the production SMS partner is not configured.
 - A real pricing source and approved spread (B2.2 works against the sandbox).
 - Collection/payout provider contracts (B2.3/B2.4).
 - Name-check provider.
