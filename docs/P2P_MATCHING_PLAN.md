@@ -3,6 +3,8 @@
 **Status**: proposed, not built
 **Date**: 2026-11-15
 **Owner**: CrossPay backend
+**Prerequisite status**: sandbox provider customers are built (PSP wallets, bank
+customers, KYC identities). CrossPay provider adapters and payments are next.
 **Related**: `docs/B2_IMPLEMENTATION.md`, `docs/B2_2_IMPLEMENTATION.md`,
 `docs/api_contract.md`, `kachi-fintech-sandbox/docs/INSTITUTION_CUSTOMERS_PLAN.md`
 
@@ -410,18 +412,31 @@ meaningless without two executable payout legs.
 
 ---
 
-## 15. Open decisions
+## 15. Decisions (approved provisional)
 
-1. Full-fill only in v1? **Recommended yes.**
-2. Collect-then-match? **Recommended yes.**
-3. FIFO at the platform quoted rate, not a user order book? **Recommended
-   yes.**
-4. Fallback to bank or refund on timeout? **Recommended user choice at quote,
-   default refund.**
-5. Launch liquidity: organic, LP, or treasury? **Product/Finance.**
-6. Match deadline and corridor exposure caps? **Product/Finance/Risk.**
-7. Partial fills later? **Yes, after full-fill is proven.**
-8. Spread policy and who bears residual? **Product/Finance.**
+Production matching stays **disabled** until Risk/Finance approve the corridor,
+spread and exposure. Sandbox matching may run with the provisional values below.
+
+| # | Decision | Choice | Operational rule |
+|---|---|---|---|
+| 1 | Fill model | **Full-fill only in v1** | No partial fills. A trade waits, expires or falls back. The schema is prepared for partial allocations later. |
+| 2 | Matching timing | **Collect-then-match** | Only `escrowed`/funded trades enter the queue. No unfunded match, no counterparty exposure. |
+| 3 | Priority and price | **FIFO at the platform quoted rate** | No user order book in v1. Oldest funded trade first; trade id is the deterministic tie-break. |
+| 4 | Timeout behaviour | **Refund by default; no silent bank fallback** | `P2P_MATCH_DEADLINE_SECONDS=600` after escrow. A fallback quote may be offered explicitly at quote time; the user must opt in. |
+| 5 | Launch liquidity | **Approved liquidity providers + treasury bank fallback** | `P2P_LP_ALLOWLIST` only. No public LP onboarding. Organic flow alone is never promised as available. |
+| 6 | Exposure | **Corridor cap required; matching disabled if unset** | `P2P_CORRIDOR_EXPOSURE_MINOR` per corridor. Provisional sandbox cap is 10% of the partner’s daily liquidity. Per-user limits remain unchanged. A corridor kill switch is mandatory. |
+| 7 | Partial fills | **Not in v1** | Design `p2p_match_allocations` later. A partial fill cannot break a quoted receive amount. |
+| 8 | Spread and residual | **CrossPay owns the customer quote and spread; no user slippage** | Quote already includes the approved spread. Residual goes to spread/FX revenue; a negative residual is monitored and can pause the corridor. `P2P_SPREAD_BPS=50` is a sandbox provisional, not a production policy. |
+
+Additional invariants:
+
+- Both sides must be KYC-verified and within limits.
+- Both destination wallets/accounts must be active and provider-eligible.
+- Provider cutoffs, limits and health can shorten the match deadline.
+- The counterparty identity is never disclosed to either user.
+- All policy values are configuration, not hardcoded financial rules.
+- Production matching requires `P2P_ENABLED=true` and explicit Finance/Risk
+  approval; the default is `false`.
 
 ---
 

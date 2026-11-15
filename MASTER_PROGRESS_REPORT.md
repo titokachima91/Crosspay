@@ -188,6 +188,10 @@ Flutter app can use directly.
 - **Institution factory**: 19 countries, 19 currencies, 36 seeded banks, PSPs
   and KYC partners, all dynamic; unlimited additional institutions with
   country, currency and services.
+- **Provider customers**: PSP wallets, bank customers and KYC identity records
+  under any institution; ledger balances, cash-in/out, freeze, statements and
+  a dashboard Customers panel. Collections debit the payer wallet; payouts and
+  refunds credit the recipient/payer wallet.
 - **Bank**: accounts, statements, FX, settlement, clearing queue, approval,
   reversal, cancellation, deposit/withdraw, same-currency `transfer`, EOD,
   liquidity, reconciliation, alerts and audit.
@@ -404,16 +408,15 @@ Completed:
 - B2.0 bootstrap and B2.1 idempotency.
 - B2.2 provider-backed rates, estimate and quote.
 - Sandbox provider reference implementation and `/api/v1` facade.
+- Sandbox provider customers: PSP wallets, bank customers, KYC identities,
+  dashboard panel, wallet debits/credits and provider rules.
 - Full live flow through the sandbox and real Flutter repositories.
 - Verified snapshots of both projects.
 
 Next, in order:
-1. **Sandbox provider customers** — PSP wallets, bank customers and KYC
-   identities, with real provider rules and dashboard management. Plan:
-   `kachi-fintech-sandbox/docs/INSTITUTION_CUSTOMERS_PLAN.md`.
-2. **CrossPay provider adapters** — collections, payouts, refunds, status,
+1. **CrossPay provider adapters** — collections, payouts, refunds, status,
    callbacks and KYC/name-check against the sandbox provider primitives.
-3. **B2.3 `/trade/initiate`** — consume the quote, snapshot the recipient,
+2. **B2.3 `/trade/initiate`** — consume the quote, snapshot the recipient,
    create a payment attempt, start the collection, return collection
    instructions; trade-first/resume so an outage cannot orphan a charge.
 4. **B2.4 payouts and refunds** — payout to mobile money/bank, signed webhooks,

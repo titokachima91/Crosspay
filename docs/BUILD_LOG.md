@@ -360,4 +360,33 @@ Plans:
 
 ---
 
+## 2026-11-15 - Sandbox provider customers
+
+**No CrossPay frontend/API code changed.** The provider side now has named
+customers.
+
+- PSP wallets with real ledger accounts; cash-in/cash-out; frozen/closed
+  states; prefix and currency rules.
+- Bank customers under each bank institution; deposit/withdraw/statement.
+- KYC identity registry with hashed IDs and masked values.
+- Unified `/api/sandbox/institutions/:idOrCode/customers` API and a dashboard
+  **Customers** panel with counts, funding, freeze and statements.
+- Collections debit the payer wallet; payouts and refunds credit the
+  recipient/payer wallet. Legacy wallet-less rows keep clearing postings.
+- Strict mode is opt-in through `PSP_REQUIRE_WALLET=true` or a dynamic PSP
+  `config.requireWallet=true`.
+- The facade auto-provisions a funded demo wallet after verified KYC unless
+  disabled. The opening balance is a real ledger cash-in.
+- Seeded demo wallets for the dashboard, contract tests and live app test.
+
+Verification: sandbox **30/30** tests pass (13 facade + 9 simulator + 8
+provider customers). The live Flutter contract test passed against a fresh
+server, and a TZS→KES wallet-backed smoke debited the payer wallet by 101,500
+TZS and credited the recipient by 571,430 KES minor.
+
+Still open: strict KYC identity verification, CrossPay provider adapters,
+matching engine (CrossPay only).
+
+---
+
 ## Report End - No fluff. Just facts.
