@@ -283,4 +283,51 @@ data, no fake SMS delivery, no push.
 
 ---
 
+## 2026-11-15 - B2.2 rates, estimate and quote
+
+**Session rule followed**: no frontend changes, no invented rates or limits, no
+fake payment, no push.
+
+### Provider boundary
+- New `PricingProvider` with `DisabledPricingProvider` (default, honest 503)
+  and `SandboxPricingProvider` (reference provider).
+- The sandbox gained userless, read-only `/api/v1/sandbox/pricing/estimate` and
+  `/pricing/quote` endpoints behind the operator key. They return rate, fee,
+  route availability, estimates and a five-minute lock window without creating
+  a sandbox quote.
+- Provider responses are validated with Zod; outages and malformed payloads
+  become `503 PRICING_UNAVAILABLE`.
+
+### API
+- `GET /rates` now serves provider rates when configured.
+- `GET /trade/estimate` returns the provider estimate for a signed-in user.
+- `POST /trade/quote` requires verified KYC, enforces the approved daily limit
+  when the send currency matches the limit currency, and stores the quote plus
+  its route snapshot transactionally.
+- `POST /trade/initiate` now returns `503 PAYOUT_NOT_CONFIGURED`, because
+  pricing is connected but payment is not.
+- Quote persistence validates fee math, route uniqueness, one recommendation
+  and the lock window before touching the database.
+
+### Verification
+- `npm run typecheck` -> clean.
+- `npm run build` -> clean.
+- `npm test` -> **42/42 passing**, 10 suites, embedded PostgreSQL 17.
+- New tests cover provider paths/auth/query parameters, 422 rejection, 503
+  outage, malformed data, rate/estimate/quote responses, quote persistence,
+  KYC gate, daily limit and the disabled default.
+- Live check against the running sandbox returned KES→TZS 0.057143, fee 150
+  bps, payout 17,500 TZS minor and total debit 101,500 KES minor for a
+  100,000 KES minor send.
+- The B2 bootstrap snapshot was restored into an isolated directory and
+  re-verified: `npm ci`, typecheck, build and **36/36** tests passed.
+
+### Still open (not silently claimed as done)
+- B2.3 initiation/collection and B2.4 payouts/refunds.
+- Market depth is not proxied by CrossPay; the sandbox still serves it.
+- Real pricing and approved tier limits are Product/Finance decisions.
+- No push was made; the branch stays local until the product owner confirms.
+
+---
+
 ## Report End - No fluff. Just facts.

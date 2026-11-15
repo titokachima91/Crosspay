@@ -5,6 +5,7 @@
 **Status**: Built and verified 2026-11-15
 **Depends on**: `docs/B1_IMPLEMENTATION.md`, `docs/api_contract.md`
 **Code**: `server/src/http/`, `server/test/http-bootstrap.test.ts`
+**Next record**: `docs/B2_2_IMPLEMENTATION.md` (rates, estimate and quote)
 
 ---
 
@@ -29,7 +30,7 @@ saved recipients. It does not invent pricing, SMS delivery or name-check data.
 | `POST /api/v1/beneficiaries/check` | Honest `503 NAME_CHECK_NOT_CONFIGURED` |
 | `GET /api/v1/rates` | Honest `503 PRICING_NOT_CONFIGURED` |
 | `GET /api/v1/market/depth` | Honest `503 MARKET_DATA_NOT_CONFIGURED` |
-| `POST /api/v1/trade/*` | Honest `503 PRICING_NOT_CONFIGURED` |
+| `POST /api/v1/trade/*` | Honest `503 PRICING_NOT_CONFIGURED` (B2.0); B2.2 now serves estimate and quote, initiate remains `503 PAYOUT_NOT_CONFIGURED` |
 | `GET /api/v1/trades*` | Honest `503 TRADING_NOT_CONFIGURED` |
 
 Everything else returns a structured 404. Protected routes require a Bearer
@@ -147,9 +148,9 @@ No frontend files changed.
 | Item | Why it is not built |
 |---|---|
 | Real SMS delivery | Needs an SMS partner, sender ID and per-market approval |
-| Live rates / estimate / quote / initiate | Needs a pricing source and approved spread |
+| Live rates / estimate / quote | Built in B2.2 against the sandbox reference provider; a real pricing source still needs Product/Finance approval |
 | Name check | Needs a payout-provider name-match API |
-| Trade list/history/analytics/export | Needs real trades and the provider flow |
+| Trade initiation and list/history/analytics/export | Needs the B2.3 collection lifecycle and the provider flow |
 | Invoice/share | Signed URL policy and verification-hash ownership |
 | Payment webhooks, payouts, refunds | B3; provider contracts and signing keys |
 | KYC provider | Partner selection, retention and data-residency decision |

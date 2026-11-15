@@ -8,24 +8,12 @@ import { serviceUnavailable } from '../errors.js';
  * of receiving invented rates or queue numbers.
  */
 export function registerUnavailableRoutes(app: FastifyInstance, _ctx: AppContext): void {
-  app.get('/rates', async () => {
-    throw serviceUnavailable('PRICING_NOT_CONFIGURED', 'Live rates are not connected yet');
-  });
-
   app.get('/market/depth', async () => {
     throw serviceUnavailable('MARKET_DATA_NOT_CONFIGURED', 'Market depth is not connected yet');
   });
 
-  app.get('/trade/estimate', async () => {
-    throw serviceUnavailable('PRICING_NOT_CONFIGURED', 'Live pricing is not connected yet');
-  });
-
-  app.post('/trade/quote', async () => {
-    throw serviceUnavailable('PRICING_NOT_CONFIGURED', 'Live pricing is not connected yet');
-  });
-
   app.post('/trade/initiate', async () => {
-    throw serviceUnavailable('PRICING_NOT_CONFIGURED', 'Live pricing is not connected yet');
+    throw serviceUnavailable('PAYOUT_NOT_CONFIGURED', 'Payouts are not connected yet');
   });
 
   app.get('/trades', async () => {

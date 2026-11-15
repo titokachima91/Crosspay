@@ -1,4 +1,6 @@
-import type { PoolClient } from 'pg';
+import type { Pool, PoolClient } from 'pg';
+import { withTransaction } from './db/pool.js';
+import type { PricingRoute } from './providers/pricing.js';
 
 export interface QuoteRow {
   id: string;
@@ -104,4 +106,136 @@ export async function markExpiredQuotes(
     [now],
   );
   return result.rowCount ?? 0;
+}
+
+export interface NewQuote {
+  userId: string;
+  sendCurrency: string;
+  receiveCurrency: string;
+  sendAmountMinor: bigint;
+  rate: number;
+  quotedAt: Date;
+  expiresAt: Date;
+  routes: PricingRoute[];
+}
+
+export interface StoredQuote {
+  id: string;
+  rate: number;
+  serverTime: string;
+  expiresAt: string;
+  routes: PricingRoute[];
+}
+
+/** Raised when a provider response cannot be stored without breaking an invariant. */
+export class QuotePricingInvalidError extends Error {
+  readonly code = 'PRICING_INVALID';
+  constructor(message: string) {
+    super(message);
+    this.name = 'QuotePricingInvalidError';
+  }
+}
+
+function assertQuotePricing(input: NewQuote): void {
+  if (input.sendAmountMinor <= 0n) {
+    throw new QuotePricingInvalidError('The send amount must be positive');
+  }
+  if (!Number.isFinite(input.rate) || input.rate <= 0) {
+    throw new QuotePricingInvalidError('The provider rate is not positive');
+  }
+  if (
+    Number.isNaN(input.quotedAt.getTime()) ||
+    Number.isNaN(input.expiresAt.getTime()) ||
+    input.expiresAt.getTime() <= input.quotedAt.getTime()
+  ) {
+    throw new QuotePricingInvalidError('The provider quote window is invalid');
+  }
+
+  const seen = new Set<string>();
+  let recommended = 0;
+  for (const route of input.routes) {
+    if (seen.has(route.route)) {
+      throw new QuotePricingInvalidError(`The provider returned ${route.route} twice`);
+    }
+    seen.add(route.route);
+    if (route.estimatedMaxSeconds < route.estimatedMinSeconds) {
+      throw new QuotePricingInvalidError('The provider estimate is out of order');
+    }
+    if (route.totalDebitMinor !== Number(input.sendAmountMinor) + route.feeMinor) {
+      throw new QuotePricingInvalidError('The provider total debit does not cover the fee');
+    }
+    if (route.isRecommended) {
+      recommended += 1;
+      if (!route.isAvailable) {
+        throw new QuotePricingInvalidError('An unavailable route cannot be recommended');
+      }
+    }
+  }
+  if (recommended > 1) {
+    throw new QuotePricingInvalidError('The provider recommended more than one route');
+  }
+}
+
+/**
+ * Persists the priced quote in one transaction. The provider owns the price;
+ * this function owns the durable promise and the route snapshot.
+ */
+export async function createQuote(pool: Pool, input: NewQuote): Promise<StoredQuote> {
+  assertQuotePricing(input);
+
+  return withTransaction(pool, async (client) => {
+    const inserted = await client.query(
+      `INSERT INTO quotes
+         (user_id, send_currency, receive_currency, send_amount_minor,
+          rate, quoted_at, expires_at)
+       VALUES ($1, $2, $3, $4, $5::numeric, $6, $7)
+       RETURNING id`,
+      [
+        input.userId,
+        input.sendCurrency,
+        input.receiveCurrency,
+        input.sendAmountMinor.toString(),
+        input.rate.toFixed(10),
+        input.quotedAt,
+        input.expiresAt,
+      ],
+    );
+    const quoteId = String(inserted.rows[0]?.['id']);
+
+    for (const route of input.routes) {
+      await client.query(
+        `INSERT INTO quote_routes
+           (quote_id, route, fee_bps, fee_minor, payout_minor, total_debit_minor,
+            estimated_min_seconds, estimated_max_seconds, is_recommended,
+            is_available, matching_density_percent, status_code, status_level,
+            safeguard_code, fee_breakdown)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb)`,
+        [
+          quoteId,
+          route.route,
+          route.feeBps,
+          route.feeMinor,
+          route.payoutMinor,
+          route.totalDebitMinor,
+          route.estimatedMinSeconds,
+          route.estimatedMaxSeconds,
+          route.isRecommended,
+          route.isAvailable,
+          route.matchingDensityPercent ?? null,
+          route.status?.code ?? null,
+          route.status?.level ?? null,
+          route.safeguardCode ?? null,
+          JSON.stringify(route.breakdown),
+        ],
+      );
+    }
+
+    return {
+      id: quoteId,
+      rate: input.rate,
+      serverTime: input.quotedAt.toISOString(),
+      expiresAt: input.expiresAt.toISOString(),
+      routes: input.routes,
+    };
+  });
 }

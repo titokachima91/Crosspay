@@ -9,6 +9,7 @@ import { CryptoBox } from '../src/crypto.js';
 import { buildServer } from '../src/http/server.js';
 import type { AppContext } from '../src/http/context.js';
 import { DisabledSmsSender } from '../src/providers/sms.js';
+import { DisabledPricingProvider } from '../src/providers/pricing.js';
 
 let db: TestDatabase;
 let app: FastifyInstance;
@@ -22,6 +23,7 @@ before(async () => {
     pool: db.pool,
     crypto: new CryptoBox(randomBytes(32)),
     smsSender: sms,
+    pricingProvider: new DisabledPricingProvider(),
     jwtSecret: randomBytes(32),
     accessTokenTtlSeconds: 900,
     refreshTokenTtlSeconds: 3600,

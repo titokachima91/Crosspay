@@ -62,9 +62,10 @@ today; in-app message submission is not connected.
 - Order matters: the splash shows each pair once, in the first direction listed.
 - Known status codes the app translates: balanced_p2p, high_liquidity,
   active_clearing. Unknown codes fall back to the level.
-- Until a live pricing source is connected, the endpoint returns
-  `503 PRICING_NOT_CONFIGURED`. The app shows its "rates are not connected"
-  state; the server never returns invented rates.
+- Until the server operator connects a pricing provider (the sandbox reference
+  provider is one), the endpoint returns `503 PRICING_NOT_CONFIGURED`. The app
+  shows its "rates are not connected" state; the server never returns invented
+  rates.
 
 ## GET /api/v1/market/depth   (login required)
 {
@@ -318,9 +319,10 @@ Response:
   collection. A different quote or different recipient details are a new key.
 - Rejections are 4xx with a code: QUOTE_EXPIRED, LIMIT_EXCEEDED,
   VERIFICATION_REQUIRED, RECIPIENT_REJECTED, CORRIDOR_UNAVAILABLE.
-- Until a pricing and payout provider are connected, estimate, quote and
-  initiate return `503 PRICING_NOT_CONFIGURED`; they never return a simulated
-  rate or start a fake collection.
+- Until a payment provider is connected, initiate returns
+  `503 PAYOUT_NOT_CONFIGURED`; it never starts a simulated collection. Estimate
+  and quote require a configured pricing provider and return
+  `503 PRICING_NOT_CONFIGURED` without one.
 
 Trade object:
 {

@@ -3,6 +3,11 @@ import type { FastifyServerOptions } from 'fastify';
 import { createPoolFromEnv } from '../db/pool.js';
 import { CryptoBox } from '../crypto.js';
 import { DisabledSmsSender } from '../providers/sms.js';
+import {
+  DisabledPricingProvider,
+  SandboxPricingProvider,
+  type PricingProvider,
+} from '../providers/pricing.js';
 import { buildServer } from './server.js';
 
 function required(name: string): string {
@@ -46,11 +51,40 @@ const logger: FastifyServerOptions['logger'] = {
   },
 };
 
+/**
+ * The sandbox provider is the reference pricing source until Product/Finance
+ * approve a live one. It is opt-in: without PRICING_PROVIDER=sandbox the API
+ * keeps returning an honest 503, exactly as before.
+ */
+function buildPricingProvider(): PricingProvider {
+  const kind = (process.env['PRICING_PROVIDER'] ?? 'disabled').trim().toLowerCase();
+  if (kind === 'disabled') return new DisabledPricingProvider();
+  if (kind !== 'sandbox') {
+    throw new Error(`PRICING_PROVIDER must be "disabled" or "sandbox", got "${kind}"`);
+  }
+
+  const baseUrl = process.env['SANDBOX_PRICING_URL'] ?? process.env['SANDBOX_FACADE_URL'];
+  if (!baseUrl) {
+    throw new Error('SANDBOX_PRICING_URL is required when PRICING_PROVIDER=sandbox');
+  }
+  const apiKey = process.env['SANDBOX_PRICING_KEY'] ?? process.env['SANDBOX_API_KEY_CROSSPAY'];
+  if (!apiKey) {
+    throw new Error('SANDBOX_PRICING_KEY is required when PRICING_PROVIDER=sandbox');
+  }
+
+  return new SandboxPricingProvider({
+    baseUrl,
+    apiKey,
+    timeoutMs: positiveInt('PRICING_TIMEOUT_MS', 5_000),
+  });
+}
+
 const app = await buildServer(
   {
     pool,
     crypto,
     smsSender: new DisabledSmsSender(),
+    pricingProvider: buildPricingProvider(),
     jwtSecret,
     accessTokenTtlSeconds: positiveInt('ACCESS_TOKEN_TTL_SECONDS', 900),
     refreshTokenTtlSeconds: positiveInt('REFRESH_TOKEN_TTL_SECONDS', 30 * 24 * 60 * 60),

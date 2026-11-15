@@ -11,6 +11,7 @@ import { registerConfigRoutes } from './routes/config.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerBeneficiaryRoutes } from './routes/beneficiaries.js';
+import { registerPricingRoutes } from './routes/pricing.js';
 import { registerUnavailableRoutes } from './routes/unavailable.js';
 
 const PUBLIC_PATHS = new Set([
@@ -125,6 +126,7 @@ export async function buildServer(
     registerAuthRoutes(api, ctx);
     registerMeRoutes(api, ctx);
     registerBeneficiaryRoutes(api, ctx);
+    registerPricingRoutes(api, ctx);
     registerUnavailableRoutes(api, ctx);
   }, { prefix: '/api/v1' });
 
