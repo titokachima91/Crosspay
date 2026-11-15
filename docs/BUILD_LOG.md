@@ -411,8 +411,9 @@ customer accounts from CrossPay partner accounts.
   `CROSSPAY` / `LEGACY`; they are not customer accounts.
 
 Verification: sandbox **32/32** tests pass. The CrossPay book now recognises
-fees and settles them to operating cash; a full provider-platform settlement
-reconciliation is still planned.
+fees and settles them to operating cash, mirrored by a provider-book debit to
+`CROSSPAY-PAYABLE` and a credit to the partner operating account
+(`CPA-OPERATING-...`). Partner reconciliation statements remain planned.
 
 ---
 
