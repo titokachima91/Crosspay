@@ -1,10 +1,12 @@
 # OTP wiring plan
 
-**Status**: CrossPay OTP endpoints and HTTP SMS adapter built 2026-11-15.
-Real SMS delivery is disabled by default until the gateway is configured.
+**Status**: CrossPay OTP endpoints, the HTTP SMS adapter and the sandbox
+real-SMS path are built 2026-11-15. Real SMS is opt-in and allowlisted.
 **Provisional sender**: `+255767304776` (from local `0767304776`), Tanzania.
 This is the SIM/device number for the current sandbox gateway, not a recipient
 and not a secret.
+**First real test**: sent through the sandbox to `+255714604777` on
+2026-11-15; the API response contained no code.
 
 ---
 
@@ -72,6 +74,39 @@ App
 
 The code is never returned by the API, never logged and never stored in
 plaintext. The sandbox `sandboxCode` field exists only in the sandbox facade.
+
+---
+
+## 2b. Sandbox real-SMS path
+
+The sandbox facade can now send the OTP through the existing protected
+`/v1/send-sms` route:
+
+```bash
+FACADE_SMS_DELIVERY=true
+SMS_ALLOWED_RECIPIENTS=+255714604777
+FACADE_SMS_SENDER_PHONE=+255767304776
+SMS_GATEWAY_URL=http://127.0.0.1:8080/v1/send-sms
+# SMS_GATEWAY_KEY defaults to API_KEY_CROSSPAY
+```
+
+When enabled:
+
+- the facade calls `/v1/send-sms` as the **CrossPay tenant**;
+- the API response does **not** include `sandboxCode`;
+- the dashboard OTP table hides the code;
+- the recipient must be on `SMS_ALLOWED_RECIPIENTS`;
+- a gateway failure returns `503 SMS_DELIVERY_FAILED` and invalidates the code;
+- a non-allowlisted number returns `403 SMS_RECIPIENT_NOT_ALLOWED`.
+
+### Multi-tenant boundary
+
+- The protected SMS/AI files are unchanged.
+- The call uses `API_KEY_CROSSPAY`; GasLink is never used for CrossPay OTP.
+- GasLink routes, keys, data and workers remain in place.
+- The SMS gateway route stays shared and authenticates each tenant by key.
+- No tenant data is deleted or overwritten.
+- The OTP allowlist is a sandbox cost/safety control, not a tenant boundary.
 
 ---
 
@@ -153,7 +188,8 @@ Built:
   - the response does not contain the code.
 - Existing rate-limit and refresh-rotation tests still pass.
 
-Full API suite: **47/47**, 11 suites.
+CrossPay API suite: **53/53**, 12 suites.
+Sandbox suite: **36/36**, including the real-SMS allowlist/failure path.
 
 ---
 

@@ -456,9 +456,16 @@ mirror of the fee settlement and partner reconciliation statements.
 - Tests: HTTP adapter contract, disabled path, live local gateway delivery and
   verification. CrossPay API suite is **47/47**, 11 suites.
 - Plan: `docs/OTP_WIRING_PLAN.md`.
+- Sandbox real-SMS path added: `FACADE_SMS_DELIVERY=true` calls the existing
+  protected `/v1/send-sms` route as the CrossPay tenant, hides `sandboxCode`,
+  and enforces `SMS_ALLOWED_RECIPIENTS`. GasLink and the protected SMS/AI files
+  are untouched. A real test SMS was dispatched to `+255714604777` from the
+  provisional SIM `+255767304776`.
+- Sandbox suite: **36/36** (14 facade + 9 simulator + 10 provider customers +
+  3 real-SMS).
 
-Still open: configure the gateway/SIM, confirm a real SMS, and replace the
-sandbox gateway with the production SMS partner.
+Still open: configure the production SMS partner/sender ID and delivery
+monitoring.
 
 ---
 
