@@ -170,4 +170,16 @@ void main() {
       ),
     );
   });
+
+  test('the history list is parsed from the wrapped trades array', () async {
+    final adapter = _BodyAdapter(
+      '{"trades": [${_trade('completed')}, ${_trade('pending_deposit')}]}',
+    );
+    final trades = await _repoFor(adapter).getTrades(_config);
+    expect(trades, hasLength(2));
+    expect(trades.first.reference, 'REF-1');
+    expect(trades.first.status, TradeStatus.completed);
+    expect(trades.last.status, TradeStatus.pendingDeposit);
+    expect(adapter.lastPath, '/api/v1/trades');
+  });
 }

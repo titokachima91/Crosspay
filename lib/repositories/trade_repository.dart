@@ -175,7 +175,7 @@ class TradeRepository {
       final response = await _dio.get<dynamic>(ApiEndpoints.trades);
       final root = JsonReader.of(response.data);
       final items = root.list('trades');
-      return items.map((e) => _parseTrade(JsonReader.of(e), config)).toList();
+      return items.map((e) => _parseTrade(e, config)).toList();
     } on DioException catch (e) {
       throw ApiException.fromDio(e);
     }
