@@ -18,6 +18,7 @@ import {
   type PricingQuote,
   type RatesPayload,
 } from '../src/providers/pricing.js';
+import { DisabledPaymentProvider } from '../src/providers/payments.js';
 
 type StubMode = 'ok' | 'reject' | 'down' | 'invalid';
 
@@ -123,6 +124,7 @@ before(async () => {
     crypto: new CryptoBox(randomBytes(32)),
     smsSender: new DisabledSmsSender(),
     pricingProvider: provider,
+    paymentProvider: new DisabledPaymentProvider(),
     jwtSecret: randomBytes(32),
     accessTokenTtlSeconds: 900,
     refreshTokenTtlSeconds: 3600,

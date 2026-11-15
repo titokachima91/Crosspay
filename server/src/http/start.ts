@@ -5,6 +5,11 @@ import { CryptoBox } from '../crypto.js';
 import { DisabledSmsSender, type SmsSender } from '../providers/sms.js';
 import { HttpSmsSender } from '../providers/http-sms.js';
 import {
+  DisabledPaymentProvider,
+  SandboxPaymentProvider,
+  type PaymentProvider,
+} from '../providers/payments.js';
+import {
   DisabledPricingProvider,
   SandboxPricingProvider,
   type PricingProvider,
@@ -101,12 +106,39 @@ function buildSmsSender(): SmsSender {
   });
 }
 
+/**
+ * Payment providers are opt-in. "sandbox" targets the provider primitives in
+ * kachi-fintech-sandbox; production adapters must implement the same
+ * interface without pretending a payment succeeded.
+ */
+function buildPaymentProvider(): PaymentProvider {
+  const kind = (process.env['PAYMENT_PROVIDER'] ?? 'disabled').trim().toLowerCase();
+  if (kind === 'disabled') return new DisabledPaymentProvider();
+  if (kind !== 'sandbox') {
+    throw new Error(`PAYMENT_PROVIDER must be "disabled" or "sandbox", got "${kind}"`);
+  }
+  const baseUrl = process.env['SANDBOX_PAYMENTS_URL'] ?? process.env['SANDBOX_FACADE_URL'];
+  if (!baseUrl) {
+    throw new Error('SANDBOX_PAYMENTS_URL is required when PAYMENT_PROVIDER=sandbox');
+  }
+  const apiKey = process.env['SANDBOX_PAYMENTS_KEY'] ?? process.env['SANDBOX_API_KEY_CROSSPAY'];
+  if (!apiKey) {
+    throw new Error('SANDBOX_PAYMENTS_KEY is required when PAYMENT_PROVIDER=sandbox');
+  }
+  return new SandboxPaymentProvider({
+    baseUrl,
+    apiKey,
+    timeoutMs: positiveInt('PAYMENTS_TIMEOUT_MS', 5_000),
+  });
+}
+
 const app = await buildServer(
   {
     pool,
     crypto,
     smsSender: buildSmsSender(),
     pricingProvider: buildPricingProvider(),
+    paymentProvider: buildPaymentProvider(),
     jwtSecret,
     accessTokenTtlSeconds: positiveInt('ACCESS_TOKEN_TTL_SECONDS', 900),
     refreshTokenTtlSeconds: positiveInt('REFRESH_TOKEN_TTL_SECONDS', 30 * 24 * 60 * 60),

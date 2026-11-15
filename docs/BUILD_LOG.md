@@ -462,4 +462,27 @@ sandbox gateway with the production SMS partner.
 
 ---
 
+## 2026-11-15 - Payment provider adapter
+
+**No frontend changes.** CrossPay now has a provider boundary for payments.
+
+- `PaymentProvider` interface for collections, payouts, refunds, bank accounts
+  and same-currency transfers.
+- `SandboxPaymentProvider` maps to the sandbox PSP/bank primitives with
+  `x-api-key` and `Idempotency-Key`.
+- `DisabledPaymentProvider` is the default and returns
+  `PAYMENT_PROVIDER_NOT_CONFIGURED`.
+- 4xx provider answers become `PaymentRejectedError`; 5xx/network/timeouts
+  become `PaymentUnavailableError`; malformed bodies are rejected.
+- Added sandbox `POST /api/sandbox/bank/transfer` for the transfer primitive.
+- Config: `PAYMENT_PROVIDER=disabled|sandbox`, `SANDBOX_PAYMENTS_URL`,
+  `SANDBOX_PAYMENTS_KEY`, `PAYMENTS_TIMEOUT_MS`.
+- Tests: **53/53**, 12 suites, plus a live transfer smoke from
+  `CRDB-DEMO-001` (2,000,000 TZS → 1,999,000 after a 1,000 TZS transfer).
+- Plan: `docs/PAYMENT_ADAPTERS.md`.
+
+Next: B2.3 `/trade/initiate` and B2.4 payouts/refunds.
+
+---
+
 ## Report End - No fluff. Just facts.
