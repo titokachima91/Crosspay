@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
+import { createServer } from 'node:http';
 import { after, before, describe, it } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import type { TestDatabase } from './helpers/test-database.js';
@@ -9,6 +10,7 @@ import { CryptoBox } from '../src/crypto.js';
 import { buildServer } from '../src/http/server.js';
 import type { AppContext } from '../src/http/context.js';
 import { DisabledSmsSender } from '../src/providers/sms.js';
+import { HttpSmsSender } from '../src/providers/http-sms.js';
 import { DisabledPricingProvider } from '../src/providers/pricing.js';
 
 let db: TestDatabase;
@@ -347,6 +349,61 @@ describe('HTTP bootstrap, auth and recipients', () => {
       assert.deepEqual(Object.keys(body), ['error']);
     } finally {
       await disabled.close();
+    }
+  });
+
+  it('delivers an OTP through the HTTP SMS adapter and verifies it', async () => {
+    const received: Array<{ recipient: string; message: string }> = [];
+    const gateway = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on('data', (chunk: Buffer) => chunks.push(chunk));
+      request.on('end', () => {
+        received.push(JSON.parse(Buffer.concat(chunks).toString()) as { recipient: string; message: string });
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end(JSON.stringify({ success: true }));
+      });
+    });
+    await new Promise<void>((resolve) => gateway.listen(0, '127.0.0.1', resolve));
+    const address = gateway.address();
+    assert.ok(address && typeof address !== 'string');
+
+    const wired = await buildServer({
+      ...context,
+      smsSender: new HttpSmsSender({
+        url: `http://127.0.0.1:${address.port}/v1/send-sms`,
+        timeoutMs: 2_000,
+      }),
+    });
+    await wired.ready();
+    try {
+      const phone = '+255755999777';
+      const requested = await wired.inject({
+        method: 'POST',
+        url: '/api/v1/auth/otp/request',
+        payload: { phone },
+      });
+      assert.equal(requested.statusCode, 200);
+      const body = requested.json() as { codeLength: number; expiresInSeconds: number };
+      assert.equal(body.codeLength, 6);
+      assert.ok(body.expiresInSeconds > 0);
+      assert.equal(received.length, 1);
+      assert.equal(received[0]?.recipient, phone);
+      const code = received[0]?.message.match(/\b\d{6}\b/)?.[0];
+      assert.ok(code);
+
+      const verified = await wired.inject({
+        method: 'POST',
+        url: '/api/v1/auth/otp/verify',
+        payload: { phone, code },
+      });
+      assert.equal(verified.statusCode, 200);
+      const session = verified.json() as { accessToken: string };
+      assert.ok(session.accessToken);
+    } finally {
+      await wired.close();
+      await new Promise<void>((resolve, reject) =>
+        gateway.close((error) => (error ? reject(error) : resolve())),
+      );
     }
   });
 });

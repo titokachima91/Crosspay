@@ -2,7 +2,8 @@ import 'dotenv/config';
 import type { FastifyServerOptions } from 'fastify';
 import { createPoolFromEnv } from '../db/pool.js';
 import { CryptoBox } from '../crypto.js';
-import { DisabledSmsSender } from '../providers/sms.js';
+import { DisabledSmsSender, type SmsSender } from '../providers/sms.js';
+import { HttpSmsSender } from '../providers/http-sms.js';
 import {
   DisabledPricingProvider,
   SandboxPricingProvider,
@@ -79,11 +80,32 @@ function buildPricingProvider(): PricingProvider {
   });
 }
 
+/**
+ * SMS is opt-in. Without a provider the API returns SMS_NOT_CONFIGURED and
+ * never logs or returns the code. `http` targets a compatible gateway such as
+ * the sandbox `/v1/send-sms` route.
+ */
+function buildSmsSender(): SmsSender {
+  const kind = (process.env['SMS_PROVIDER'] ?? 'disabled').trim().toLowerCase();
+  if (kind === 'disabled') return new DisabledSmsSender();
+  if (kind !== 'http') {
+    throw new Error(`SMS_PROVIDER must be "disabled" or "http", got "${kind}"`);
+  }
+  const url = process.env['SMS_API_URL'];
+  if (!url) throw new Error('SMS_API_URL is required when SMS_PROVIDER=http');
+  return new HttpSmsSender({
+    url,
+    apiKey: process.env['SMS_API_KEY'],
+    senderId: process.env['SMS_SENDER_ID'],
+    timeoutMs: positiveInt('SMS_TIMEOUT_MS', 5_000),
+  });
+}
+
 const app = await buildServer(
   {
     pool,
     crypto,
-    smsSender: new DisabledSmsSender(),
+    smsSender: buildSmsSender(),
     pricingProvider: buildPricingProvider(),
     jwtSecret,
     accessTokenTtlSeconds: positiveInt('ACCESS_TOKEN_TTL_SECONDS', 900),

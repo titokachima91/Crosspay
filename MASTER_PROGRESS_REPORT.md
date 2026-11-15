@@ -284,7 +284,7 @@ The CrossPay API does not initiate or pay yet; that is B2.3/B2.4.
 | Live Flutter contract against sandbox | **passed** | 2026-11-15 |
 | CrossPay API `typecheck` | **clean** | 2026-11-15 |
 | CrossPay API `build` | **clean** | 2026-11-15 |
-| CrossPay API tests | **42/42, 10 suites** | 2026-11-15 |
+| CrossPay API tests | **47/47, 11 suites** | 2026-11-15 |
 | Sandbox tests | **32/32** (14 facade + 9 simulator + 9 customers) | 2026-11-15 |
 | B2.0 snapshot restore | `npm ci` + typecheck + build + **36/36** | 2026-11-15 |
 | B2.2 snapshot restore | `npm ci` + typecheck + build + **42/42** | 2026-11-15 |
@@ -367,7 +367,7 @@ These cannot be finished by engineering alone:
 14. Invoice/export persistence and the signed-link policy.
 
 Engineering blockers:
-- Real SMS delivery (OTP returns `SMS_NOT_CONFIGURED` without a partner).
+- Live SMS delivery: the HTTP adapter is built, but the gateway/SIM and production partner are not configured.
 - A real pricing source and approved spread (B2.2 works against the sandbox).
 - Collection/payout provider contracts (B2.3/B2.4).
 - Name-check provider.
@@ -427,13 +427,19 @@ Completed:
 - Sandbox provider reference implementation and `/api/v1` facade.
 - Sandbox provider customers: PSP wallets, bank customers, KYC identities,
   dashboard panel, wallet debits/credits and provider rules.
+- CrossPay account/clearing and revenue book: partner trust/operating accounts,
+  fee/spread revenue routing.
+- CrossPay HTTP SMS adapter for OTP delivery; disabled by default.
 - Full live flow through the sandbox and real Flutter repositories.
 - Verified snapshots of both projects.
 
 Next, in order:
-1. **CrossPay provider adapters** — collections, payouts, refunds, status,
+1. **Configure the SMS gateway** with provisional SIM `+255767304776` and
+   verify a live OTP through CrossPay → sandbox `/v1/send-sms`. Plan:
+   `docs/OTP_WIRING_PLAN.md`.
+2. **CrossPay provider adapters** — collections, payouts, refunds, status,
    callbacks and KYC/name-check against the sandbox provider primitives.
-2. **B2.3 `/trade/initiate`** — consume the quote, snapshot the recipient,
+3. **B2.3 `/trade/initiate`** — consume the quote, snapshot the recipient,
    create a payment attempt, start the collection, return collection
    instructions; trade-first/resume so an outage cannot orphan a charge.
 4. **B2.4 payouts and refunds** — payout to mobile money/bank, signed webhooks,

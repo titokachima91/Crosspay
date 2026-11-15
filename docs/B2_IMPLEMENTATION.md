@@ -5,7 +5,8 @@
 **Status**: Built and verified 2026-11-15
 **Depends on**: `docs/B1_IMPLEMENTATION.md`, `docs/api_contract.md`
 **Code**: `server/src/http/`, `server/test/http-bootstrap.test.ts`
-**Next record**: `docs/B2_2_IMPLEMENTATION.md` (rates, estimate and quote)
+**Next records**: `docs/B2_2_IMPLEMENTATION.md` (rates, estimate and quote),
+`docs/OTP_WIRING_PLAN.md` (HTTP SMS adapter and provisional sender)
 
 ---
 
@@ -147,7 +148,7 @@ No frontend files changed.
 
 | Item | Why it is not built |
 |---|---|
-| Real SMS delivery | Needs an SMS partner, sender ID and per-market approval |
+| Real SMS delivery | HTTP `SmsSender` adapter built; a partner/gateway and per-market sender approval are still required |
 | Live rates / estimate / quote | Built in B2.2 against the sandbox reference provider; a real pricing source still needs Product/Finance approval |
 | Name check | Needs a payout-provider name-match API |
 | Trade initiation and list/history/analytics/export | Needs the B2.3 collection lifecycle and the provider flow |

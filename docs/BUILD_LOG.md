@@ -440,4 +440,26 @@ mirror of the fee settlement and partner reconciliation statements.
 
 ---
 
+## 2026-11-15 - HTTP SMS and OTP delivery
+
+**No frontend changes.** CrossPay's OTP path now has a real delivery adapter.
+
+- `HttpSmsSender` posts `{ recipient, message, senderId? }` to `SMS_API_URL`
+  with an optional `x-api-key`.
+- `SMS_PROVIDER=disabled` remains the default and returns
+  `503 SMS_NOT_CONFIGURED`; `SMS_PROVIDER=http` enables delivery.
+- The adapter validates non-2xx, `{ success: false }`, timeouts and plain 2xx
+  responses; it never includes the OTP in an error.
+- The sandbox `/v1/send-sms` route is a compatible gateway. Provisional SIM
+  for the sandbox is `+255767304776` (local `0767304776`); it is configured on
+  the device, not hardcoded.
+- Tests: HTTP adapter contract, disabled path, live local gateway delivery and
+  verification. CrossPay API suite is **47/47**, 11 suites.
+- Plan: `docs/OTP_WIRING_PLAN.md`.
+
+Still open: configure the gateway/SIM, confirm a real SMS, and replace the
+sandbox gateway with the production SMS partner.
+
+---
+
 ## Report End - No fluff. Just facts.
