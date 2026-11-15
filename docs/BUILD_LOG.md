@@ -321,6 +321,10 @@ fake payment, no push.
   100,000 KES minor send.
 - The B2 bootstrap snapshot was restored into an isolated directory and
   re-verified: `npm ci`, typecheck, build and **36/36** tests passed.
+- A new snapshot at commit `5e00d9e` is
+  `~/Desktop/crosspay_app_2026-11-15_073154_b2.2-pricing`. Restored into an
+  isolated directory: `npm ci`, typecheck, build and **42/42** tests passed.
+  Snapshots are never overwritten.
 
 ### Still open (not silently claimed as done)
 - B2.3 initiation/collection and B2.4 payouts/refunds.
