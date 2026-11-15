@@ -230,12 +230,17 @@ Flutter app can use directly.
 
 ### Sandbox verification
 
-- `npm test` → **22/22** (13 facade + 9 simulator), temporary SQLite.
+- `npm test` → **32/32** (14 facade + 9 simulator + 9 provider customers),
+  temporary SQLite.
 - Live end-to-end smoke: config → OTP → KYC → beneficiary → quote → initiate →
   collect → payout → completed → invoice/QR/payer page → export → analytics →
   market depth → dashboard state.
 - Failure paths: failed collection, failed payout with refund/ledger unwind,
   provider outage with idempotent retry, refresh-token reuse.
+- Provider wallet flow: collection debited the payer wallet by 101,500 TZS,
+  payout credited the recipient wallet, refund credited the payer wallet.
+- Revenue flow: net fee 485 TZS became a CrossPay receivable, settled to
+  operating cash and mirrored to `CPA-OPERATING-STANBIC-TZ-TZS`.
 - The real Flutter repositories pass an opt-in live contract test:
   `LIVE_SANDBOX=1 ... flutter test test/live_sandbox_test.dart`.
 
@@ -280,11 +285,11 @@ The CrossPay API does not initiate or pay yet; that is B2.3/B2.4.
 | CrossPay API `typecheck` | **clean** | 2026-11-15 |
 | CrossPay API `build` | **clean** | 2026-11-15 |
 | CrossPay API tests | **42/42, 10 suites** | 2026-11-15 |
-| Sandbox tests | **22/22** | 2026-11-15 |
+| Sandbox tests | **32/32** (14 facade + 9 simulator + 9 customers) | 2026-11-15 |
 | B2.0 snapshot restore | `npm ci` + typecheck + build + **36/36** | 2026-11-15 |
 | B2.2 snapshot restore | `npm ci` + typecheck + build + **42/42** | 2026-11-15 |
-| Sandbox snapshot restore | `npm ci` + **22/22** | 2026-11-15 |
-| Ledger integrity | `PRAGMA integrity_check` → **ok**, schema v2 | 2026-11-15 |
+| Sandbox snapshot restore | `npm ci` + **32/32** | 2026-11-15 |
+| Ledger integrity | `PRAGMA integrity_check` → **ok**, schema v3 | 2026-11-15 |
 
 Live provider check through the real `SandboxPricingProvider`:
 KES→TZS `0.057143`, fee 150 bps, payout 17,500 TZS minor, total debit 101,500
@@ -304,15 +309,17 @@ Commit `5e00d9e`, 346 files, 3.8 MB. Restored into an isolated directory:
 `npm ci`, typecheck, build and **42/42** tests passed.
 
 **Latest sandbox snapshot**
-`~/Desktop/kachi-fintech-sandbox_pricing_2026-11-15_072912`
-100 files, 1.4 MB. Restored into an isolated directory: `npm ci` and **22/22**
+`~/Desktop/kachi-fintech-sandbox_accounts-final_2026-11-15_140352`
+109 files, 1.9 MB. Restored into an isolated directory: `npm ci` and **32/32**
 tests passed. The live Flutter contract test also passed against a fresh
 instance of this tree.
 
 Earlier checkpoints remain on the Desktop:
-- `crosspay_app_2026-11-15_005113_b2-bootstrap` — restored, 36/36
-- `kachi-fintech-sandbox_facade_2026-11-15_053722` — restored, 21/21
-- `kachi-fintech-sandbox_institutions-final_2026-11-15_044710` — restored, 9/9
+- `kachi-fintech-sandbox_revenue_2026-11-15_135756` — 32/32
+- `kachi-fintech-sandbox_customers_2026-11-15_133224` — 30/30
+- `kachi-fintech-sandbox_pricing_2026-11-15_072912` — 22/22
+- `kachi-fintech-sandbox_facade_2026-11-15_053722` — 21/21
+- `kachi-fintech-sandbox_institutions-final_2026-11-15_044710` — 9/9
 
 ---
 
@@ -439,8 +446,8 @@ Next, in order:
 7. Replace the sandbox pricing/collection/payout adapters with approved real
    providers when contracts exist.
 
-Git: branch `fix/theme-system` is local; latest commits are `25eb292`,
-`805a94b`, `dfbd6a8`, `5e00d9e` and `64c8b34`. Nothing has been pushed.
+Git: branch `fix/theme-system` is local; latest commits are `4460255`,
+`b214be7`, `a59c180`, `3445a94`, `25eb292`. Nothing has been pushed.
 
 ---
 
