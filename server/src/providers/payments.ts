@@ -169,6 +169,13 @@ interface SandboxOptions {
   timeoutMs?: number;
 }
 
+interface SandboxPspProvider {
+  id: string;
+  currency: string;
+  kind: string;
+  phonePrefixes: string[];
+}
+
 function providerError(status: number, body: unknown): PaymentRejectedError {
   const candidate = body as
     | { error?: { code?: unknown; message?: unknown } | string; message?: unknown }
@@ -218,11 +225,58 @@ export class SandboxPaymentProvider implements PaymentProvider {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly timeoutMs: number;
+  private providersCache: SandboxPspProvider[] | null = null;
 
   constructor(options: SandboxOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, '');
     this.apiKey = options.apiKey;
     this.timeoutMs = options.timeoutMs ?? 5_000;
+  }
+
+  /**
+   * The sandbox is authoritative for which PSP serves a currency and phone
+   * prefix. Asking it keeps provider codes out of CrossPay and means a new
+   * sandbox provider needs no CrossPay release.
+   */
+  private async resolveProvider(currency: string, phoneNumber: string): Promise<string> {
+    if (this.providersCache === null) {
+      const { body } = await this.request('GET', '/api/sandbox/psp/providers');
+      const parsed = parseProvider(
+        z.object({
+          providers: z.array(
+            z.object({
+              id: z.string().min(1),
+              currency: z.string().length(3),
+              kind: z.string().min(1),
+              phonePrefixes: z.array(z.string()).default([]),
+            }),
+          ),
+        }),
+        body,
+      );
+      this.providersCache = parsed.providers;
+    }
+
+    const candidates = this.providersCache.filter(
+      (provider) => provider.kind === 'mobile_money' && provider.currency === currency,
+    );
+    const chosen =
+      candidates.find((provider) =>
+        provider.phonePrefixes.some((pattern) => {
+          try {
+            return new RegExp(pattern).test(phoneNumber);
+          } catch {
+            return false;
+          }
+        }),
+      ) ?? candidates[0];
+    if (!chosen) {
+      throw new PaymentUnavailableError(
+        'PAYMENT_PROVIDER_NOT_CONFIGURED',
+        `No sandbox payment provider serves ${currency}`,
+      );
+    }
+    return chosen.id;
   }
 
   private async request(
@@ -263,13 +317,20 @@ export class SandboxPaymentProvider implements PaymentProvider {
   }
 
   async createCollection(input: CollectionInput): Promise<PaymentCollection> {
+    // An explicit provider or institution wins. Otherwise ask the sandbox
+    // which PSP serves this currency and phone prefix, so provider routing is
+    // provider data, not a CrossPay constant.
+    const provider =
+      input.provider ??
+      input.institutionId ??
+      (await this.resolveProvider(input.currency, input.phoneNumber));
     const { body } = await this.request('POST', '/api/sandbox/psp/stk-push', {
       idempotencyKey: input.transactionRef,
       body: {
         phoneNumber: input.phoneNumber,
         amountMinor: input.amountMinor,
         currency: input.currency,
-        provider: input.provider,
+        provider,
         institutionId: input.institutionId,
         transactionRef: input.transactionRef,
         callbackUrl: input.callbackUrl,

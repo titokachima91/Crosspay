@@ -1,16 +1,15 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
 import type { PoolClient } from 'pg';
 import { requireUserId } from '../auth.js';
 import {
-  badRequest,
   conflict,
   notFound,
   serviceUnavailable,
   unprocessable,
 } from '../errors.js';
-import { parseBody } from '../validation.js';
+import { parseBody, requireIdempotencyKey } from '../validation.js';
 import { runIdempotent } from '../idempotent-route.js';
 
 const accountSchema = z
@@ -61,20 +60,6 @@ function normalizeAccount(account: string): string {
 function last4(account: string): string {
   const value = account.replace(/[^A-Za-z0-9]/g, '').slice(-4);
   return value.length > 0 ? value : '0000';
-}
-
-function requireIdempotencyKey(request: FastifyRequest): string {
-  const value = request.headers['x-idempotency-key'];
-  if (typeof value !== 'string' || value.length === 0) {
-    throw badRequest(
-      'IDEMPOTENCY_KEY_REQUIRED',
-      'Every write must carry an X-Idempotency-Key header',
-    );
-  }
-  if (value.length > 255) {
-    throw badRequest('IDEMPOTENCY_KEY_INVALID', 'The idempotency key is too long');
-  }
-  return value;
 }
 
 async function assertRail(client: PoolClient, railId: string): Promise<void> {

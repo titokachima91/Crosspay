@@ -200,23 +200,48 @@ export async function insertTrade(
     quote: TestQuote;
     status?: string;
     reference?: string;
+    route?: 'p2p' | 'bank';
+    sendCurrency?: string;
+    receiveCurrency?: string;
+    sendAmountMinor?: bigint;
+    feeMinor?: bigint;
+    feeBps?: number;
+    receiveAmountMinor?: bigint;
+    rate?: string;
   },
 ): Promise<string> {
+  const route = input.route ?? 'p2p';
+  const sendCurrency = input.sendCurrency ?? 'TZS';
+  const receiveCurrency = input.receiveCurrency ?? 'KES';
+  const sendAmountMinor = input.sendAmountMinor ?? 1_000_000n;
+  const feeMinor = input.feeMinor ?? 10_000n;
+  const feeBps = input.feeBps ?? 100;
+  const receiveAmountMinor = input.receiveAmountMinor ?? 54_054n;
+  const rate = input.rate ?? '18.5';
+
   const result = await db.query(
     `INSERT INTO trades
        (reference, user_id, quote_id, quote_route_id, route, status,
         send_currency, receive_currency, send_amount_minor, fee_minor, fee_bps,
         receive_amount_minor, rate, beneficiary_name, beneficiary_rail_id,
         beneficiary_account_encrypted, beneficiary_account_last4)
-     VALUES ($1, $2, $3, $4, 'p2p', $5, 'TZS', 'KES', 1000000, 10000, 100,
-             54054, 18.5, 'Amina Hassan', 'mpesa-ke', $6, '4567')
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+             $12, $13::numeric, 'Amina Hassan', 'mpesa-ke', $14, '4567')
      RETURNING id`,
     [
       input.reference ?? `CP-${randomInt(100_000, 999_999)}`,
       input.userId,
       input.quote.quoteId,
-      input.quote.p2pRouteId,
+      route === 'p2p' ? input.quote.p2pRouteId : input.quote.bankRouteId,
+      route,
       input.status ?? 'pending_deposit',
+      sendCurrency,
+      receiveCurrency,
+      sendAmountMinor.toString(),
+      feeMinor.toString(),
+      feeBps,
+      receiveAmountMinor.toString(),
+      rate,
       Buffer.from([1, 2, 3, 4]),
     ],
   );

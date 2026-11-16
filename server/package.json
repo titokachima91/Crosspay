@@ -16,6 +16,7 @@
     "seed": "tsx scripts/seed.ts",
     "verify": "tsx scripts/verify.ts",
     "verify:local": "tsx scripts/verify-local.ts",
+    "smoke:b2.3": "tsx scripts/smoke-b2.3.ts",
     "test": "node --import tsx --test --test-concurrency=1 --test-reporter=tap test/*.test.ts",
     "test:spec": "node --import tsx --test --test-concurrency=1 --test-force-exit test/*.test.ts"
   },

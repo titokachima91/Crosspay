@@ -33,6 +33,8 @@ before(async () => {
     refreshTokenTtlSeconds: 3600,
     idempotencyTtlSeconds: 86_400,
     limitTimezone: 'UTC',
+    collectionPushTimeoutSeconds: 120,
+    collectionPollIntervalSeconds: 5,
   };
   app = await buildServer(context);
   await app.ready();

@@ -12,14 +12,7 @@ export function registerUnavailableRoutes(app: FastifyInstance, _ctx: AppContext
     throw serviceUnavailable('MARKET_DATA_NOT_CONFIGURED', 'Market depth is not connected yet');
   });
 
-  app.post('/trade/initiate', async () => {
-    throw serviceUnavailable('PAYOUT_NOT_CONFIGURED', 'Payouts are not connected yet');
-  });
-
-  app.get('/trades', async () => {
-    throw serviceUnavailable('TRADING_NOT_CONFIGURED', 'Trading is not connected yet');
-  });
-
+  // Invoice, share, analytics and export still need their own services.
   app.all('/trades/*', async () => {
     throw serviceUnavailable('TRADING_NOT_CONFIGURED', 'Trading is not connected yet');
   });

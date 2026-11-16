@@ -16,6 +16,7 @@ import {
   PricingUnavailableError,
 } from '../../providers/pricing.js';
 import { createQuote, QuotePricingInvalidError } from '../../quotes.js';
+import { assertWithinDailyLimit } from '../../services/limits.js';
 
 const currency = z
   .string()
@@ -99,44 +100,20 @@ async function assertSupportedCurrencies(
 }
 
 /**
- * Enforces the approved daily limit only when the send currency is the one the
- * limit is denominated in. A cross-currency limit needs an FX conversion and
- * belongs to B2.3 with the payment provider; inventing one here would be worse
- * than deferring the check.
+ * The daily limit is re-checked at initiation too. This endpoint checks early
+ * so a user learns about the limit before a provider quote is requested.
  */
-async function assertWithinDailyLimit(
+async function assertCorrectLimit(
   ctx: AppContext,
   user: PricingUser,
   input: CorridorInput,
 ): Promise<void> {
-  if (user.limit_currency_code !== input.sendCurrency) return;
-
-  const limit = await ctx.pool.query(
-    `SELECT daily_limit_minor
-     FROM tier_limits
-     WHERE tier_code = $1 AND currency_code = $2`,
-    [user.tier_code, user.limit_currency_code],
+  await assertWithinDailyLimit(
+    ctx.pool,
+    user,
+    { sendCurrency: input.sendCurrency, sendAmountMinor: BigInt(input.sendAmountMinor) },
+    ctx.limitTimezone,
   );
-  const dailyLimit = BigInt(String(limit.rows[0]?.['daily_limit_minor'] ?? '0'));
-  if (dailyLimit === 0n) {
-    throw unprocessable(
-      'LIMIT_EXCEEDED',
-      'No approved daily limit exists for this account yet',
-    );
-  }
-
-  const used = await ctx.pool.query(
-    `SELECT COALESCE(sum(send_amount_minor), 0)::bigint AS used
-     FROM trades
-     WHERE user_id = $1
-       AND status NOT IN ('cancelled', 'expired', 'failed')
-       AND created_at >= (date_trunc('day', now() AT TIME ZONE $2) AT TIME ZONE $2)`,
-    [user.id, ctx.limitTimezone],
-  );
-  const dailyUsed = BigInt(String(used.rows[0]?.['used'] ?? '0'));
-  if (dailyUsed + BigInt(input.sendAmountMinor) > dailyLimit) {
-    throw unprocessable('LIMIT_EXCEEDED', 'That amount is above the remaining daily limit');
-  }
 }
 
 export function registerPricingRoutes(app: FastifyInstance, ctx: AppContext): void {
@@ -166,7 +143,7 @@ export function registerPricingRoutes(app: FastifyInstance, ctx: AppContext): vo
     }
 
     await assertSupportedCurrencies(ctx, input);
-    await assertWithinDailyLimit(ctx, user, input);
+    await assertCorrectLimit(ctx, user, input);
 
     const priced = await ctx.pricingProvider
       .quote({ ...input, phone: user.phone })

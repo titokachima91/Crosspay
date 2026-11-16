@@ -15,4 +15,6 @@ export interface AppContext {
   refreshTokenTtlSeconds: number;
   idempotencyTtlSeconds: number;
   limitTimezone: string;
+  collectionPushTimeoutSeconds: number;
+  collectionPollIntervalSeconds: number;
 }

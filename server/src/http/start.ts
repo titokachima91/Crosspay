@@ -144,6 +144,8 @@ const app = await buildServer(
     refreshTokenTtlSeconds: positiveInt('REFRESH_TOKEN_TTL_SECONDS', 30 * 24 * 60 * 60),
     idempotencyTtlSeconds: positiveInt('IDEMPOTENCY_TTL_SECONDS', 86_400),
     limitTimezone,
+    collectionPushTimeoutSeconds: positiveInt('COLLECTION_PUSH_TIMEOUT_SECONDS', 120),
+    collectionPollIntervalSeconds: positiveInt('COLLECTION_POLL_INTERVAL_SECONDS', 5),
   },
   { logger, corsOrigins },
 );

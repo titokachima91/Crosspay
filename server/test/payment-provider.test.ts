@@ -32,6 +32,35 @@ function handler(request: IncomingMessage, response: ServerResponse): void {
       idem: request.headers['idempotency-key'] as string | undefined,
     });
 
+    if (url === '/api/sandbox/psp/providers') {
+      return send(response, 200, {
+        success: true,
+        providers: [
+          {
+            id: 'MPESA_TZ',
+            name: 'M-Pesa Tanzania',
+            currency: 'TZS',
+            kind: 'mobile_money',
+            phonePrefixes: ['^\\+255(74|75|76|79)'],
+          },
+          {
+            id: 'TIGOPESA',
+            name: 'Tigo Pesa',
+            currency: 'TZS',
+            kind: 'mobile_money',
+            phonePrefixes: ['^\\+255(65|67|71|77)'],
+          },
+          {
+            id: 'MPESA_KE',
+            name: 'M-Pesa Kenya',
+            currency: 'KES',
+            kind: 'mobile_money',
+            phonePrefixes: ['^\\+254(1|7)'],
+          },
+        ],
+      });
+    }
+
     if (url === '/api/sandbox/psp/stk-push') {
       if (body['phoneNumber'] === '+255700000503') {
         return send(response, 503, { error: 'PROVIDER_UNAVAILABLE', message: 'Down' });
@@ -275,6 +304,31 @@ describe('sandbox payment provider adapter', () => {
       .catch((error: unknown) => error);
     assert.ok(malformed instanceof PaymentUnavailableError);
     assert.equal(malformed.code, 'PAYMENT_PROVIDER_INVALID_RESPONSE');
+  });
+
+  it('discovers the sandbox PSP from the currency and phone prefix when none is named', async () => {
+    calls.length = 0;
+    const collection = await provider().createCollection({
+      phoneNumber: '+255754123456',
+      amountMinor: 100000,
+      currency: 'TZS',
+      transactionRef: 'COL-DISCOVER',
+    });
+    assert.equal(collection.provider, 'MPESA_TZ');
+    assert.equal(calls[0]?.url, '/api/sandbox/psp/providers');
+    assert.equal(calls[0]?.key, 'provider-key');
+
+    const push = calls.find((call) => call.url === '/api/sandbox/psp/stk-push');
+    assert.ok(push, 'expected the adapter to call stk-push after discovery');
+    assert.equal(push.body['provider'], 'MPESA_TZ');
+
+    const kes = await provider().createCollection({
+      phoneNumber: '+254712345678',
+      amountMinor: 100000,
+      currency: 'KES',
+      transactionRef: 'COL-DISCOVER-KE',
+    });
+    assert.equal(kes.provider, 'MPESA_KE');
   });
 
   it('keeps the disabled default honest', async () => {

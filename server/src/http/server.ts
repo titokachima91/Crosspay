@@ -12,6 +12,7 @@ import { registerAuthRoutes } from './routes/auth.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerBeneficiaryRoutes } from './routes/beneficiaries.js';
 import { registerPricingRoutes } from './routes/pricing.js';
+import { registerTradeRoutes } from './routes/trades.js';
 import { registerUnavailableRoutes } from './routes/unavailable.js';
 
 const PUBLIC_PATHS = new Set([
@@ -127,6 +128,7 @@ export async function buildServer(
     registerMeRoutes(api, ctx);
     registerBeneficiaryRoutes(api, ctx);
     registerPricingRoutes(api, ctx);
+    registerTradeRoutes(api, ctx);
     registerUnavailableRoutes(api, ctx);
   }, { prefix: '/api/v1' });
 
