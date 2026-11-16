@@ -611,4 +611,25 @@ adapters, analytics/export and invoice/share handlers.
 
 ---
 
+## 2026-11-16 - Market depth, analytics and CSV export
+
+- `GET /market/depth` now returns real funded-queue depth for enabled
+  `p2p_corridors` with an operator-supplied `estimated_settle_seconds`
+  (migration `0009_market_depth.sql`). Corridors without an estimate are
+  omitted; no wait time is invented.
+- `GET /trades/analytics` aggregates completed trades in the account's limit
+  currency. Totals use the highest-volume receive currency because the contract
+  has one received currency; corridors list each receive currency separately.
+- `GET /trades/export` issues a five-minute, single-purpose download token;
+  `/trades/export/download` is public but token-authenticated and streams the
+  user's CSV. Without `PUBLIC_API_URL` the endpoint returns
+  `503 EXPORT_NOT_CONFIGURED`.
+- Verification: Node **88/88**, 18 suites, typecheck clean.
+- `invoice/share` remain honest `503`; they need a QR generator and share URL.
+
+Next: liquidity providers and ops dashboard, bank payout rails, KYC/name-check
+adapters, invoice/share handlers.
+
+---
+
 ## Report End - No fluff. Just facts.

@@ -15,6 +15,8 @@ import { registerPricingRoutes } from './routes/pricing.js';
 import { registerTradeRoutes } from './routes/trades.js';
 import { registerPaymentRoutes } from './routes/payments.js';
 import { registerMatchingRoutes } from './routes/matching.js';
+import { registerMarketRoutes } from './routes/market.js';
+import { registerInsightRoutes } from './routes/insights.js';
 import { registerWebhookRoutes } from './routes/webhooks.js';
 import { registerUnavailableRoutes } from './routes/unavailable.js';
 
@@ -32,6 +34,7 @@ const PUBLIC_PATHS = new Set([
   '/api/v1/auth/otp/request',
   '/api/v1/auth/otp/verify',
   '/api/v1/auth/refresh',
+  '/api/v1/trades/export/download',
 ]);
 
 function requestPath(url: string): string {
@@ -161,6 +164,8 @@ export async function buildServer(
     registerTradeRoutes(api, ctx);
     registerPaymentRoutes(api, ctx);
     registerMatchingRoutes(api, ctx);
+    registerMarketRoutes(api, ctx);
+    registerInsightRoutes(api, ctx);
     registerWebhookRoutes(api, ctx);
     registerUnavailableRoutes(api, ctx);
   }, { prefix: '/api/v1' });

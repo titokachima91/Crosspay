@@ -24,4 +24,6 @@ export interface AppContext {
   paymentWebhookMaxSkewSeconds: number;
   /** Matching is opt-in; the default false keeps every corridor disabled. */
   p2pEnabled: boolean;
+  /** Absolute public API URL used for export/invoice links. */
+  publicApiUrl?: string;
 }

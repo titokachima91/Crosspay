@@ -8,11 +8,7 @@ import { serviceUnavailable } from '../errors.js';
  * of receiving invented rates or queue numbers.
  */
 export function registerUnavailableRoutes(app: FastifyInstance, _ctx: AppContext): void {
-  app.get('/market/depth', async () => {
-    throw serviceUnavailable('MARKET_DATA_NOT_CONFIGURED', 'Market depth is not connected yet');
-  });
-
-  // Invoice, share, analytics and export still need their own services.
+  // Invoice, share and remaining analytics handlers still need their services.
   app.all('/trades/*', async () => {
     throw serviceUnavailable('TRADING_NOT_CONFIGURED', 'Trading is not connected yet');
   });

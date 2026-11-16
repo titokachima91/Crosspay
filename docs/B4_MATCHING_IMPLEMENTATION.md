@@ -212,14 +212,16 @@ test-only 1,000-minor-unit spread to each quote to create a genuine
 cross-coverage gap. A real platform spread policy is not built yet; this is
 called out rather than hidden.
 
-Node suite after B4 and the worker: **84/84**, 17 suites, typecheck clean.
+Node suite after B4, market depth, analytics, export and the worker:
+**88/88**, 18 suites, typecheck clean.
 
 ---
 
 ## 9. Deliberate limits
 
 - Full-fill only; no partial fills or standing liquidity orders.
-- No ops dashboard (queue depth, match list, manual match controls).
+- No ops dashboard (queue depth, match list, manual match controls). The
+  `GET /market/depth` read model is built from real funded queues.
 - No provider cutoff/business-hours engine beyond the match deadline.
 - Bank payout legs are not connected.
 - `7000` treasury funding is a liability, not an automatic write-off; Finance

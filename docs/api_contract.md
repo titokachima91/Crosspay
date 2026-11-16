@@ -81,13 +81,14 @@ today; in-app message submission is not connected.
 }
 - Every number is the server's. The app never estimates, smooths or invents
   queue data; without this endpoint the screen says it is not connected.
-- `queueDepth` is the number of trades waiting on the corridor; it is zero or
-  greater. `estimatedSettleSeconds` is a positive estimate.
+- `queueDepth` is the number of funded trades in `escrowed`/`matching` on the
+  corridor; it is zero or greater. `estimatedSettleSeconds` comes from the
+  corridor policy (`p2p_corridors.estimated_settle_seconds`).
+- Only enabled corridors with an approved estimate are returned. A corridor
+  with no estimate is omitted; the server never invents a wait time.
 - Currency codes must exist in /config; corridors naming an unknown code are
   ignored by the app. Corridors appear in the server's order.
 - Status codes use the same values and fallback behavior as /rates.
-- Until a real aggregation source exists, the endpoint returns
-  `503 MARKET_DATA_NOT_CONFIGURED`. Queue numbers are never estimated.
 
 ## POST /api/v1/auth/otp/request   (no login)
 Request:  { "phone": "+<dial code><national number>" }
@@ -484,6 +485,13 @@ timeline says so plainly. The endpoint must never invent a step for the app.
 Every number is calculated by the server. Currency codes must exist in /config;
 an unknown code means the response is broken. Corridors are shown in the
 server's order.
+- Only completed trades are counted.
+- `sentCurrency` is the account's limit/reporting currency. The totals cover
+  the highest-volume receive currency, because the contract has one received
+  currency and minor units are never summed across currencies. Corridors list
+  every receive currency in their own currency.
+- `GET /api/v1/trades/export` returns `503 EXPORT_NOT_CONFIGURED` when
+  `PUBLIC_API_URL` is empty.
 
 ## GET /api/v1/trades/export   (login required)
 ```
@@ -491,3 +499,5 @@ server's order.
 ```
 The file is built and served by the server; the app only hands the link over
 and copies it with the built-in clipboard. No new dependency.
+The link is a five-minute, single-purpose token for that user and is public
+only because the token is the authentication.

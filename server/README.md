@@ -99,6 +99,9 @@ database, a migration or a log line.
 | GET | `/api/v1/trades` | Signed-in user's trades |
 | GET | `/api/v1/trades/{id}` | Trade detail; the app's polling target |
 | GET | `/api/v1/trades/{id}/history` | Immutable status timeline |
+| GET | `/api/v1/trades/analytics` | Server-calculated completed-trade totals |
+| GET | `/api/v1/trades/export` | Short-lived server-built CSV link |
+| GET | `/api/v1/market/depth` | Real funded-queue depth per enabled corridor |
 | POST | `/api/v1/trades/{id}/payment-claim` | Re-checks the provider |
 | POST | `/api/v1/trades/{id}/cancel` | Cancels a pending deposit |
 | POST | `/api/v1/trades/{id}/disburse` | Starts/resumes a payout |
@@ -106,6 +109,7 @@ database, a migration or a log line.
 | POST | `/api/v1/trades/{id}/match` | One FIFO P2P match attempt |
 | POST | `/api/v1/matches/{id}/disburse` | Pays/resumes both match legs |
 | POST | `/api/v1/webhooks/payments/{provider}` | Signed provider callback |
+| GET | `/api/v1/trades/export/download?token=...` | Public one-time CSV download |
 | GET | `/api/v1/market/depth` | `503 MARKET_DATA_NOT_CONFIGURED` |
 
 Every response error uses `{ "error": { "code": "...", "message": "..." } }`.
@@ -129,9 +133,9 @@ npm run verify:local
 applies every migration and the seed, then exercises the schema, quote
 lifecycle, trade timeline, idempotency race, ledger balance rules, append-only
 guards, encryption, OTP limits, refresh rotation, the HTTP bootstrap,
-collections, payouts, refunds, signed callbacks, P2P matching and the
-reconciliation worker.
-**84 tests pass.** No Docker or local PostgreSQL installation is required.
+collections, payouts, refunds, signed callbacks, P2P matching, market depth,
+analytics, CSV export and the reconciliation worker.
+**88 tests pass.** No Docker or local PostgreSQL installation is required.
 
 Live provider smokes (with the sandbox running):
 
@@ -174,6 +178,7 @@ npm run worker                    # every WORKER_INTERVAL_SECONDS
 | `PAYMENT_WEBHOOK_SECRET` | for webhooks | Shared HMAC secret |
 | `PAYMENT_WEBHOOK_MAX_SKEW_SECONDS` | no | Callback timestamp tolerance, default 300 |
 | `P2P_ENABLED` | no | Matching kill switch, default `false`; corridors live in `p2p_corridors` |
+| `PUBLIC_API_URL` | for export | Absolute public origin used in export links |
 | `WORKER_INTERVAL_SECONDS` | no | Worker pass interval, default 30 |
 | `WORKER_ONCE` | no | `true` runs one pass and exits |
 | `PORT` / `HOST` | no | HTTP listener, default `3000` / `0.0.0.0` |
@@ -220,6 +225,6 @@ npm run worker                    # every WORKER_INTERVAL_SECONDS
 1. Add liquidity-provider standing orders and the ops/dashboard surface
    (B4.4/B4.5).
 2. Connect approved bank payout rails and name-check/KYC adapters.
-3. Add analytics/export and invoice/share handlers.
+3. Add invoice/share handlers; analytics and CSV export are live.
 4. Replace the sandbox adapter with approved real providers when contracts
    exist.

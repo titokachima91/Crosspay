@@ -126,3 +126,15 @@ Reconciliation worker
   direct payouts, and retries pending refunds. It never invents a provider
   status; it re-reads the provider's record.
 - `WORKER_ONCE=true` supports cron; the default interval is 30 seconds.
+
+Market depth, analytics and export
+- Market depth is a read model over funded trades, not an invented liquidity
+  score. A corridor appears only when an operator enabled it and supplied an
+  `estimated_settle_seconds`; otherwise it is omitted.
+- Analytics counts completed trades only, in the account's reporting currency.
+  The totals cover the highest-volume receive currency; the API never adds
+  minor units across currencies.
+- CSV export is built by the server and downloaded through a five-minute
+  single-purpose token. The link is public only because the token is the
+  authentication. No public URL means an honest `503`, never a broken link.
+- Invoice/share stay unavailable until a QR/share service exists.

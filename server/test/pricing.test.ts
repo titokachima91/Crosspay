@@ -135,6 +135,7 @@ before(async () => {
     paymentWebhookSecret: null,
     paymentWebhookMaxSkewSeconds: 300,
     p2pEnabled: false,
+    publicApiUrl: 'https://api.crosspay.test',
   };
 
   verifiedUser = await createUser(db.pool, {

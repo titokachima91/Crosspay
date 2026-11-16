@@ -4,7 +4,7 @@
 **Project**: CrossPay
 **Package**: crosspay_app
 **Environment**: macOS Monterey | Flutter 3.24.5 | Dart 3.5.4 | Node 24 | PostgreSQL 17 for the API | SQLite for the sandbox
-**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 matching v1 complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · B3 scheduled reconciliation and B4.4/B4.5 liquidity/ops remain
+**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 matching v1 complete · market depth, analytics, CSV export and the reconciliation worker complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · B3 invoice/share and B4.4/B4.5 liquidity/ops remain
 
 ---
 
@@ -212,6 +212,11 @@ connected.
   deadlines, resumes locked matches and pending payouts, and retries refunds.
 - Live smoke: two real sandbox collections in opposite directions matched, both
   payouts completed, match `released`, every journal balanced.
+- `GET /market/depth` now reports real funded-queue depth for enabled corridors
+  with an approved `estimated_settle_seconds`; no corridor estimate is invented.
+- `GET /trades/analytics` and `GET /trades/export` are live; the CSV link is a
+  five-minute token for that user, and export is an honest `503` without
+  `PUBLIC_API_URL`.
 
 ### B3 Payments
 - [x] B3.1 Inbound webhook (delivered in B2.4)

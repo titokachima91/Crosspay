@@ -4,6 +4,7 @@ import { unauthorized } from './errors.js';
 
 export const JWT_ISSUER = 'crosspay-api';
 export const JWT_AUDIENCE = 'crosspay-app';
+export const EXPORT_AUDIENCE = 'crosspay-export';
 
 export interface AccessTokenInput {
   userId: string;
@@ -41,6 +42,42 @@ export async function verifyAccessToken(
   } catch (error) {
     if (error instanceof Error && error.name === 'AppError') throw error;
     throw unauthorized();
+  }
+}
+
+/** Short-lived, single-purpose token for a server-built CSV download link. */
+export async function signExportToken(input: {
+  userId: string;
+  secret: Uint8Array;
+  ttlSeconds?: number;
+  now?: Date;
+}): Promise<string> {
+  const nowSeconds = Math.floor((input.now ?? new Date()).getTime() / 1000);
+  return new SignJWT({ scope: 'trades_export' })
+    .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+    .setSubject(input.userId)
+    .setIssuer(JWT_ISSUER)
+    .setAudience(EXPORT_AUDIENCE)
+    .setIssuedAt(nowSeconds)
+    .setExpirationTime(nowSeconds + (input.ttlSeconds ?? 300))
+    .sign(input.secret);
+}
+
+export async function verifyExportToken(
+  token: string,
+  secret: Uint8Array,
+): Promise<{ userId: string }> {
+  try {
+    const result = await jwtVerify(token, secret, {
+      issuer: JWT_ISSUER,
+      audience: EXPORT_AUDIENCE,
+      algorithms: ['HS256'],
+    });
+    const userId = result.payload.sub;
+    if (!userId || result.payload['scope'] !== 'trades_export') throw unauthorized();
+    return { userId };
+  } catch {
+    throw unauthorized('EXPORT_LINK_INVALID', 'The export link is invalid or has expired');
   }
 }
 
