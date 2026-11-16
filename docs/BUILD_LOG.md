@@ -632,7 +632,7 @@ adapters, invoice/share handlers.
 
 ---
 
-## 2026-11-16 - B4.4 liquidity providers and B4.5 Phase A admin
+## 2026-11-16 - B4.4 liquidity providers and B4.6 Phase A admin
 
 - Migration `0010`: corridor min/max bounds, `p2p_corridor_exposure` view,
   `liquidity_providers`, `liquidity_orders`, LP match columns, LP traceability

@@ -71,7 +71,7 @@ customer's full PII without a permissioned, audited reveal.
 
 | Phase | Scope | Gate |
 |---|---|---|
-| A. Ops read + narrow controls | Overview, queue, matches, payouts, refunds, corridors, LP orders; env admin key; audit writes | Current B4.5 baseline |
+| A. Ops read + narrow controls | Overview, queue, matches, payouts, refunds, corridors, LP orders; env admin key; audit writes | Current B4.6 Phase A baseline |
 | B. Admin identity and RBAC | Admin users, passwords + TOTP, sessions, roles, CSRF, IP allowlist, audit log UI | No money action without an admin identity |
 | C. Control room and analytics | Real-time redacted activity feed, SLOs, funnel/corridor/provider/liquidity/support analytics, saved views, exports | Ops can answer “what is happening now?” without SQL |
 | D. Configuration center | Services, fees, spreads, tiers/limits, provider settings, feature flags, maintenance, staged rollout/rollback | Every change is versioned and approved |
@@ -80,7 +80,7 @@ customer's full PII without a permissioned, audited reveal.
 | G. Support and compliance | Customer-safe support workspace, cases/notes, KYC queue, sanctions hits, PII reveal workflow | Compliance sign-off |
 | H. Sandbox mirror removal | Remove testing-only `CROSSPAY` book and docs | E and F pass in production/sandbox |
 
-The B4.5 work in this phase is **A only**. It is deliberately read-heavy and
+The B4.6 work in this phase is **A only**. It is deliberately read-heavy and
 does not pretend to be the final admin.
 
 ---
@@ -899,7 +899,7 @@ Cutover checklist:
 
 ---
 
-## 13. Immediate B4.5 scope (what is being built now)
+## 13. Immediate B4.6 scope (what is being built now)
 
 - Env-key protected JSON admin API.
 - `/admin` read model: corridors, funded queue, locked matches, pending

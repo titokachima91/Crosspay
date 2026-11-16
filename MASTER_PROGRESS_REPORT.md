@@ -4,7 +4,7 @@
 **Project**: CrossPay
 **Package**: crosspay_app
 **Environment**: macOS Monterey | Flutter 3.24.5 | Dart 3.5.4 | Node 24 | PostgreSQL 17 for the API | SQLite for the sandbox
-**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 (matching, LP liquidity, exposure, ops admin) complete · market depth, analytics, CSV export and the reconciliation worker complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · CrossPay admin bookkeeping/RBAC, B3 invoice/share and bank payouts remain
+**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 (matching, LP liquidity, exposure, app matching states, Phase A ops admin) complete · market depth, analytics, CSV export and the reconciliation worker complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · B4.6 full control room/bookkeeping and B3 invoice/share remain
 
 ---
 
@@ -228,14 +228,16 @@ connected.
 - [x] B4.2 FIFO full-fill matcher with row locks
 - [x] B4.3 Two-leg payout saga and compensation
 - [x] B4.4 Corridor exposure and liquidity providers
-- [x] B4.5 CrossPay ops dashboard and app matching states
+- [x] B4.5 App matching states
+- [x] B4.6 CrossPay ops admin / control room (Phase A)
 
 **B4.4**: per-corridor exposure view, min/max bounds, allowlisted pre-funded
 liquidity providers with standing orders, prefund/return journals, LP matching
-and exact capacity release on failure. **B4.5**: `/admin` Phase A dashboard,
+and exact capacity release on failure. **B4.6 Phase A**: `/admin` dashboard,
 env-key admin API, corridor controls, LP provider/order controls, manual
 match/disburse triggers and append-only admin audit. The final named-user
-admin, bookkeeping and reconciliation are planned in `docs/ADMIN_PANEL_PLAN.md`.
+admin, control room, analytics, configuration center, bookkeeping and
+reconciliation are planned in `docs/ADMIN_PANEL_PLAN.md`.
 
 **Built**: `docs/B4_MATCHING_IMPLEMENTATION.md`. Matching is off by
 `P2P_ENABLED=false` and per-corridor rows in `p2p_corridors`; no corridor is

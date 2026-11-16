@@ -179,7 +179,7 @@ sandbox adapter for real money.
 3. **Real provider adapters and contract tests** — keep the sandbox as the
    reference.
 4. **Liquidity providers and ops dashboard** — standing orders, corridor
-   exposure monitoring and manual match controls (B4.4/B4.5).
+   exposure monitoring and manual match controls (B4.4/B4.6).
 5. **KYC/name-check adapters** — still disconnected.
 
 The P2P matching engine (B4 v1) now calls this adapter's match-mode payout; see
