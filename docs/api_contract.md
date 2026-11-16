@@ -319,7 +319,9 @@ Response:
   collection. A different quote or different recipient details are a new key.
 - Rejections are 4xx with a code: QUOTE_EXPIRED, LIMIT_EXCEEDED,
   VERIFICATION_REQUIRED, RECIPIENT_REJECTED, CORRIDOR_UNAVAILABLE.
-- Until a payment provider is connected, initiate returns
+- A provider outage is `503 PAYMENT_PROVIDER_UNAVAILABLE`; a provider rejection
+  keeps its own 4xx code. The quote is not consumed on either failure.
+- With `PAYMENT_PROVIDER=disabled`, initiate returns
   `503 PAYOUT_NOT_CONFIGURED`; it never starts a simulated collection. Estimate
   and quote require a configured pricing provider and return
   `503 PRICING_NOT_CONFIGURED` without one.
@@ -348,6 +350,54 @@ response body is not used; the payment step keeps polling GET /trades/{id}.
 
 ## POST /api/v1/trades/{id}/cancel   (login required)  -> trade object
 4xx codes: CANNOT_CANCEL, ALREADY_PAID (the app then keeps watching the trade).
+
+## POST /api/v1/trades/{id}/disburse   (login required)
+Header: X-Idempotency-Key
+Response:
+{
+  "trade": <trade object>,
+  "payout": {
+    "id": "<uuid>", "status": "pending | submitted | paid | failed",
+    "providerReference": "<provider id>", "amountMinor": <int>,
+    "currency": "<ISO code>"
+  }
+}
+- `202` means the payout is submitted and the app should keep polling the
+  trade; `200` means it is terminal (`completed` or `refunded`).
+- Only an escrowed/matched trade with a mobile-money rail can be disbursed.
+  A bank rail returns `503 PAYOUT_RAIL_NOT_CONFIGURED` until a partner account
+  contract exists.
+- A provider rejection refunds the payer before the error is returned. A
+  provider outage leaves the trade retryable.
+
+## POST /api/v1/trades/{id}/refund   (login required)
+Header: X-Idempotency-Key
+Request (all optional):
+{ "reason": "customer_request" }
+Response:
+{
+  "trade": <trade object, status "refunded" or "cancelled">,
+  "refund": { "id": "<uuid>", "status": "paid | failed | pending",
+              "providerReference": "<provider id>", "amountMinor": <int>,
+              "currency": "<ISO code>" }
+}
+- The provider must confirm the refund before any ledger line is reversed.
+- 4xx codes: NOT_REFUNDABLE, CANNOT_REFUND, PAYOUT_ALREADY_SENT.
+- A collection that arrives after cancellation is booked and refunded; the
+  trade stays `cancelled` and the refund records the return.
+
+## POST /api/v1/webhooks/payments/{provider}   (provider only)
+Headers: X-Kachi-Timestamp, X-Kachi-Signature
+The signature is HMAC-SHA256 over `<timestamp>.<exact raw body>` with the
+per-provider secret. The endpoint is public only because the HMAC is the
+authentication; a missing, stale or invalid signature is `401`.
+- Collection callbacks carry `checkoutRequestId`, `status`, `amountMinor` and
+  `currency`; payout callbacks carry `payoutId` instead.
+- The provider's current status is re-read and validated before booking.
+- `(provider, provider_event_id)` is unique, so a replayed callback returns
+  `200 { "received": true, "replay": true }` and moves no money twice.
+- With no `PAYMENT_WEBHOOK_SECRET`, the endpoint returns
+  `503 WEBHOOKS_NOT_CONFIGURED`.
 
 ## GET /api/v1/trades/{id}/invoice   (login required)
 {

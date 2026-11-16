@@ -526,4 +526,43 @@ Next: B2.3 `/trade/initiate` and B2.4 payouts/refunds.
 
 ---
 
+## 2026-11-16 - B2.3 collections and B2.4 payouts, refunds and callbacks
+
+CrossPay can now collect, pay out and refund end to end through the sandbox.
+
+- `POST /api/v1/trade/initiate` consumes a quote once, re-checks the daily
+  limit in the send currency, snapshots the encrypted recipient and starts one
+  deterministic collection. The `CP-...` reference is also the provider
+  idempotency key.
+- Added trade list/detail/history, payment-claim and cancel routes. A claim
+  never marks a trade paid without the provider; a cancel refuses with
+  `ALREADY_PAID` after confirmation.
+- Collection posting: partner trust cash / trade payable for principal, and
+  partner trust cash / fee revenue for the **net** fee after the provider fee.
+- A late success after cancellation is booked and refunded; the trade stays
+  `cancelled`.
+- B2.4 `POST /trades/:id/disburse` starts/resumes a mobile-money payout. Success
+  posts two linked single-currency FX journals (send and receive) plus the
+  payout journal. A failure/rejection refunds the payer and reverses the
+  collection journals. Bank rails return `503 PAYOUT_RAIL_NOT_CONFIGURED`.
+- B2.4 `POST /trades/:id/refund` asks the provider first, then reverses the
+  deposit and fee journals. Refusing after a completed payout is
+  `PAYOUT_ALREADY_SENT`.
+- `POST /api/v1/webhooks/payments/:provider` verifies HMAC-SHA256 over
+  `<timestamp>.<raw body>`, bounds clock skew and uses
+  `(provider, provider_event_id)` for replay protection. A failed event stays
+  retryable.
+- The sandbox adapter now discovers the PSP by currency and phone prefix from
+  `GET /api/sandbox/psp/providers`; no provider codes are hardcoded in CrossPay.
+- Added `6000 Provider fees` to the provisional chart of accounts.
+- Verification: Node **74/74**, 15 suites, typecheck clean. Live smokes:
+  `smoke:b2.3` (collection + claim), `smoke:b2.4` (collection → FX → payout),
+  `smoke:webhooks` (real signed collection and payout callbacks).
+- Detail: `docs/B2_3_B2_4_IMPLEMENTATION.md`.
+
+Next: B4 P2P matching engine, bank payout rails, scheduled reconciliation and
+KYC/name-check adapters.
+
+---
+
 ## Report End - No fluff. Just facts.

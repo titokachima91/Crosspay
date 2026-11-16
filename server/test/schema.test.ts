@@ -116,7 +116,7 @@ describe('schema and reference data', () => {
     );
     assert.equal(result.rows.length, 6);
     for (const row of result.rows) {
-      assert.equal(Number(row['accounts']), 8);
+      assert.equal(Number(row['accounts']), 9);
       assert.equal(row['all_provisional'], true);
     }
   });

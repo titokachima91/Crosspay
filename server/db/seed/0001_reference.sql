@@ -152,6 +152,7 @@ WITH chart(code, name, type, normal_side) AS (
     ('3000', 'Fee revenue', 'revenue', 'credit'),
     ('4000', 'FX position', 'asset', 'debit'),
     ('5000', 'FX clearing', 'asset', 'debit'),
+    ('6000', 'Provider fees', 'expense', 'debit'),
     ('9000', 'Suspense', 'liability', 'credit')
 )
 INSERT INTO ledger_accounts (code, name, type, normal_side, currency_code, is_provisional, active)

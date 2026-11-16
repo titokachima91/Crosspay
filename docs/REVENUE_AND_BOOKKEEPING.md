@@ -45,7 +45,10 @@ sandbox ledger.
 
 A fee is charged in the currency actually charged. KES minor units are never
 compared with TZS minor units; a conversion is two linked single-currency
-journals in CrossPay's ledger, never one mixed journal.
+journals in CrossPay's ledger, never one mixed journal. `5000 FX clearing` is
+the technical bridge between those two journals and is never summed across
+currencies. A provider fee charged on a payout is booked to `6000 Provider
+fees` in the payout currency, not netted out of an unrelated currency.
 
 ---
 

@@ -135,6 +135,53 @@ export async function findTradeForUser(
   return row;
 }
 
+/**
+ * Resolves the trade behind a provider callback. The provider only knows its
+ * own checkout id, so this lookup is the bridge from a webhook to CrossPay's
+ * durable trade.
+ */
+export async function findTradeByAttemptReference(
+  client: PoolClient,
+  input: { provider: string; externalReference: string; forUpdate?: boolean },
+): Promise<TradeRow | null> {
+  const result = await client.query<TradeRow>(
+    `SELECT t.*
+     FROM trades t
+     JOIN payment_attempts a ON a.trade_id = t.id
+     WHERE a.provider = $1 AND a.external_reference = $2
+     ORDER BY a.created_at DESC, a.id DESC
+     LIMIT 1${input.forUpdate ? ' FOR UPDATE OF t' : ''}`,
+    [input.provider, input.externalReference],
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function findJournalId(
+  client: PoolClient,
+  postingKey: string,
+): Promise<string | null> {
+  const result = await client.query<{ id: string }>(
+    `SELECT id FROM journal_transactions WHERE posting_key = $1`,
+    [postingKey],
+  );
+  return result.rows[0]?.id ?? null;
+}
+
+export async function findPaymentAttemptByReference(
+  client: PoolClient,
+  input: { provider: string; externalReference: string; forUpdate?: boolean },
+): Promise<PaymentAttemptRow | null> {
+  const result = await client.query<PaymentAttemptRow>(
+    `SELECT ${ATTEMPT_COLUMNS}
+     FROM payment_attempts
+     WHERE provider = $1 AND external_reference = $2
+     ORDER BY created_at DESC, id DESC
+     LIMIT 1${input.forUpdate ? ' FOR UPDATE' : ''}`,
+    [input.provider, input.externalReference],
+  );
+  return result.rows[0] ?? null;
+}
+
 export async function listTradesForUser(
   db: Pool | PoolClient,
   input: { userId: string; limit: number },
@@ -399,7 +446,7 @@ function providerOutcome(status: string): 'pending' | 'success' | 'failure' {
   return 'pending';
 }
 
-async function ledgerAccountId(
+export async function ledgerAccountId(
   client: PoolClient,
   input: { code: string; currency: string },
 ): Promise<string> {
@@ -420,13 +467,16 @@ async function ledgerAccountId(
   return id;
 }
 
-async function postJournalOnce(
+export async function postJournalOnce(
   client: PoolClient,
   input: {
     postingKey: string;
     kind: JournalKind;
     currencyCode: string;
     tradeId: string;
+    payoutId?: string;
+    refundId?: string;
+    fxGroupId?: string;
     lines: Array<{ accountId: string; amountMinor: bigint }>;
   },
 ): Promise<void> {
@@ -440,6 +490,9 @@ async function postJournalOnce(
     kind: input.kind,
     currencyCode: input.currencyCode,
     tradeId: input.tradeId,
+    payoutId: input.payoutId,
+    refundId: input.refundId,
+    fxGroupId: input.fxGroupId,
     lines: input.lines,
   });
 }
@@ -493,7 +546,7 @@ async function postCollection(client: PoolClient, trade: TradeRow, pspFeeMinor: 
 
 export interface CollectionApplication {
   trade: TradeRow;
-  outcome: 'pending' | 'escrowed' | 'failed';
+  outcome: 'pending' | 'escrowed' | 'failed' | 'late_paid' | 'ignored';
 }
 
 /**
@@ -521,18 +574,24 @@ export async function applyCollectionResult(
 
   const outcome = providerOutcome(collection.status);
   if (outcome === 'pending') {
+    if (trade.status !== 'pending_deposit') return { trade, outcome: 'ignored' };
     await client.query(
       `UPDATE payment_attempts
        SET status = 'sent',
            push_sent = true,
            network_name = COALESCE($2, network_name)
-       WHERE id = $1`,
+       WHERE id = $1 AND status IN ('pending', 'sent')`,
       [attempt.id, collection.provider],
     );
     return { trade, outcome: 'pending' };
   }
 
   if (outcome === 'failure') {
+    if (trade.status !== 'pending_deposit') {
+      // A late failure must never tear down a trade whose money already
+      // arrived, and a retried webhook must not fail a refunded trade again.
+      return { trade, outcome: 'ignored' };
+    }
     const failureCode = 'PAYMENT_FAILED';
     await client.query(
       `UPDATE payment_attempts
@@ -558,13 +617,36 @@ export async function applyCollectionResult(
     );
   }
 
+  const pspFee = BigInt(collection.feeMinor ?? 0);
+  if (pspFee > BigInt(trade.fee_minor)) {
+    throw new AppError(
+      502,
+      'PSP_FEE_EXCEEDS_PLATFORM_FEE',
+      'The payment provider fee is larger than the platform fee',
+    );
+  }
+
   await client.query(
     `UPDATE payment_attempts
      SET status = 'confirmed', network_name = COALESCE($2, network_name)
      WHERE id = $1`,
     [attempt.id, collection.provider],
   );
-  await postCollection(client, trade, BigInt(collection.feeMinor ?? 0));
+
+  // The money exists even when the trade was cancelled, expired or failed
+  // before the provider callback. Book it exactly once so the refund below has
+  // a real ledger entry to reverse; never silently keep an unbooked collection.
+  const late = ['cancelled', 'expired', 'failed'].includes(trade.status);
+  if (trade.status === 'refunded') return { trade, outcome: 'ignored' };
+  await postCollection(client, trade, pspFee);
+
+  if (late) return { trade, outcome: 'late_paid' };
+
+  if (trade.status !== 'pending_deposit') {
+    // A retried success callback for an already-escrowed trade is a replay.
+    return { trade, outcome: 'escrowed' };
+  }
+
   const escrowed = await setTradeStatus(client, {
     tradeId: trade.id,
     from: ['pending_deposit'],

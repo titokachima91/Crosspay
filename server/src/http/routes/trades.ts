@@ -41,6 +41,7 @@ import {
   tradeReferenceFor,
   type TradeView,
 } from '../../trades.js';
+import { refundTrade } from '../../payments.js';
 
 const accountSchema = z
   .string()
@@ -86,6 +87,9 @@ interface InitiateResponse {
 interface ClaimResponse {
   trade: TradeView;
   paymentStatus: string;
+  /** Internal retry marker; stripped before the response leaves the server. */
+  needsRefund?: boolean;
+  refundStatus?: string;
 }
 
 function normalizeAccount(account: string): string {
@@ -238,6 +242,7 @@ export function registerTradeRoutes(app: FastifyInstance, ctx: AppContext): void
             amountMinor: Number(totalDebit),
             currency: trade.send_currency,
             transactionRef: reference,
+            callbackUrl: ctx.paymentCallbackUrl,
           });
         } catch (error) {
           paymentFailure(error);
@@ -339,7 +344,7 @@ export function registerTradeRoutes(app: FastifyInstance, ctx: AppContext): void
         if (!attempt || attempt.external_reference === null) {
           throw notFound('PAYMENT_NOT_FOUND', 'This trade has no payment attempt to check');
         }
-        if (trade.status !== 'pending_deposit') {
+        if (!['pending_deposit', 'cancelled', 'expired', 'failed'].includes(trade.status)) {
           return {
             status: 200,
             body: { trade: mapTrade(trade), paymentStatus: attempt.status.toUpperCase() },
@@ -360,6 +365,18 @@ export function registerTradeRoutes(app: FastifyInstance, ctx: AppContext): void
         }
 
         const applied = await applyCollectionResult(client, { trade, attempt, collection });
+        if (applied.outcome === 'late_paid') {
+          return {
+            status: 200,
+            body: {
+              trade: mapTrade(applied.trade),
+              paymentStatus: collection.status,
+              needsRefund: true,
+            },
+            resourceType: 'trade',
+            resourceId: trade.id,
+          };
+        }
         return {
           status: 200,
           body: {
@@ -373,7 +390,19 @@ export function registerTradeRoutes(app: FastifyInstance, ctx: AppContext): void
     );
 
     if (result.replayed) reply.header('Idempotency-Replay', 'true');
-    return reply.code(result.status).send(result.body);
+    const body = result.body as ClaimResponse;
+    if (body.needsRefund) {
+      const refunded = await refundTrade(ctx, {
+        userId,
+        tradeId: id,
+        reasonCode: 'late_collection',
+        allowClosed: true,
+      });
+      body.trade = refunded.trade;
+      body.refundStatus = refunded.refund.status;
+      delete body.needsRefund;
+    }
+    return reply.code(result.status).send(body);
   });
 
   app.post('/trades/:id/cancel', async (request, reply) => {

@@ -1,10 +1,10 @@
 # CROSSPAY: MASTER PROGRESS REPORT
 
-**Updated**: 2026-11-15
+**Updated**: 2026-11-16
 **Project**: CrossPay
 **Package**: crosspay_app
 **Environment**: macOS Monterey | Flutter 3.24.5 | Dart 3.5.4 | Node 24 | PostgreSQL 17 for the API | SQLite for the sandbox
-**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0 and B2.2 complete · sandbox reference implementation complete · live end-to-end flow verified · B2.3/B2.4, the P2P matching engine and B3 remain
+**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3 and B2.4 complete · sandbox reference implementation complete · live collection, payout and signed-callback flow verified · the P2P matching engine and B3 remain
 
 ---
 
@@ -17,8 +17,8 @@ deposits flow to licensed partner bank/PSP omnibus trust accounts.
 CrossPay now has four working parts:
 
 1. **Flutter app** — the finished UI, wired to real repositories.
-2. **CrossPay API** — Fastify + PostgreSQL, with B1 data, B2.0 bootstrap and
-   B2.2 pricing/quotes.
+2. **CrossPay API** — Fastify + PostgreSQL, with B1 data, B2.0 bootstrap,
+   B2.2 pricing/quotes, B2.3 collections and B2.4 payouts/refunds/webhooks.
 3. **Kachi sandbox** — a provider-side reference implementation with a bank,
    PSP, KYC, institutions, ledger and a `/api/v1` CrossPay facade.
 4. **Live contract tests** — the real Flutter repositories and the CrossPay
@@ -127,8 +127,8 @@ accounts and escrow treatment remains the only open B1 gate.
 - [x] B2.0 Bootstrap: `/config`, OTP, refresh rotation, `/me`, KYC, recipients
 - [x] B2.1 Idempotency: database primitive plus HTTP wrapper on every write
 - [x] B2.2 `/rates`, `/trade/estimate`, `/trade/quote`
-- [ ] B2.3 `/trade/initiate` — next; needs the collection lifecycle
-- [ ] B2.4 `/payments/disburse` — next; needs payout and refund handling
+- [x] B2.3 `/trade/initiate` plus trades list/detail/history/claim/cancel
+- [x] B2.4 `/trades/:id/disburse`, `/trades/:id/refund`, signed provider webhooks
 
 **B2.0 status**: built and tested 2026-11-15 → `docs/B2_IMPLEMENTATION.md`.
 JWT access tokens, rotating refresh tokens, database-backed rate limits,
@@ -154,13 +154,51 @@ connected.
   status, safeguards and fee breakdown in `quotes` + `quote_routes`.
 - Quote creation validates fee math, route uniqueness, one recommendation and
   the lock window before writing.
-- `POST /trade/initiate` returns `503 PAYOUT_NOT_CONFIGURED`; it never starts a
-  fake collection.
+
+**B2.3 status**: built and tested 2026-11-16 →
+`docs/B2_3_B2_4_IMPLEMENTATION.md`.
+
+| Endpoint | Behaviour |
+|---|---|
+| `POST /api/v1/trade/initiate` | consume quote, re-check limits, snapshot recipient, start one collection |
+| `GET /api/v1/trades` | the signed-in user's trades, newest first |
+| `GET /api/v1/trades/:id` | one trade; polling target for the app |
+| `GET /api/v1/trades/:id/history` | immutable status timeline |
+| `POST /api/v1/trades/:id/payment-claim` | re-check the provider; never marks paid by itself |
+| `POST /api/v1/trades/:id/cancel` | cancel a pending deposit; refuses after `ALREADY_PAID` |
+
+- Collection posting is two single-currency journals: partner trust cash /
+  trade payable for principal, partner trust cash / fee revenue for the **net**
+  platform fee after the provider fee.
+- The trade reference is deterministic and is also the provider idempotency
+  key, so a retry after a rolled-back transaction cannot double-charge.
+- A late provider success after cancel is booked and refunded, never ignored.
+- Live smoke: real sandbox quote → STK push → simulated PIN → claim →
+  `escrowed`, journals balanced.
+
+**B2.4 status**: built and tested 2026-11-16 →
+`docs/B2_3_B2_4_IMPLEMENTATION.md`.
+
+| Endpoint | Behaviour |
+|---|---|
+| `POST /api/v1/trades/:id/disburse` | start/resume a payout; `202` pending, `200` terminal |
+| `POST /api/v1/trades/:id/refund` | full refund of a confirmed collection, provider-confirmed first |
+| `POST /api/v1/webhooks/payments/:provider` | public, HMAC-signed collection/payout callbacks |
+
+- Payout success posts **two linked single-currency FX journals** plus the
+  payout journal. `fx_group_id` links them; minor units are never summed
+  across currencies.
+- A payout rejection or failure refunds the payer and reverses both collection
+  journals.
+- Webhooks verify the raw body, a bounded timestamp and an HMAC, then use
+  `(provider, provider_event_id)` for replay protection.
+- Live smoke: TZS collection → sandbox FX liquidity → KES mobile-money payout →
+  signed callback → `completed`.
 
 ### B3 Payments
-- [ ] B3.1 Inbound webhook
+- [x] B3.1 Inbound webhook (delivered in B2.4)
 - [ ] B3.2 P2P queue
-- [ ] B3.3 Refund worker
+- [x] B3.3 Refund worker primitive (delivered in B2.4; scheduled retries remain)
 
 ### B4 P2P matching engine (planned)
 - [ ] B4.1 Funded-trade queue and eligibility
@@ -444,26 +482,21 @@ Completed:
 - Verified snapshots of both projects.
 
 Next, in order:
-1. **Configure the SMS gateway** with provisional SIM `+255767304776` and
-   verify a live OTP through CrossPay → sandbox `/v1/send-sms`. Plan:
-   `docs/OTP_WIRING_PLAN.md`.
-2. **CrossPay provider adapters** — built for payments; KYC/name-check adapters
-   and callback verification remain. Plan: `docs/PAYMENT_ADAPTERS.md`.
-3. **B2.3 `/trade/initiate`** — consume the quote, snapshot the recipient,
-   create a payment attempt, start the collection, return collection
-   instructions; trade-first/resume so an outage cannot orphan a charge.
-4. **B2.4 payouts and refunds** — payout to mobile money/bank, signed webhooks,
-   ledger postings, failure refund and reversal.
-5. **B4 P2P matching engine** — funded-trade queue, FIFO full-fill, two-leg
+1. **B4 P2P matching engine** — funded-trade queue, FIFO full-fill, two-leg
    payout saga, exposure and liquidity controls. Plan:
    `docs/P2P_MATCHING_PLAN.md`. The engine lives in CrossPay, never in the
-   sandbox.
-6. **F5.3 remainder** — biometrics and app-side refresh-token handling.
-7. Replace the sandbox pricing/collection/payout adapters with approved real
+   sandbox. B2.4 exposes the payout saga it will call.
+2. **Bank payouts and KYC/name-check adapters** — mobile-money payout, refunds
+   and signed callbacks are built; bank payout rails need an approved partner
+   account contract. Plan: `docs/PAYMENT_ADAPTERS.md`.
+3. **Scheduled reconciliation worker** — retry pending refunds/payouts, expire
+   stale quotes and reconcile provider statements; the primitives exist.
+4. **F5.3 remainder** — biometrics and app-side refresh-token handling.
+5. Replace the sandbox pricing/collection/payout adapters with approved real
    providers when contracts exist.
 
-Git: branch `fix/theme-system` is local; latest commits are `4460255`,
-`b214be7`, `a59c180`, `3445a94`, `25eb292`. Nothing has been pushed.
+Git: branch `fix/theme-system` is local. B2.3/B2.4 are committed locally;
+nothing has been pushed.
 
 ---
 

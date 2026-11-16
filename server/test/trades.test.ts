@@ -118,6 +118,8 @@ before(async () => {
     limitTimezone: 'UTC',
     collectionPushTimeoutSeconds: 90,
     collectionPollIntervalSeconds: 4,
+    paymentWebhookSecret: null,
+    paymentWebhookMaxSkewSeconds: 300,
   };
 
   user = await createUser(db.pool, {

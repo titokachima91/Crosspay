@@ -75,3 +75,28 @@ Payment prompt (F3.4)
 - The ONE idempotency key per authorization attempt is used for the initiate
   request and its retries, so a reopened screen can never collect twice.
 - Wording is plain ("payment request sent to your phone") instead of "STK push".
+
+Backend collections, payouts and refunds (B2.3/B2.4)
+- The trade reference is deterministic and doubles as the provider idempotency
+  key. A database rollback after a provider call must never create a second
+  charge.
+- Collection posting keeps principal and fee separate: partner trust cash /
+  trade payable, then partner trust cash / fee revenue for the net fee after
+  the provider fee. The gross amount the payer tapped is never revenue.
+- Payout success is three journals: FX source in the send currency, FX
+  destination in the receive currency, then the payout. `fx_group_id` links the
+  FX pair. Minor units are never summed across currencies.
+- A payout rejection/failure refunds the payer and reverses both collection
+  journals before the error leaves the server.
+- A late collection after cancellation is booked and refunded; the trade stays
+  cancelled. Money is never invisible.
+- `refund` after a completed payout is refused (`PAYOUT_ALREADY_SENT`); a
+  clawback is a dispute flow.
+- Provider callbacks authenticate with HMAC over the raw body and a bounded
+  timestamp. `(provider, provider_event_id)` is unique; a replay moves no money.
+- Bank payout rails stay an honest `503 PAYOUT_RAIL_NOT_CONFIGURED` until an
+  approved partner account contract exists. Mobile-money payout is live.
+- The sandbox is authoritative for PSP codes by currency and phone prefix;
+  CrossPay does not hardcode provider routing.
+- The sandbox needed a separate KES pay-in to fund a KES payout. That is test
+  liquidity in the simulator, not an invented production balance.

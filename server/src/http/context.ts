@@ -17,4 +17,9 @@ export interface AppContext {
   limitTimezone: string;
   collectionPushTimeoutSeconds: number;
   collectionPollIntervalSeconds: number;
+  /** Public URL the provider calls back; omitted when callbacks are not set up. */
+  paymentCallbackUrl?: string;
+  /** HMAC secret for provider callbacks; null keeps the endpoint honest. */
+  paymentWebhookSecret?: Uint8Array | null;
+  paymentWebhookMaxSkewSeconds: number;
 }

@@ -13,7 +13,16 @@ import { registerMeRoutes } from './routes/me.js';
 import { registerBeneficiaryRoutes } from './routes/beneficiaries.js';
 import { registerPricingRoutes } from './routes/pricing.js';
 import { registerTradeRoutes } from './routes/trades.js';
+import { registerPaymentRoutes } from './routes/payments.js';
+import { registerWebhookRoutes } from './routes/webhooks.js';
 import { registerUnavailableRoutes } from './routes/unavailable.js';
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    /** Exact bytes received, needed to verify a provider HMAC. */
+    rawBody?: string;
+  }
+}
 
 const PUBLIC_PATHS = new Set([
   '/health',
@@ -49,11 +58,31 @@ export async function buildServer(
 
   app.decorateRequest('userId', undefined);
 
+  // Keep the exact body for provider signatures. Fastify's default parser
+  // discards it, and re-serialising JSON would break a byte-exact HMAC.
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (request, body, done) => {
+    const text = typeof body === 'string' ? body : body.toString('utf8');
+    request.rawBody = text;
+    if (text.trim().length === 0) {
+      done(null, undefined);
+      return;
+    }
+    try {
+      done(null, JSON.parse(text) as unknown);
+    } catch {
+      const error = new Error('Invalid JSON body') as Error & { statusCode: number };
+      error.statusCode = 400;
+      done(error, undefined);
+    }
+  });
+
   // Secure by default: a new route requires a token unless it is explicitly
   // listed above. Public routes are the bootstrap and auth surface only.
   app.addHook('onRequest', async (request) => {
     if (request.method === 'OPTIONS') return;
-    if (PUBLIC_PATHS.has(requestPath(request.url))) return;
+    const path = requestPath(request.url);
+    if (PUBLIC_PATHS.has(path)) return;
+    if (path.startsWith('/api/v1/webhooks/payments/')) return;
 
     const token = bearerToken(request);
     const { userId } = await verifyAccessToken(token, ctx.jwtSecret);
@@ -129,6 +158,8 @@ export async function buildServer(
     registerBeneficiaryRoutes(api, ctx);
     registerPricingRoutes(api, ctx);
     registerTradeRoutes(api, ctx);
+    registerPaymentRoutes(api, ctx);
+    registerWebhookRoutes(api, ctx);
     registerUnavailableRoutes(api, ctx);
   }, { prefix: '/api/v1' });
 

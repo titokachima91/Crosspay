@@ -4,6 +4,7 @@
 **Workstream**: B2.2 — Priced quotes on the B1 trading foundation
 **Status**: Built and verified 2026-11-15
 **Depends on**: `docs/B2_IMPLEMENTATION.md`, `docs/api_contract.md`
+**Superseded for trading by**: `docs/B2_3_B2_4_IMPLEMENTATION.md`
 **Code**: `server/src/providers/pricing.ts`, `server/src/http/routes/pricing.ts`,
 `server/src/quotes.ts`, `server/test/pricing.test.ts`,
 `server/test/pricing-provider.test.ts`

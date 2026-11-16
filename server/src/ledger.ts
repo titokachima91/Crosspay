@@ -117,6 +117,10 @@ export async function reverseJournal(
     originalTransactionId: string;
     postingKey: string;
     occurredAt?: Date;
+    /** Attach the correction to the refund or payout that caused it. */
+    refundId?: string;
+    payoutId?: string;
+    kind?: JournalKind;
   },
 ): Promise<{ transactionId: string }> {
   const original = await client.query(
@@ -133,13 +137,15 @@ export async function reverseJournal(
 
   return postJournal(client, {
     postingKey: input.postingKey,
-    kind: 'adjustment',
+    kind: input.kind ?? 'adjustment',
     currencyCode: String(row['currency_code']),
     tradeId: row['trade_id'] === null ? undefined : String(row['trade_id']),
     paymentEventId:
       row['payment_event_id'] === null ? undefined : String(row['payment_event_id']),
-    payoutId: row['payout_id'] === null ? undefined : String(row['payout_id']),
-    refundId: row['refund_id'] === null ? undefined : String(row['refund_id']),
+    payoutId:
+      input.payoutId ?? (row['payout_id'] === null ? undefined : String(row['payout_id'])),
+    refundId:
+      input.refundId ?? (row['refund_id'] === null ? undefined : String(row['refund_id'])),
     reversesTransactionId: input.originalTransactionId,
     occurredAt: input.occurredAt,
     lines: lines.map((line) => ({

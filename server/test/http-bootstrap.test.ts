@@ -35,6 +35,8 @@ before(async () => {
     limitTimezone: 'UTC',
     collectionPushTimeoutSeconds: 120,
     collectionPollIntervalSeconds: 5,
+    paymentWebhookSecret: null,
+    paymentWebhookMaxSkewSeconds: 300,
   };
   app = await buildServer(context);
   await app.ready();

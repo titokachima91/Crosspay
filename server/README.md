@@ -6,10 +6,15 @@ Node.js + TypeScript service for CrossPay.
   quote lifecycle and double-entry ledger. Built and verified 2026-11-14.
 - **B2.0** — HTTP bootstrap: `/config`, OTP sign-in, refresh rotation, `/me`,
   KYC submission and saved-recipient CRUD. Built and verified 2026-11-15.
+- **B2.2** — rates, estimate and durable quotes. Built 2026-11-15.
+- **B2.3** — trade initiation, collection lifecycle and trade reads. Built
+  2026-11-16.
+- **B2.4** — payouts, refunds and signed provider callbacks. Built 2026-11-16.
 
 The Flutter app remains the only client contract. `docs/api_contract.md` is the
 contract of record. The B1 plan is `docs/B1_DATABASE_PLAN.md`; the build evidence
-is `docs/B1_IMPLEMENTATION.md` and `docs/B2_IMPLEMENTATION.md`.
+is `docs/B1_IMPLEMENTATION.md`, `docs/B2_IMPLEMENTATION.md`,
+`docs/B2_2_IMPLEMENTATION.md` and `docs/B2_3_B2_4_IMPLEMENTATION.md`.
 
 ---
 
@@ -41,7 +46,7 @@ server/
     ledger.ts          Balanced journal posting and reversals
     auth/              OTP and refresh-token families
     http/              Fastify server, auth, routes and error mapping
-    providers/         SMS adapter interface (disabled by default)
+    providers/         SMS, pricing and payment adapter boundaries
     services/          Rate limiting and user/limit resolution
     db/                Pool, migration runner, seed runner
     repositories/      Read models such as GET /config
@@ -84,14 +89,24 @@ database, a migration or a log line.
 | GET/POST | `/api/v1/beneficiaries` | Complete, with idempotent writes |
 | PATCH/DELETE | `/api/v1/beneficiaries/{id}` | Complete, ownership-checked |
 | POST | `/api/v1/beneficiaries/check` | `503 NAME_CHECK_NOT_CONFIGURED` |
-| GET | `/api/v1/rates` | `503 PRICING_NOT_CONFIGURED` |
+| GET | `/api/v1/rates` | Provider rates; `503 PRICING_NOT_CONFIGURED` without one |
+| GET | `/api/v1/trade/estimate` | Indicative estimate, no lock |
+| POST | `/api/v1/trade/quote` | Durable quote + route snapshot |
+| POST | `/api/v1/trade/initiate` | Consumes the quote and starts one collection |
+| GET | `/api/v1/trades` | Signed-in user's trades |
+| GET | `/api/v1/trades/{id}` | Trade detail; the app's polling target |
+| GET | `/api/v1/trades/{id}/history` | Immutable status timeline |
+| POST | `/api/v1/trades/{id}/payment-claim` | Re-checks the provider |
+| POST | `/api/v1/trades/{id}/cancel` | Cancels a pending deposit |
+| POST | `/api/v1/trades/{id}/disburse` | Starts/resumes a payout |
+| POST | `/api/v1/trades/{id}/refund` | Provider-confirmed full refund |
+| POST | `/api/v1/webhooks/payments/{provider}` | Signed provider callback |
 | GET | `/api/v1/market/depth` | `503 MARKET_DATA_NOT_CONFIGURED` |
-| POST | `/api/v1/trade/*` | `503 PRICING_NOT_CONFIGURED` |
-| GET | `/api/v1/trades*` | `503 TRADING_NOT_CONFIGURED` |
 
 Every response error uses `{ "error": { "code": "...", "message": "..." } }`.
 Protected routes require `Authorization: Bearer <accessToken>`. The public
-routes are `/health`, `/config`, `/rates`, the OTP endpoints and `/auth/refresh`.
+routes are `/health`, `/config`, `/rates`, the OTP endpoints, `/auth/refresh`
+and the provider webhook prefix `/api/v1/webhooks/payments/` (HMAC-authenticated).
 
 `SMS_NOT_CONFIGURED` is returned until a real SMS partner is connected. This is
 deliberate: the server never pretends to send a code. Tests inject a capturing
@@ -108,8 +123,17 @@ npm run verify:local
 `npm test` starts an ephemeral PostgreSQL 17 cluster with `embedded-postgres`,
 applies every migration and the seed, then exercises the schema, quote
 lifecycle, trade timeline, idempotency race, ledger balance rules, append-only
-guards, encryption, OTP limits, refresh rotation and the HTTP bootstrap.
-**36 tests pass.** No Docker or local PostgreSQL installation is required.
+guards, encryption, OTP limits, refresh rotation, the HTTP bootstrap,
+collections, payouts, refunds and signed callbacks.
+**74 tests pass.** No Docker or local PostgreSQL installation is required.
+
+Live provider smokes (with the sandbox running):
+
+```sh
+SANDBOX_API_KEY_CROSSPAY=<key> npm run smoke:b2.3
+SANDBOX_API_KEY_CROSSPAY=<key> npm run smoke:b2.4
+SANDBOX_API_KEY_CROSSPAY=<key> npm run smoke:webhooks
+```
 
 `npm run verify` is for a real database. It checks migration state, the five
 `/config` lists, payout-rail kinds, seeded rows and ledger balance.
@@ -127,6 +151,14 @@ guards, encryption, OTP limits, refresh rotation and the HTTP bootstrap.
 | `IDEMPOTENCY_TTL_SECONDS` | no | Idempotency retention, default 86400 seconds |
 | `ACCESS_TOKEN_TTL_SECONDS` | no | Access-token lifetime, default 900 seconds |
 | `REFRESH_TOKEN_TTL_SECONDS` | no | Refresh lifetime, default 30 days |
+| `PRICING_PROVIDER` | no | `disabled` (default) or `sandbox` |
+| `PAYMENT_PROVIDER` | no | `disabled` (default) or `sandbox` |
+| `SANDBOX_PAYMENTS_URL` / `KEY` | for sandbox | Sandbox provider primitives |
+| `COLLECTION_PUSH_TIMEOUT_SECONDS` | no | Manual fallback delay, default 120 |
+| `COLLECTION_POLL_INTERVAL_SECONDS` | no | App polling hint, default 5 |
+| `PAYMENT_CALLBACK_URL` | no | Public URL sent to the provider |
+| `PAYMENT_WEBHOOK_SECRET` | for webhooks | Shared HMAC secret |
+| `PAYMENT_WEBHOOK_MAX_SKEW_SECONDS` | no | Callback timestamp tolerance, default 300 |
 | `PORT` / `HOST` | no | HTTP listener, default `3000` / `0.0.0.0` |
 | `LOG_LEVEL` | no | Pino level, default `info` |
 | `CORS_ORIGINS` | no | Comma-separated web origins; empty for native-only |
@@ -168,9 +200,11 @@ guards, encryption, OTP limits, refresh rotation and the HTTP bootstrap.
 
 ## Next step
 
-1. Connect a real SMS partner behind `SmsSender`.
-2. Connect the pricing and payout providers, then implement estimate, quote and
-   initiate against the existing `quotes`, `quote_routes` and `trades` tables.
-3. Connect destination name checks for `/beneficiaries/check`.
-4. Add the trade list, history, analytics/export and invoice/share handlers.
-5. Add payment webhooks, payouts and refunds in B3.
+1. Build the B4 P2P matching engine and call the B2.4 payout saga.
+2. Connect approved bank payout rails and a liquidity provider.
+3. Add a scheduled worker for pending payouts/refunds, quote expiry and
+   provider-statement reconciliation.
+4. Connect destination name checks for `/beneficiaries/check`.
+5. Add analytics/export and invoice/share handlers.
+6. Replace the sandbox adapter with approved real providers when contracts
+   exist.

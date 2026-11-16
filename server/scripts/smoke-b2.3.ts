@@ -95,6 +95,11 @@ async function main(): Promise<void> {
       limitTimezone: 'UTC',
       collectionPushTimeoutSeconds: 120,
       collectionPollIntervalSeconds: 5,
+      paymentCallbackUrl: process.env['SMOKE_CALLBACK_URL'],
+      paymentWebhookSecret: process.env['PAYMENT_WEBHOOK_SECRET']
+        ? Buffer.from(process.env['PAYMENT_WEBHOOK_SECRET'], 'utf8')
+        : null,
+      paymentWebhookMaxSkewSeconds: 300,
     };
 
     app = await buildServer(context);

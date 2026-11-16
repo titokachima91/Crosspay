@@ -146,6 +146,11 @@ const app = await buildServer(
     limitTimezone,
     collectionPushTimeoutSeconds: positiveInt('COLLECTION_PUSH_TIMEOUT_SECONDS', 120),
     collectionPollIntervalSeconds: positiveInt('COLLECTION_POLL_INTERVAL_SECONDS', 5),
+    paymentCallbackUrl: process.env['PAYMENT_CALLBACK_URL'],
+    paymentWebhookSecret: process.env['PAYMENT_WEBHOOK_SECRET']
+      ? Buffer.from(process.env['PAYMENT_WEBHOOK_SECRET'], 'utf8')
+      : null,
+    paymentWebhookMaxSkewSeconds: positiveInt('PAYMENT_WEBHOOK_MAX_SKEW_SECONDS', 300),
   },
   { logger, corsOrigins },
 );

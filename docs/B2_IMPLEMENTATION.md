@@ -6,6 +6,7 @@
 **Depends on**: `docs/B1_IMPLEMENTATION.md`, `docs/api_contract.md`
 **Code**: `server/src/http/`, `server/test/http-bootstrap.test.ts`
 **Next records**: `docs/B2_2_IMPLEMENTATION.md` (rates, estimate and quote),
+`docs/B2_3_B2_4_IMPLEMENTATION.md` (collections, payouts, refunds, callbacks),
 `docs/OTP_WIRING_PLAN.md` (HTTP SMS adapter and provisional sender)
 
 ---

@@ -355,13 +355,17 @@ export class SandboxPaymentProvider implements PaymentProvider {
   }
 
   async createPayout(input: PayoutInput): Promise<PaymentPayout> {
+    const provider =
+      input.provider ??
+      input.institutionId ??
+      (await this.resolveProvider(input.currency, input.phoneNumber));
     const { body } = await this.request('POST', '/api/sandbox/psp/payouts', {
       idempotencyKey: input.transactionRef,
       body: {
         phoneNumber: input.phoneNumber,
         amountMinor: input.amountMinor,
         currency: input.currency,
-        provider: input.provider,
+        provider,
         institutionId: input.institutionId,
         transactionRef: input.transactionRef,
         callbackUrl: input.callbackUrl,
