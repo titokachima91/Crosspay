@@ -14,6 +14,7 @@ import { registerBeneficiaryRoutes } from './routes/beneficiaries.js';
 import { registerPricingRoutes } from './routes/pricing.js';
 import { registerTradeRoutes } from './routes/trades.js';
 import { registerPaymentRoutes } from './routes/payments.js';
+import { registerMatchingRoutes } from './routes/matching.js';
 import { registerWebhookRoutes } from './routes/webhooks.js';
 import { registerUnavailableRoutes } from './routes/unavailable.js';
 
@@ -159,6 +160,7 @@ export async function buildServer(
     registerPricingRoutes(api, ctx);
     registerTradeRoutes(api, ctx);
     registerPaymentRoutes(api, ctx);
+    registerMatchingRoutes(api, ctx);
     registerWebhookRoutes(api, ctx);
     registerUnavailableRoutes(api, ctx);
   }, { prefix: '/api/v1' });

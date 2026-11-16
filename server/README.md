@@ -10,11 +10,14 @@ Node.js + TypeScript service for CrossPay.
 - **B2.3** — trade initiation, collection lifecycle and trade reads. Built
   2026-11-16.
 - **B2.4** — payouts, refunds and signed provider callbacks. Built 2026-11-16.
+- **B4** — P2P matching v1: FIFO full-fill, two-leg payout saga, compensation
+  and corridor controls. Built 2026-11-16.
 
 The Flutter app remains the only client contract. `docs/api_contract.md` is the
 contract of record. The B1 plan is `docs/B1_DATABASE_PLAN.md`; the build evidence
 is `docs/B1_IMPLEMENTATION.md`, `docs/B2_IMPLEMENTATION.md`,
-`docs/B2_2_IMPLEMENTATION.md` and `docs/B2_3_B2_4_IMPLEMENTATION.md`.
+`docs/B2_2_IMPLEMENTATION.md`, `docs/B2_3_B2_4_IMPLEMENTATION.md` and
+`docs/B4_MATCHING_IMPLEMENTATION.md`.
 
 ---
 
@@ -100,6 +103,8 @@ database, a migration or a log line.
 | POST | `/api/v1/trades/{id}/cancel` | Cancels a pending deposit |
 | POST | `/api/v1/trades/{id}/disburse` | Starts/resumes a payout |
 | POST | `/api/v1/trades/{id}/refund` | Provider-confirmed full refund |
+| POST | `/api/v1/trades/{id}/match` | One FIFO P2P match attempt |
+| POST | `/api/v1/matches/{id}/disburse` | Pays/resumes both match legs |
 | POST | `/api/v1/webhooks/payments/{provider}` | Signed provider callback |
 | GET | `/api/v1/market/depth` | `503 MARKET_DATA_NOT_CONFIGURED` |
 
@@ -124,8 +129,8 @@ npm run verify:local
 applies every migration and the seed, then exercises the schema, quote
 lifecycle, trade timeline, idempotency race, ledger balance rules, append-only
 guards, encryption, OTP limits, refresh rotation, the HTTP bootstrap,
-collections, payouts, refunds and signed callbacks.
-**74 tests pass.** No Docker or local PostgreSQL installation is required.
+collections, payouts, refunds, signed callbacks and P2P matching.
+**79 tests pass.** No Docker or local PostgreSQL installation is required.
 
 Live provider smokes (with the sandbox running):
 
@@ -133,6 +138,7 @@ Live provider smokes (with the sandbox running):
 SANDBOX_API_KEY_CROSSPAY=<key> npm run smoke:b2.3
 SANDBOX_API_KEY_CROSSPAY=<key> npm run smoke:b2.4
 SANDBOX_API_KEY_CROSSPAY=<key> npm run smoke:webhooks
+SANDBOX_API_KEY_CROSSPAY=<key> npm run smoke:b4
 ```
 
 `npm run verify` is for a real database. It checks migration state, the five
@@ -159,6 +165,7 @@ SANDBOX_API_KEY_CROSSPAY=<key> npm run smoke:webhooks
 | `PAYMENT_CALLBACK_URL` | no | Public URL sent to the provider |
 | `PAYMENT_WEBHOOK_SECRET` | for webhooks | Shared HMAC secret |
 | `PAYMENT_WEBHOOK_MAX_SKEW_SECONDS` | no | Callback timestamp tolerance, default 300 |
+| `P2P_ENABLED` | no | Matching kill switch, default `false`; corridors live in `p2p_corridors` |
 | `PORT` / `HOST` | no | HTTP listener, default `3000` / `0.0.0.0` |
 | `LOG_LEVEL` | no | Pino level, default `info` |
 | `CORS_ORIGINS` | no | Comma-separated web origins; empty for native-only |
@@ -200,11 +207,11 @@ SANDBOX_API_KEY_CROSSPAY=<key> npm run smoke:webhooks
 
 ## Next step
 
-1. Build the B4 P2P matching engine and call the B2.4 payout saga.
-2. Connect approved bank payout rails and a liquidity provider.
-3. Add a scheduled worker for pending payouts/refunds, quote expiry and
-   provider-statement reconciliation.
-4. Connect destination name checks for `/beneficiaries/check`.
-5. Add analytics/export and invoice/share handlers.
-6. Replace the sandbox adapter with approved real providers when contracts
+1. Add a scheduled worker for match deadlines, pending payouts/refunds, quote
+   expiry and provider-statement reconciliation.
+2. Add liquidity-provider standing orders and the ops/dashboard surface
+   (B4.4/B4.5).
+3. Connect approved bank payout rails and name-check/KYC adapters.
+4. Add analytics/export and invoice/share handlers.
+5. Replace the sandbox adapter with approved real providers when contracts
    exist.

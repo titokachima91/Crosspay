@@ -151,6 +151,7 @@ const app = await buildServer(
       ? Buffer.from(process.env['PAYMENT_WEBHOOK_SECRET'], 'utf8')
       : null,
     paymentWebhookMaxSkewSeconds: positiveInt('PAYMENT_WEBHOOK_MAX_SKEW_SECONDS', 300),
+    p2pEnabled: (process.env['P2P_ENABLED'] ?? 'false').trim().toLowerCase() === 'true',
   },
   { logger, corsOrigins },
 );

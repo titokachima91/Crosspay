@@ -153,7 +153,7 @@ sandbox adapter for real money.
 ## 5. Verification
 
 - `npm run typecheck` clean.
-- `npm test` **74/74**, 15 suites.
+- `npm test` **79/79**, 16 suites.
 - Adapter tests cover collection/payout idempotency, provider discovery by
   currency and phone prefix, refund, bank account read/transfer, rejection,
   outage and malformed responses.
@@ -174,13 +174,16 @@ sandbox adapter for real money.
 
 1. **Bank payout rails** — need an approved partner account contract and a
    configured source account per currency.
-2. **Scheduled worker** — retry pending refunds/payouts, expire stale quotes and
-   reconcile provider statements.
+2. **Scheduled worker** — retry pending refunds/payouts, sweep match deadlines,
+   expire stale quotes and reconcile provider statements.
 3. **Real provider adapters and contract tests** — keep the sandbox as the
    reference.
-4. **P2P matching engine** — call the B2.4 payout saga once a funded trade is
-   matched; the engine belongs in CrossPay.
+4. **Liquidity providers and ops dashboard** — standing orders, corridor
+   exposure monitoring and manual match controls (B4.4/B4.5).
 5. **KYC/name-check adapters** — still disconnected.
+
+The P2P matching engine (B4 v1) now calls this adapter's match-mode payout; see
+`docs/B4_MATCHING_IMPLEMENTATION.md`.
 
 The sandbox adapter is the reference implementation, not a production payment
 provider.

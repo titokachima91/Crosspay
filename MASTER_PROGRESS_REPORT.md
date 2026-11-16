@@ -4,7 +4,7 @@
 **Project**: CrossPay
 **Package**: crosspay_app
 **Environment**: macOS Monterey | Flutter 3.24.5 | Dart 3.5.4 | Node 24 | PostgreSQL 17 for the API | SQLite for the sandbox
-**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3 and B2.4 complete · sandbox reference implementation complete · live collection, payout and signed-callback flow verified · the P2P matching engine and B3 remain
+**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 matching v1 complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · B3 scheduled reconciliation and B4.4/B4.5 liquidity/ops remain
 
 ---
 
@@ -195,21 +195,39 @@ connected.
 - Live smoke: TZS collection → sandbox FX liquidity → KES mobile-money payout →
   signed callback → `completed`.
 
+**B4 status**: matching v1 built and tested 2026-11-16 →
+`docs/B4_MATCHING_IMPLEMENTATION.md`.
+
+- Only funded `escrowed` mobile-money trades enter the queue; matching is
+  `P2P_ENABLED=true` plus an enabled `p2p_corridors` row with an exposure cap.
+  Nothing is enabled by default.
+- FIFO full-fill: oldest opposite trade, deterministic trade-id tie-break,
+  both rows locked in one transaction.
+- Match ledger is single-currency: `p2p_settlement` releases the counterpart's
+  principal and creates the payout payable; spread goes to `3100` spread
+  revenue. No FX journal for a matched pair.
+- Two-leg saga: a first-leg failure refunds both legs; a second-leg failure
+  refunds the second leg and books a `p2p_compensation` treasury advance.
+- Match deadline expiry refunds the trade. A scheduler is still needed to sweep
+  deadlines and pending legs.
+- Live smoke: two real sandbox collections in opposite directions matched, both
+  payouts completed, match `released`, every journal balanced.
+
 ### B3 Payments
 - [x] B3.1 Inbound webhook (delivered in B2.4)
-- [ ] B3.2 P2P queue
+- [ ] B3.2 P2P queue (delivered in B4; scheduled sweep remains)
 - [x] B3.3 Refund worker primitive (delivered in B2.4; scheduled retries remain)
 
-### B4 P2P matching engine (planned)
-- [ ] B4.1 Funded-trade queue and eligibility
-- [ ] B4.2 FIFO full-fill matcher with row locks
-- [ ] B4.3 Two-leg payout saga and compensation
-- [ ] B4.4 Corridor exposure and liquidity providers
-- [ ] B4.5 CrossPay ops dashboard and app matching states
+### B4 P2P matching engine (v1 built)
+- [x] B4.1 Funded-trade queue and eligibility
+- [x] B4.2 FIFO full-fill matcher with row locks
+- [x] B4.3 Two-leg payout saga and compensation
+- [ ] B4.4 Corridor exposure and liquidity providers (exposure caps exist; LP standing orders do not)
+- [ ] B4.5 CrossPay ops dashboard and app matching states (app states exist; ops dashboard does not)
 
-**Plan**: `docs/P2P_MATCHING_PLAN.md`. The matching engine lives in CrossPay,
-not in the sandbox. The sandbox remains a provider simulator and must follow
-real provider rules, not CrossPay's convenience.
+**Built**: `docs/B4_MATCHING_IMPLEMENTATION.md`. Matching is off by
+`P2P_ENABLED=false` and per-corridor rows in `p2p_corridors`; no corridor is
+seeded. The engine lives in CrossPay, not in the sandbox.
 
 ---
 
@@ -482,20 +500,18 @@ Completed:
 - Verified snapshots of both projects.
 
 Next, in order:
-1. **B4 P2P matching engine** — funded-trade queue, FIFO full-fill, two-leg
-   payout saga, exposure and liquidity controls. Plan:
-   `docs/P2P_MATCHING_PLAN.md`. The engine lives in CrossPay, never in the
-   sandbox. B2.4 exposes the payout saga it will call.
-2. **Bank payouts and KYC/name-check adapters** — mobile-money payout, refunds
-   and signed callbacks are built; bank payout rails need an approved partner
-   account contract. Plan: `docs/PAYMENT_ADAPTERS.md`.
-3. **Scheduled reconciliation worker** — retry pending refunds/payouts, expire
-   stale quotes and reconcile provider statements; the primitives exist.
+1. **Scheduled worker** — sweep match deadlines and pending payouts, retry
+   refunds, expire stale quotes and reconcile provider statements.
+2. **Liquidity providers and corridor policy** — standing orders, LP limits,
+   exposure monitoring and the ops dashboard (B4.4/B4.5).
+3. **Bank payouts and KYC/name-check adapters** — mobile-money payout, refunds,
+   callbacks and matching are built; bank rails need an approved partner
+   account contract.
 4. **F5.3 remainder** — biometrics and app-side refresh-token handling.
 5. Replace the sandbox pricing/collection/payout adapters with approved real
    providers when contracts exist.
 
-Git: branch `fix/theme-system` is local. B2.3/B2.4 are committed locally;
+Git: branch `fix/theme-system` is local. B2.3/B2.4/B4 are committed locally;
 nothing has been pushed.
 
 ---

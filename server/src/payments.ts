@@ -174,24 +174,19 @@ async function railKind(
 /** Posts the FX and payout journals exactly once for one payout. */
 async function postPayoutLedgers(
   client: PoolClient,
-  input: { trade: TradeRow; payout: PayoutRow; providerFeeMinor: bigint },
+  input: {
+    trade: TradeRow;
+    payout: PayoutRow;
+    providerFeeMinor: bigint;
+    mode: DisbursementMode;
+    matchId?: string;
+    counterpart?: TradeRow;
+  },
 ): Promise<void> {
-  const { trade, payout, providerFeeMinor } = input;
+  const { trade, payout, providerFeeMinor, mode } = input;
   const sendAmount = BigInt(trade.send_amount_minor);
   const receiveAmount = BigInt(trade.receive_amount_minor);
 
-  const sendPayable = await ledgerAccountId(client, {
-    code: '2000',
-    currency: trade.send_currency,
-  });
-  const sendFxClearing = await ledgerAccountId(client, {
-    code: '5000',
-    currency: trade.send_currency,
-  });
-  const receiveFxClearing = await ledgerAccountId(client, {
-    code: '5000',
-    currency: trade.receive_currency,
-  });
   const receivePayable = await ledgerAccountId(client, {
     code: '2000',
     currency: trade.receive_currency,
@@ -201,33 +196,84 @@ async function postPayoutLedgers(
     currency: trade.receive_currency,
   });
 
-  // Two linked single-currency journals. They are never summed together: the
-  // FX clearing account is the bridge, and fx_group_id is the only link.
-  await postJournalOnce(client, {
-    postingKey: `trade:${trade.id}:fx:source`,
-    kind: 'fx_conversion',
-    currencyCode: trade.send_currency,
-    tradeId: trade.id,
-    payoutId: payout.id,
-    fxGroupId: payout.id,
-    lines: [
-      { accountId: sendPayable, amountMinor: sendAmount },
-      { accountId: sendFxClearing, amountMinor: -sendAmount },
-    ],
-  });
+  if (mode === 'direct') {
+    const sendPayable = await ledgerAccountId(client, {
+      code: '2000',
+      currency: trade.send_currency,
+    });
+    const sendFxClearing = await ledgerAccountId(client, {
+      code: '5000',
+      currency: trade.send_currency,
+    });
+    const receiveFxClearing = await ledgerAccountId(client, {
+      code: '5000',
+      currency: trade.receive_currency,
+    });
 
-  await postJournalOnce(client, {
-    postingKey: `trade:${trade.id}:fx:destination`,
-    kind: 'fx_conversion',
-    currencyCode: trade.receive_currency,
-    tradeId: trade.id,
-    payoutId: payout.id,
-    fxGroupId: payout.id,
-    lines: [
-      { accountId: receiveFxClearing, amountMinor: receiveAmount },
-      { accountId: receivePayable, amountMinor: -receiveAmount },
-    ],
-  });
+    // Two linked single-currency journals. They are never summed together: the
+    // FX clearing account is the bridge, and fx_group_id is the only link.
+    await postJournalOnce(client, {
+      postingKey: `trade:${trade.id}:fx:source`,
+      kind: 'fx_conversion',
+      currencyCode: trade.send_currency,
+      tradeId: trade.id,
+      payoutId: payout.id,
+      fxGroupId: payout.id,
+      lines: [
+        { accountId: sendPayable, amountMinor: sendAmount },
+        { accountId: sendFxClearing, amountMinor: -sendAmount },
+      ],
+    });
+
+    await postJournalOnce(client, {
+      postingKey: `trade:${trade.id}:fx:destination`,
+      kind: 'fx_conversion',
+      currencyCode: trade.receive_currency,
+      tradeId: trade.id,
+      payoutId: payout.id,
+      fxGroupId: payout.id,
+      lines: [
+        { accountId: receiveFxClearing, amountMinor: receiveAmount },
+        { accountId: receivePayable, amountMinor: -receiveAmount },
+      ],
+    });
+  } else {
+    const matchId = input.matchId;
+    const counterpart = input.counterpart;
+    if (!matchId || !counterpart) {
+      throw new AppError(500, 'MATCH_CONTEXT_MISSING', 'The matched payout has no counterpart');
+    }
+    if (counterpart.send_currency !== trade.receive_currency) {
+      throw new AppError(500, 'MATCH_CURRENCY_MISMATCH', 'The match legs do not line up');
+    }
+    const sourceAmount = BigInt(counterpart.send_amount_minor);
+    if (sourceAmount < receiveAmount) {
+      throw new AppError(409, 'MATCH_UNDERFUNDED', 'The counterpart does not cover this payout');
+    }
+    const spread = sourceAmount - receiveAmount;
+    const spreadRevenue =
+      spread > 0n
+        ? await ledgerAccountId(client, { code: '3100', currency: trade.receive_currency })
+        : null;
+
+    // The counterpart's collected principal pays this leg. Both sides remain
+    // in the same currency, so this is a P2P settlement, not an FX conversion.
+    await postJournalOnce(client, {
+      postingKey: `match:${matchId}:settle:${trade.id}`,
+      kind: 'p2p_settlement',
+      currencyCode: trade.receive_currency,
+      tradeId: trade.id,
+      payoutId: payout.id,
+      fxGroupId: matchId,
+      lines: [
+        { accountId: receivePayable, amountMinor: sourceAmount },
+        { accountId: receivePayable, amountMinor: -receiveAmount },
+        ...(spreadRevenue && spread > 0n
+          ? [{ accountId: spreadRevenue, amountMinor: -spread }]
+          : []),
+      ],
+    });
+  }
 
   if (providerFeeMinor > 0n) {
     const payoutExpense = await ledgerAccountId(client, {
@@ -275,20 +321,50 @@ export interface DisbursementResult {
  * provider call happens outside the database transaction; the deterministic
  * provider reference makes a retry after a crash safe.
  */
+export type DisbursementMode = 'direct' | 'match';
+
+export interface DisbursementInput {
+  /** The signed-in owner for the app route; omitted for the match saga. */
+  userId?: string;
+  tradeId: string;
+  mode?: DisbursementMode;
+  matchId?: string;
+}
+
+/**
+ * Starts or resumes a payout for an escrowed/matched trade.
+ *
+ * `direct` pays from CrossPay liquidity and posts the two FX journals. `match`
+ * is called by the P2P saga and pays from the counterpart's collected
+ * principal, so it posts a single-currency `p2p_settlement` journal instead.
+ * The provider call happens outside the database transaction; the
+ * deterministic provider reference makes a retry after a crash safe.
+ */
 export async function startDisbursement(
   ctx: AppContext,
-  input: { userId: string; tradeId: string },
+  input: DisbursementInput,
 ): Promise<DisbursementResult> {
+  const mode = input.mode ?? 'direct';
   const prepared = await withTransaction(ctx.pool, async (client) => {
-    let trade = await findTradeForUser(client, {
-      userId: input.userId,
-      tradeId: input.tradeId,
-      forUpdate: true,
-    });
+    let trade: TradeRow;
+    if (input.userId) {
+      trade = await findTradeForUser(client, {
+        userId: input.userId,
+        tradeId: input.tradeId,
+        forUpdate: true,
+      });
+    } else {
+      const rows = await client.query<TradeRow>(
+        `SELECT * FROM trades WHERE id = $1 FOR UPDATE`,
+        [input.tradeId],
+      );
+      if (!rows.rows[0]) throw notFound('TRADE_NOT_FOUND', 'Trade not found');
+      trade = rows.rows[0];
+    }
 
     if (trade.status === 'completed') {
       const payout = await loadPayout(client, trade.id);
-      if (payout) return { done: true as const, trade, payout };
+      if (payout) return { done: true as const, trade, payout, counterpart: null };
     }
     if (['cancelled', 'refunded', 'failed', 'expired'].includes(trade.status)) {
       throw conflict('TRADE_NOT_DISBURSABLE', 'This trade can no longer be paid out');
@@ -303,21 +379,57 @@ export async function startDisbursement(
       );
     }
 
-    if (trade.status === 'escrowed') {
-      trade = await setTradeStatus(client, {
-        tradeId: trade.id,
-        from: ['escrowed'],
-        to: 'matching',
-        actor: 'server',
-      });
-    }
-    if (trade.status === 'matching') {
-      trade = await setTradeStatus(client, {
-        tradeId: trade.id,
-        from: ['matching'],
-        to: 'matched',
-        actor: 'server',
-      });
+    let counterpart: TradeRow | null = null;
+    if (mode === 'match') {
+      if (!input.matchId) {
+        throw conflict('MATCH_REQUIRED', 'A matched payout needs a match id');
+      }
+      const match = await client.query<{
+        id: string;
+        buy_trade_id: string;
+        sell_trade_id: string;
+        status: string;
+      }>(
+        `SELECT id, buy_trade_id, sell_trade_id, status
+         FROM p2p_matches WHERE id = $1 FOR UPDATE`,
+        [input.matchId],
+      );
+      const row = match.rows[0];
+      if (!row) throw notFound('MATCH_NOT_FOUND', 'Match not found');
+      if (['failed', 'cancelled'].includes(row.status)) {
+        throw conflict('MATCH_NOT_DISBURSABLE', 'This match can no longer be paid out');
+      }
+      if (row.buy_trade_id !== trade.id && row.sell_trade_id !== trade.id) {
+        throw conflict('MATCH_MISMATCH', 'The trade does not belong to this match');
+      }
+      if (!['matched', 'disbursing'].includes(trade.status)) {
+        throw conflict('TRADE_NOT_DISBURSABLE', 'The trade is not in a matched state');
+      }
+      const counterpartId =
+        row.buy_trade_id === trade.id ? row.sell_trade_id : row.buy_trade_id;
+      const opposite = await client.query<TradeRow>(
+        `SELECT * FROM trades WHERE id = $1 FOR UPDATE`,
+        [counterpartId],
+      );
+      counterpart = opposite.rows[0] ?? null;
+      if (!counterpart) throw notFound('TRADE_NOT_FOUND', 'The counterpart trade is missing');
+    } else {
+      if (trade.status === 'escrowed') {
+        trade = await setTradeStatus(client, {
+          tradeId: trade.id,
+          from: ['escrowed'],
+          to: 'matching',
+          actor: 'server',
+        });
+      }
+      if (trade.status === 'matching') {
+        trade = await setTradeStatus(client, {
+          tradeId: trade.id,
+          from: ['matching'],
+          to: 'matched',
+          actor: 'server',
+        });
+      }
     }
 
     let payout = await loadPayout(client, trade.id, true);
@@ -337,10 +449,10 @@ export async function startDisbursement(
       payout = inserted.rows[0] as PayoutRow;
     }
     if (payout.status === 'paid') {
-      return { done: true as const, trade, payout };
+      return { done: true as const, trade, payout, counterpart };
     }
 
-    return { done: false as const, trade, payout };
+    return { done: false as const, trade, payout, counterpart };
   });
 
   if (prepared.done) {
@@ -367,6 +479,13 @@ export async function startDisbursement(
       });
     } catch (error) {
       if (error instanceof PaymentRejectedError) {
+        if (mode === 'match') {
+          await markPayoutFailed(ctx, {
+            payoutId: prepared.payout.id,
+            errorCode: error.code,
+          });
+          return readDisbursement(ctx, prepared.payout.id);
+        }
         await failPayout(ctx, {
           payoutId: prepared.payout.id,
           errorCode: error.code,
@@ -387,14 +506,87 @@ export async function startDisbursement(
   return applyPayoutSnapshot(ctx, {
     payoutId: prepared.payout.id,
     snapshot,
+    mode,
+    matchId: input.matchId,
+  });
+}
+
+async function readDisbursement(
+  ctx: AppContext,
+  payoutId: string,
+): Promise<DisbursementResult> {
+  const row = await withTransaction(ctx.pool, async (client) => {
+    const payout = await client.query<PayoutRow>(
+      `SELECT ${PAYOUT_COLUMNS} FROM payouts WHERE id = $1`,
+      [payoutId],
+    );
+    const found = payout.rows[0];
+    if (!found) return { payout: undefined, trade: undefined };
+    const trade = await client.query<TradeRow>(
+      `SELECT * FROM trades WHERE id = $1`,
+      [found.trade_id],
+    );
+    return { payout: found, trade: trade.rows[0] };
+  });
+  if (!row.payout || !row.trade) throw notFound('PAYOUT_NOT_FOUND', 'Payout not found');
+  return { trade: mapTrade(row.trade), payout: mapPayout(row.payout) };
+}
+
+async function markPayoutFailed(
+  ctx: AppContext,
+  input: { payoutId: string; errorCode: string },
+): Promise<void> {
+  await withTransaction(ctx.pool, async (client) => {
+    const locked = await client.query<PayoutRow>(
+      `SELECT ${PAYOUT_COLUMNS} FROM payouts WHERE id = $1 FOR UPDATE`,
+      [input.payoutId],
+    );
+    const payout = locked.rows[0];
+    if (!payout) return;
+    const trade = await client.query<TradeRow>(
+      `SELECT * FROM trades WHERE id = $1 FOR UPDATE`,
+      [payout.trade_id],
+    );
+    await client.query(
+      `UPDATE payouts
+       SET status = 'failed', last_error_code = $2, completed_at = now()
+       WHERE id = $1 AND status IN ('pending', 'submitted')`,
+      [payout.id, input.errorCode.slice(0, 64)],
+    );
+    const row = trade.rows[0];
+    if (row) {
+      if (row.status === 'matched') {
+        await setTradeStatus(client, {
+          tradeId: row.id,
+          from: ['matched'],
+          to: 'disbursing',
+          actor: 'provider',
+        });
+      }
+      if (row.status === 'matched' || row.status === 'disbursing') {
+        await setTradeStatus(client, {
+          tradeId: row.id,
+          from: ['disbursing'],
+          to: 'failed',
+          actor: 'provider',
+          failureCode: 'PAYOUT_FAILED',
+        });
+      }
+    }
   });
 }
 
 /** Applies one provider payout snapshot. Safe to call again with the same data. */
 export async function applyPayoutSnapshot(
   ctx: AppContext,
-  input: { payoutId: string; snapshot: PaymentPayout },
+  input: {
+    payoutId: string;
+    snapshot: PaymentPayout;
+    mode?: DisbursementMode;
+    matchId?: string;
+  },
 ): Promise<DisbursementResult> {
+  const mode = input.mode ?? 'direct';
   const applied = await withTransaction(ctx.pool, async (client) => {
     const locked = await client.query<PayoutRow>(
       `SELECT ${PAYOUT_COLUMNS} FROM payouts WHERE id = $1 FOR UPDATE`,
@@ -408,6 +600,25 @@ export async function applyPayoutSnapshot(
     );
     const trade = tradeResult.rows[0];
     if (!trade) throw notFound('TRADE_NOT_FOUND', 'Trade not found');
+
+    let counterpart: TradeRow | null = null;
+    if (mode === 'match') {
+      if (!input.matchId) throw conflict('MATCH_REQUIRED', 'The matched payout has no match id');
+      const match = await client.query<{ buy_trade_id: string; sell_trade_id: string }>(
+        `SELECT buy_trade_id, sell_trade_id FROM p2p_matches WHERE id = $1`,
+        [input.matchId],
+      );
+      const row = match.rows[0];
+      if (!row) throw notFound('MATCH_NOT_FOUND', 'Match not found');
+      const counterpartId =
+        row.buy_trade_id === trade.id ? row.sell_trade_id : row.buy_trade_id;
+      const opposite = await client.query<TradeRow>(
+        `SELECT * FROM trades WHERE id = $1`,
+        [counterpartId],
+      );
+      counterpart = opposite.rows[0] ?? null;
+      if (!counterpart) throw notFound('TRADE_NOT_FOUND', 'The counterpart trade is missing');
+    }
 
     if (payout.status === 'paid' || trade.status === 'completed') {
       return { kind: 'paid' as const, trade, payout };
@@ -489,6 +700,9 @@ export async function applyPayoutSnapshot(
       trade,
       payout,
       providerFeeMinor: BigInt(input.snapshot.feeMinor ?? 0),
+      mode,
+      matchId: input.matchId,
+      counterpart: counterpart ?? undefined,
     });
     await client.query(
       `UPDATE payouts SET status = 'paid', completed_at = now()
@@ -513,7 +727,7 @@ export async function applyPayoutSnapshot(
     return { kind: 'paid' as const, trade: completed, payout };
   });
 
-  if (applied.kind === 'failed') {
+  if (applied.kind === 'failed' && mode === 'direct') {
     await refundTrade(ctx, {
       tradeId: applied.trade.id,
       reasonCode: 'payout_failed',

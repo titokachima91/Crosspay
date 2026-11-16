@@ -5,6 +5,7 @@ import type { AppContext } from './http/context.js';
 import { withTransaction } from './db/pool.js';
 import { AppError, unprocessable } from './http/errors.js';
 import { refundTrade, paymentFailure } from './payments.js';
+import { tryMatchTrade } from './matching.js';
 import {
   applyCollectionResult,
   findPaymentAttemptByReference,
@@ -237,6 +238,10 @@ export async function handleCollectionCallback(
       });
       throw error;
     }
+  }
+
+  if (applied.outcome === 'escrowed' && applied.tradeId && ctx.p2pEnabled) {
+    await tryMatchTrade(ctx, { tradeId: applied.tradeId }).catch(() => undefined);
   }
 
   return {

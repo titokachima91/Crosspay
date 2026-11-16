@@ -22,4 +22,6 @@ export interface AppContext {
   /** HMAC secret for provider callbacks; null keeps the endpoint honest. */
   paymentWebhookSecret?: Uint8Array | null;
   paymentWebhookMaxSkewSeconds: number;
+  /** Matching is opt-in; the default false keeps every corridor disabled. */
+  p2pEnabled: boolean;
 }

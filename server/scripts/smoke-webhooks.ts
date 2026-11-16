@@ -127,6 +127,7 @@ async function main(): Promise<void> {
       paymentCallbackUrl: `http://127.0.0.1:${port}/api/v1/webhooks/payments/sandbox`,
       paymentWebhookSecret: Buffer.from(webhookSecret, 'utf8'),
       paymentWebhookMaxSkewSeconds: 300,
+      p2pEnabled: false,
     };
     app = await buildServer(context);
     await app.listen({ port, host: '127.0.0.1' });

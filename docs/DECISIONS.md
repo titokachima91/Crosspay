@@ -100,3 +100,19 @@ Backend collections, payouts and refunds (B2.3/B2.4)
   CrossPay does not hardcode provider routing.
 - The sandbox needed a separate KES pay-in to fund a KES payout. That is test
   liquidity in the simulator, not an invented production balance.
+
+P2P matching (B4 v1)
+- Collect first, match second. Only funded escrowed trades enter the queue.
+- FIFO full-fill at the platform quote. No order book, no partial fills.
+- Matching is off unless `P2P_ENABLED=true` AND an enabled corridor row with an
+  exposure cap exists. No policy lives in code.
+- A match is single-currency per leg: the counterpart's principal pays the
+  payout, with the residual booked to spread revenue. No FX journal.
+- A first-leg failure refunds both customers. A second-leg failure after the
+  first paid refunds the second and books a treasury advance; the first stays
+  completed because its recipient was paid.
+- Match deadlines expire and refund. A scheduler is still required to sweep
+  them and pending legs.
+- The live smoke applies a test-only spread because the sandbox has a
+  reciprocal mid-rate. A real platform spread policy is not built yet.
+- Counterparty identity is never returned by the API.

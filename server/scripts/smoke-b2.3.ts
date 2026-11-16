@@ -100,6 +100,7 @@ async function main(): Promise<void> {
         ? Buffer.from(process.env['PAYMENT_WEBHOOK_SECRET'], 'utf8')
         : null,
       paymentWebhookMaxSkewSeconds: 300,
+      p2pEnabled: false,
     };
 
     app = await buildServer(context);

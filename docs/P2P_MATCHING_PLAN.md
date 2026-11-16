@@ -1,6 +1,13 @@
 # P2P matching engine — plan
 
-**Status**: proposed, not built
+**Status**: v1 built and verified 2026-11-16 →
+`docs/B4_MATCHING_IMPLEMENTATION.md`.
+**Built**: funded-trade FIFO full-fill, row-locked match creation, single-currency
+settlement journals, two-leg payout saga with first-leg refund and second-leg
+treasury compensation, match deadline expiry, per-corridor enablement and
+exposure caps, `P2P_ENABLED` kill switch.
+**Not built**: scheduled sweep, liquidity-provider standing orders, partial
+fills, ops dashboard, production corridor/spread approvals.
 **Date**: 2026-11-15
 **Owner**: CrossPay backend
 **Prerequisite status**: sandbox provider customers are built (PSP wallets, bank
@@ -377,9 +384,9 @@ estimated settlement time.
    - Honest provider failures.
 
 4. **Matching engine**
-   - Queue, eligibility, FIFO full-fill, match records, locks.
-   - Payout saga with compensation.
-   - Exposure and liquidity controls.
+   - [x] Queue, eligibility, FIFO full-fill, match records, locks.
+   - [x] Payout saga with first-leg refund and second-leg compensation.
+   - [ ] Exposure and liquidity controls beyond the per-corridor cap.
 
 5. **App integration**
    - Point the app at CrossPay API.

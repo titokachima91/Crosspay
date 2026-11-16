@@ -6,6 +6,8 @@ export type JournalKind =
   | 'payout_sent'
   | 'refund_paid'
   | 'fx_conversion'
+  | 'p2p_settlement'
+  | 'p2p_compensation'
   | 'adjustment'
   | 'opening_balance';
 

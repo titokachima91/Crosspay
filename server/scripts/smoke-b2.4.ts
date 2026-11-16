@@ -87,6 +87,7 @@ async function main(): Promise<void> {
       collectionPollIntervalSeconds: 5,
       paymentWebhookSecret: null,
       paymentWebhookMaxSkewSeconds: 300,
+      p2pEnabled: false,
     };
     app = await buildServer(context);
     await app.ready();

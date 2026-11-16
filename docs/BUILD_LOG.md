@@ -565,4 +565,33 @@ KYC/name-check adapters.
 
 ---
 
+## 2026-11-16 - B4 P2P matching engine v1
+
+Funded opposite trades now match and pay both legs.
+
+- Migration `0008_p2p_matching.sql`: `match_rate`, `p2p_match_events`,
+  `match_deadline_at`, `p2p_corridors`, queue index and the new
+  `p2p_settlement`/`p2p_compensation` journal kinds.
+- `P2P_ENABLED=false` by default; matching also needs an enabled
+  `p2p_corridors` row with an exposure cap. No corridor is seeded.
+- FIFO full-fill: oldest opposite `escrowed`/`matching` mobile-money trade,
+  both rows locked, deterministic trade-id tie-break, `p2p_matches` unique pair.
+- Match settlement is single-currency: release the counterpart's principal,
+  create the payout payable, book the residual to `3100` spread revenue. No FX
+  journal for a matched pair.
+- Two-leg saga: first-leg failure refunds both; second-leg failure refunds the
+  second and books a `p2p_compensation` treasury advance.
+- Deadlines expire and refund. Claim/webhook auto-match a newly funded trade.
+- Added `POST /trades/:id/match` and `POST /matches/:id/disburse` as
+  server/ops triggers; the app only displays `matching`/`matched`.
+- Verification: Node **79/79**, 16 suites, typecheck clean. Live `smoke:b4`
+  used two real sandbox collections in opposite directions; both payouts
+  completed, match `released`, every journal balanced.
+- Detail: `docs/B4_MATCHING_IMPLEMENTATION.md`.
+
+Remaining: scheduled sweep, liquidity-provider standing orders, ops dashboard,
+bank payout rails, KYC/name-check adapters, production corridor approvals.
+
+---
+
 ## Report End - No fluff. Just facts.

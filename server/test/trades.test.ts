@@ -120,6 +120,7 @@ before(async () => {
     collectionPollIntervalSeconds: 4,
     paymentWebhookSecret: null,
     paymentWebhookMaxSkewSeconds: 300,
+    p2pEnabled: false,
   };
 
   user = await createUser(db.pool, {

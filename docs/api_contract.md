@@ -386,6 +386,37 @@ Response:
 - A collection that arrives after cancellation is booked and refunded; the
   trade stays `cancelled` and the refund records the return.
 
+## POST /api/v1/trades/{id}/match   (login required; server/ops trigger)
+Header: X-Idempotency-Key
+Response:
+{
+  "matched": <bool>,
+  "expired": <bool, optional>,
+  "trade": <trade object>,
+  "match": {
+    "id": "<uuid>", "status": "locked | released | failed",
+    "rate": <number|null>, "buyCurrency": "<code>", "sellCurrency": "<code>",
+    "buyAmountMinor": <int>, "sellAmountMinor": <int>,
+    "matchedAt": "<ISO-8601 UTC|null>", "releasedAt": "<ISO-8601 UTC|null>"
+  }   (optional)
+}
+- `200` means matched or expired/refunded; `202` means still queued.
+- Only funded mobile-money trades enter the queue. Matching is disabled by
+  default (`503 MATCHING_DISABLED`).
+- No counterparty identity is ever returned.
+
+## POST /api/v1/matches/{id}/disburse   (login required; one leg's owner)
+Header: X-Idempotency-Key
+Response:
+{
+  "match": <match object>,
+  "legs": [ { "trade": <trade object>, "payout": <payout object> } ]
+}
+- Pays or resumes both legs. Safe to retry after a provider outage.
+- A first-leg failure refunds both legs; a second-leg failure refunds the
+  second leg and books a treasury compensation entry.
+- 4xx codes: MATCH_NOT_FOUND, MATCH_NOT_DISBURSABLE, MATCHING_DISABLED.
+
 ## POST /api/v1/webhooks/payments/{provider}   (provider only)
 Headers: X-Kachi-Timestamp, X-Kachi-Signature
 The signature is HMAC-SHA256 over `<timestamp>.<exact raw body>` with the

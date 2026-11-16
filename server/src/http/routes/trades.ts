@@ -42,6 +42,7 @@ import {
   type TradeView,
 } from '../../trades.js';
 import { refundTrade } from '../../payments.js';
+import { tryMatchTrade } from '../../matching.js';
 
 const accountSchema = z
   .string()
@@ -291,6 +292,12 @@ export function registerTradeRoutes(app: FastifyInstance, ctx: AppContext): void
     );
 
     if (result.replayed) reply.header('Idempotency-Replay', 'true');
+    if (ctx.p2pEnabled) {
+      const body = result.body as InitiateResponse;
+      if (body.trade.status === 'escrowed') {
+        await tryMatchTrade(ctx, { tradeId: body.trade.id, userId }).catch(() => undefined);
+      }
+    }
     return reply.code(result.status).send(result.body);
   });
 
@@ -401,6 +408,9 @@ export function registerTradeRoutes(app: FastifyInstance, ctx: AppContext): void
       body.trade = refunded.trade;
       body.refundStatus = refunded.refund.status;
       delete body.needsRefund;
+    }
+    if (ctx.p2pEnabled && body.trade.status === 'escrowed') {
+      await tryMatchTrade(ctx, { tradeId: id, userId }).catch(() => undefined);
     }
     return reply.code(result.status).send(body);
   });

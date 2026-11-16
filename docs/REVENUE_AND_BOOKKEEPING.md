@@ -50,6 +50,18 @@ the technical bridge between those two journals and is never summed across
 currencies. A provider fee charged on a payout is booked to `6000 Provider
 fees` in the payout currency, not netted out of an unrelated currency.
 
+| `3100` | Spread revenue | P2P match residual: counterpart principal minus the quoted payout |
+| `6000` | Provider fees | Provider payout fees in the payout currency |
+| `6100` | Compensation expense | Approved write-off of a treasury advance |
+| `7000` | CrossPay treasury funding | Liability created when treasury covers a failed matched leg |
+
+A matched P2P pair posts one `p2p_settlement` journal per currency: it releases
+the counterpart's principal, creates the other customer's payout payable and
+books the residual to `3100` spread revenue. No FX journal exists for a matched
+pair. When a second leg fails after the first paid, `7000` records the treasury
+advance that keeps partner trust cash from going negative; Finance can later
+write it off to `6100` after approval.
+
 ---
 
 ## 3. Admin bookkeeping shape (target)

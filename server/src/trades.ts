@@ -41,6 +41,7 @@ export interface TradeRow {
   verification_hash: string | null;
   current_payment_attempt_id: string | null;
   failure_code: string | null;
+  match_deadline_at: Date | null;
   created_at: Date;
   updated_at: Date;
   completed_at: Date | null;
@@ -93,8 +94,8 @@ export const TRADE_COLUMNS = `id, reference, user_id, quote_id, quote_route_id, 
   send_currency, receive_currency, send_amount_minor, fee_minor, fee_bps,
   receive_amount_minor, rate, beneficiary_name, beneficiary_rail_id,
   beneficiary_account_encrypted, beneficiary_account_last4, beneficiary_reference,
-  verification_hash, current_payment_attempt_id, failure_code, created_at,
-  updated_at, completed_at, cancelled_at`;
+  verification_hash, current_payment_attempt_id, failure_code, match_deadline_at,
+  created_at, updated_at, completed_at, cancelled_at`;
 
 const ATTEMPT_COLUMNS = `id, trade_id, provider, external_reference, method, amount_minor,
   currency_code, push_sent, network_name, push_timeout_seconds,

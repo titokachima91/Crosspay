@@ -121,10 +121,12 @@ VALUES
   ('pending_deposit', 'expired'),
   ('pending_deposit', 'failed'),
   ('pending_deposit', 'cancelled'),
+  ('escrowed', 'expired'),
   ('escrowed', 'matching'),
   ('escrowed', 'refunded'),
   ('escrowed', 'failed'),
   ('escrowed', 'cancelled'),
+  ('matching', 'expired'),
   ('matching', 'matched'),
   ('matching', 'refunded'),
   ('matching', 'failed'),
@@ -150,9 +152,12 @@ WITH chart(code, name, type, normal_side) AS (
     ('2000', 'Trade payable', 'liability', 'credit'),
     ('2100', 'Refund payable', 'liability', 'credit'),
     ('3000', 'Fee revenue', 'revenue', 'credit'),
+    ('3100', 'Spread revenue', 'revenue', 'credit'),
     ('4000', 'FX position', 'asset', 'debit'),
     ('5000', 'FX clearing', 'asset', 'debit'),
     ('6000', 'Provider fees', 'expense', 'debit'),
+    ('6100', 'Compensation expense', 'expense', 'debit'),
+    ('7000', 'CrossPay treasury funding', 'liability', 'credit'),
     ('9000', 'Suspense', 'liability', 'credit')
 )
 INSERT INTO ledger_accounts (code, name, type, normal_side, currency_code, is_provisional, active)

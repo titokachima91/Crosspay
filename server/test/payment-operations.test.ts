@@ -155,6 +155,7 @@ before(async () => {
     collectionPollIntervalSeconds: 4,
     paymentWebhookSecret: Buffer.from('webhook-secret'),
     paymentWebhookMaxSkewSeconds: 300,
+    p2pEnabled: false,
   };
 
   user = await createUser(db.pool, {
