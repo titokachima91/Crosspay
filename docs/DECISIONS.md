@@ -116,3 +116,13 @@ P2P matching (B4 v1)
 - The live smoke applies a test-only spread because the sandbox has a
   reciprocal mid-rate. A real platform spread policy is not built yet.
 - Counterparty identity is never returned by the API.
+
+Reconciliation worker
+- A single `runWorkerPass` is shared by the HTTP process (not automatically) and
+  `npm run worker`; the worker is a separate process so API latency is not tied
+  to provider retries.
+- Every pass is idempotent and safe to overlap with the API or another worker.
+- The worker expires quotes and match deadlines, resumes locked matches and
+  direct payouts, and retries pending refunds. It never invents a provider
+  status; it re-reads the provider's record.
+- `WORKER_ONCE=true` supports cron; the default interval is 30 seconds.

@@ -20,6 +20,7 @@
     "smoke:b2.4": "tsx scripts/smoke-b2.4.ts",
     "smoke:webhooks": "tsx scripts/smoke-webhooks.ts",
     "smoke:b4": "tsx scripts/smoke-b4.ts",
+    "worker": "tsx scripts/worker.ts",
     "test": "node --import tsx --test --test-concurrency=1 --test-reporter=tap test/*.test.ts",
     "test:spec": "node --import tsx --test --test-concurrency=1 --test-force-exit test/*.test.ts"
   },

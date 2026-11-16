@@ -173,8 +173,8 @@ Unit/integration suite: **74/74**, 15 suites, `npm run typecheck` clean.
 ## 5. Deliberate limits
 
 - Bank payouts are not connected; only mobile-money payouts are live.
-- There is no scheduler yet: pending payouts/refunds are resumed by an explicit
-  `disburse` retry or provider callback. The primitives are idempotent.
+- Pending payouts/refunds are resumed by the reconciliation worker
+  (`npm run worker`) or by an explicit retry; the primitives are idempotent.
 - The P2P matching engine is not built. B2.4 takes the direct-liquidity path and
   exposes the saga the engine will call.
 - The sandbox is a simulator. Its KES payable had to be funded before a KES

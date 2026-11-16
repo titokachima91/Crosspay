@@ -141,13 +141,21 @@ not by creating a second payout.
 
 ---
 
-## 6. Deadline and refund
+## 6. Deadline, refund and worker
 
 - A `matching`/`escrowed` trade past `match_deadline_at` moves to `expired` and
   is refunded by the same service call.
 - A trade cancelled before matching is refunded through the normal refund path.
-- No scheduler exists yet: a worker must sweep deadlines and pending legs.
-  Until then, a match attempt or the provider retry path triggers the work.
+- `npm run worker` runs the reconciliation pass continuously
+  (`WORKER_INTERVAL_SECONDS`, default 30); `WORKER_ONCE=true` runs one pass for
+  cron. Each pass:
+  - expires stale quotes;
+  - expires and refunds past-deadline match trades;
+  - resumes locked matches (re-reads pending provider payouts);
+  - resumes direct-liquidity payouts;
+  - retries pending/submitted refunds.
+- Every worker action is idempotent by posting key, provider reference or
+  refund row.
 
 ---
 
@@ -181,6 +189,14 @@ currencies, amounts and the caller's leg state.
   first trade completed;
 - all journals balance, including the spread and compensation entries.
 
+`server/test/worker.test.ts` covers:
+
+- stale quote expiry;
+- direct payout resume from the provider status;
+- deadline expiry and refund;
+- pending refund retry after a provider outage;
+- locked match resume to released.
+
 Live `smoke:b4` against the running sandbox:
 
 - real TZS and KES collections;
@@ -196,14 +212,13 @@ test-only 1,000-minor-unit spread to each quote to create a genuine
 cross-coverage gap. A real platform spread policy is not built yet; this is
 called out rather than hidden.
 
-Node suite after B4: **79/79**, 16 suites, typecheck clean.
+Node suite after B4 and the worker: **84/84**, 17 suites, typecheck clean.
 
 ---
 
 ## 9. Deliberate limits
 
 - Full-fill only; no partial fills or standing liquidity orders.
-- No scheduled sweep/worker; an external cron must call the service.
 - No ops dashboard (queue depth, match list, manual match controls).
 - No provider cutoff/business-hours engine beyond the match deadline.
 - Bank payout legs are not connected.
@@ -211,3 +226,5 @@ Node suite after B4: **79/79**, 16 suites, typecheck clean.
   decides when compensation becomes an expense.
 - Production matching remains disabled until Risk/Finance approve the corridor,
   spread and exposure values.
+- The worker is a process, not a distributed queue; run one instance or rely on
+  the idempotent row locks when running several.

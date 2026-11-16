@@ -803,7 +803,9 @@ export async function refundTrade(
     }
     if (trade.status === 'refunded') {
       const existing = await loadRefund(client, trade.id);
-      if (existing) return { done: true as const, trade, refund: existing };
+      if (existing && existing.status === 'paid') {
+        return { done: true as const, trade, refund: existing };
+      }
     }
     if (trade.status === 'cancelled' && !input.allowClosed) {
       throw conflict('CANNOT_REFUND', 'This trade has no confirmed collection to refund');

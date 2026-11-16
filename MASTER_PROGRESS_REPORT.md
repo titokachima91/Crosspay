@@ -208,15 +208,15 @@ connected.
   revenue. No FX journal for a matched pair.
 - Two-leg saga: a first-leg failure refunds both legs; a second-leg failure
   refunds the second leg and books a `p2p_compensation` treasury advance.
-- Match deadline expiry refunds the trade. A scheduler is still needed to sweep
-  deadlines and pending legs.
+- Match deadline expiry refunds the trade. A reconciliation worker sweeps
+  deadlines, resumes locked matches and pending payouts, and retries refunds.
 - Live smoke: two real sandbox collections in opposite directions matched, both
   payouts completed, match `released`, every journal balanced.
 
 ### B3 Payments
 - [x] B3.1 Inbound webhook (delivered in B2.4)
-- [ ] B3.2 P2P queue (delivered in B4; scheduled sweep remains)
-- [x] B3.3 Refund worker primitive (delivered in B2.4; scheduled retries remain)
+- [x] B3.2 P2P queue sweep (delivered in the reconciliation worker)
+- [x] B3.3 Refund retry worker (delivered in the reconciliation worker)
 
 ### B4 P2P matching engine (v1 built)
 - [x] B4.1 Funded-trade queue and eligibility
@@ -500,15 +500,13 @@ Completed:
 - Verified snapshots of both projects.
 
 Next, in order:
-1. **Scheduled worker** — sweep match deadlines and pending payouts, retry
-   refunds, expire stale quotes and reconcile provider statements.
-2. **Liquidity providers and corridor policy** — standing orders, LP limits,
+1. **Liquidity providers and corridor policy** — standing orders, LP limits,
    exposure monitoring and the ops dashboard (B4.4/B4.5).
-3. **Bank payouts and KYC/name-check adapters** — mobile-money payout, refunds,
-   callbacks and matching are built; bank rails need an approved partner
-   account contract.
-4. **F5.3 remainder** — biometrics and app-side refresh-token handling.
-5. Replace the sandbox pricing/collection/payout adapters with approved real
+2. **Bank payouts and KYC/name-check adapters** — mobile-money payout, refunds,
+   callbacks, matching and the reconciliation worker are built; bank rails need
+   an approved partner account contract.
+3. **F5.3 remainder** — biometrics and app-side refresh-token handling.
+4. Replace the sandbox pricing/collection/payout adapters with approved real
    providers when contracts exist.
 
 Git: branch `fix/theme-system` is local. B2.3/B2.4/B4 are committed locally;

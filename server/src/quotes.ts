@@ -96,10 +96,10 @@ export async function consumeQuote(
 
 /** Worker helper: marks expired active quotes without touching consumed history. */
 export async function markExpiredQuotes(
-  client: PoolClient,
+  db: Pool | PoolClient,
   now = new Date(),
 ): Promise<number> {
-  const result = await client.query(
+  const result = await db.query(
     `UPDATE quotes
      SET status = 'expired'
      WHERE status = 'active' AND expires_at <= $1`,

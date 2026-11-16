@@ -129,8 +129,9 @@ npm run verify:local
 applies every migration and the seed, then exercises the schema, quote
 lifecycle, trade timeline, idempotency race, ledger balance rules, append-only
 guards, encryption, OTP limits, refresh rotation, the HTTP bootstrap,
-collections, payouts, refunds, signed callbacks and P2P matching.
-**79 tests pass.** No Docker or local PostgreSQL installation is required.
+collections, payouts, refunds, signed callbacks, P2P matching and the
+reconciliation worker.
+**84 tests pass.** No Docker or local PostgreSQL installation is required.
 
 Live provider smokes (with the sandbox running):
 
@@ -139,6 +140,13 @@ SANDBOX_API_KEY_CROSSPAY=<key> npm run smoke:b2.3
 SANDBOX_API_KEY_CROSSPAY=<key> npm run smoke:b2.4
 SANDBOX_API_KEY_CROSSPAY=<key> npm run smoke:webhooks
 SANDBOX_API_KEY_CROSSPAY=<key> npm run smoke:b4
+```
+
+Reconciliation worker:
+
+```sh
+WORKER_ONCE=true npm run worker   # one pass
+npm run worker                    # every WORKER_INTERVAL_SECONDS
 ```
 
 `npm run verify` is for a real database. It checks migration state, the five
@@ -166,6 +174,8 @@ SANDBOX_API_KEY_CROSSPAY=<key> npm run smoke:b4
 | `PAYMENT_WEBHOOK_SECRET` | for webhooks | Shared HMAC secret |
 | `PAYMENT_WEBHOOK_MAX_SKEW_SECONDS` | no | Callback timestamp tolerance, default 300 |
 | `P2P_ENABLED` | no | Matching kill switch, default `false`; corridors live in `p2p_corridors` |
+| `WORKER_INTERVAL_SECONDS` | no | Worker pass interval, default 30 |
+| `WORKER_ONCE` | no | `true` runs one pass and exits |
 | `PORT` / `HOST` | no | HTTP listener, default `3000` / `0.0.0.0` |
 | `LOG_LEVEL` | no | Pino level, default `info` |
 | `CORS_ORIGINS` | no | Comma-separated web origins; empty for native-only |
@@ -207,11 +217,9 @@ SANDBOX_API_KEY_CROSSPAY=<key> npm run smoke:b4
 
 ## Next step
 
-1. Add a scheduled worker for match deadlines, pending payouts/refunds, quote
-   expiry and provider-statement reconciliation.
-2. Add liquidity-provider standing orders and the ops/dashboard surface
+1. Add liquidity-provider standing orders and the ops/dashboard surface
    (B4.4/B4.5).
-3. Connect approved bank payout rails and name-check/KYC adapters.
-4. Add analytics/export and invoice/share handlers.
-5. Replace the sandbox adapter with approved real providers when contracts
+2. Connect approved bank payout rails and name-check/KYC adapters.
+3. Add analytics/export and invoice/share handlers.
+4. Replace the sandbox adapter with approved real providers when contracts
    exist.

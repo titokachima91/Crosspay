@@ -594,4 +594,21 @@ bank payout rails, KYC/name-check adapters, production corridor approvals.
 
 ---
 
+## 2026-11-16 - Reconciliation worker
+
+- `src/runtime.ts` now builds the process context once for both the HTTP server
+  and the worker, so provider/config construction cannot drift.
+- `npm run worker` runs `runWorkerPass` every `WORKER_INTERVAL_SECONDS`
+  (default 30) or once with `WORKER_ONCE=true`.
+- Each pass expires stale quotes, expires/refunds past-deadline match trades,
+  resumes locked matches, resumes direct payouts and retries pending refunds.
+- All actions are idempotent by posting key, provider reference or refund row;
+  `test/worker.test.ts` covers each path.
+- Verification: Node **84/84**, 17 suites, typecheck clean.
+
+Next: liquidity providers and ops dashboard, bank payout rails, KYC/name-check
+adapters, analytics/export and invoice/share handlers.
+
+---
+
 ## Report End - No fluff. Just facts.
