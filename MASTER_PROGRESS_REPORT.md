@@ -198,10 +198,15 @@ Flutter app can use directly.
   balances; Stanbic TZ/KE are seeded examples. The dashboard shows owner, type
   and purpose, and can create partner accounts under any bank. CrossPay never
   holds customer cash or a customer wallet.
-- **CrossPay revenue book**: separate `CROSSPAY` ledger book for fee revenue,
-  FX spread, provider receivable, trust asset, beneficiary payable and
-  operating cash. Fees are recognised on collection and settled into operating
-  cash; never mixed with customer or trust funds.
+- **CrossPay revenue book (testing-only in the sandbox)**: the sandbox keeps a
+  clearly labelled `CROSSPAY` mirror book for fee revenue, FX spread, provider
+  receivable, trust asset, beneficiary payable and operating cash. It exists so
+  sandbox tests can prove every penny of the revenue path. It is **not**
+  CrossPay's home: real income is money in CrossPay's bank/PSP operating
+  accounts and is recorded in the CrossPay admin bookkeeping section. See
+  `docs/REVENUE_AND_BOOKKEEPING.md`. Fees are recognised on collection, settled
+  into the operating bank account, and reversed on refund; customer and trust
+  funds are never mixed in.
 - **Bank**: accounts, statements, FX, settlement, clearing queue, approval,
   reversal, cancellation, deposit/withdraw, same-currency `transfer`, EOD,
   liquidity, reconciliation, alerts and audit.

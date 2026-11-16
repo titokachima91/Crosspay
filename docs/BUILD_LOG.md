@@ -438,6 +438,12 @@ fees and settles them to operating cash, mirrored by a provider-book debit to
 Verification: sandbox **32/32** tests pass. Still planned: the provider-side
 mirror of the fee settlement and partner reconciliation statements.
 
+> **2026-11-16 correction**: this book is a testing-only stand-in, not CrossPay's
+> home. CrossPay's real fee income is money in its bank/PSP operating accounts
+> and is recorded in the CrossPay admin bookkeeping section. The sandbox book
+> must be removed when that section exists. See
+> `docs/REVENUE_AND_BOOKKEEPING.md`.
+
 ---
 
 ## 2026-11-15 - HTTP SMS and OTP delivery
@@ -490,6 +496,33 @@ monitoring.
 - Plan: `docs/PAYMENT_ADAPTERS.md`.
 
 Next: B2.3 `/trade/initiate` and B2.4 payouts/refunds.
+
+---
+
+## 2026-11-16 - Revenue book is a testing stand-in, not CrossPay's home
+
+**No CrossPay app code changed.** The accounting boundary is now explicit.
+
+- CrossPay's real money lives in its **bank/PSP operating accounts**
+  (`CPA-OPERATING-...`), not in the sandbox.
+- The CrossPay admin **bookkeeping section** is the home of collective income;
+  every fee/spread entry must trace to a trade, a provider statement and a
+  bank/PSP operating account line.
+- The sandbox `CROSSPAY` book is retained for now but labelled **testing-only**
+  in code, API (`testingOnly: true`), dashboard and docs. It must be removed
+  when the admin bookkeeping exists.
+- Sandbox settlement now posts **two linked journals**: provider book clears
+  `CROSSPAY-PAYABLE` into `CPA-OPERATING-...`; the mirror book moves receivable
+  to operating cash. Refunds reverse both the provider fee journal and the
+  mirror fee revenue.
+- Rail-based fees remain: P2P/mobile money 150 bps, bank 250 bps, the same in
+  every corridor; bank costs more.
+- OTP accepts any valid E.164 phone by default; `SMS_ALLOWED_RECIPIENTS` is an
+  optional lockdown (`*` or empty = all). SIM 1 pinning unchanged.
+- Rule: `docs/REVENUE_AND_BOOKKEEPING.md`.
+- Verification: sandbox **37/37**; live summary shows TZS 485 settled to
+  `CPA-OPERATING-STANBIC-TZ-TZS` and KES 485 receivable/payable, all labelled
+  testing-only.
 
 ---
 

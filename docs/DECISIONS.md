@@ -20,6 +20,11 @@ Technology
 - Android SMS auto-read when an SMS partner exists.
 - Simulated data lives ONLY in preview/. The real app (lib/) never imports it.
 - Identity data (ID/TIN) is never stored, kept in state or logged on the device.
+- CrossPay does not hold customer cash. Its money sits in normal bank/PSP
+  operating accounts, and the CrossPay admin bookkeeping section records every
+  penny of fee/spread income against them. The sandbox `CROSSPAY` revenue book
+  is a testing-only stand-in and must be removed when that admin section exists:
+  see `docs/REVENUE_AND_BOOKKEEPING.md`.
 
 Only the founder can do (open items)
 - Hire a local financial-regulation lawyer BEFORE any public launch: licensing
