@@ -50,6 +50,7 @@ the technical bridge between those two journals and is never summed across
 currencies. A provider fee charged on a payout is booked to `6000 Provider
 fees` in the payout currency, not netted out of an unrelated currency.
 
+| `2050` | Liquidity provider payable | LP prefund and settlement position |
 | `3100` | Spread revenue | P2P match residual: counterpart principal minus the quoted payout |
 | `6000` | Provider fees | Provider payout fees in the payout currency |
 | `6100` | Compensation expense | Approved write-off of a treasury advance |
@@ -58,9 +59,12 @@ fees` in the payout currency, not netted out of an unrelated currency.
 A matched P2P pair posts one `p2p_settlement` journal per currency: it releases
 the counterpart's principal, creates the other customer's payout payable and
 books the residual to `3100` spread revenue. No FX journal exists for a matched
-pair. When a second leg fails after the first paid, `7000` records the treasury
-advance that keeps partner trust cash from going negative; Finance can later
-write it off to `6100` after approval.
+pair. An LP prefund is booked when the standing order is created (`1000` cash /
+`2050` LP payable) and returned on cancellation; an LP fill consumes `2050` in
+the provide currency and records the send-currency obligation to the LP. When a
+second leg fails after the first paid, `7000` records the treasury advance that
+keeps partner trust cash from going negative; Finance can later write it off to
+`6100` after approval.
 
 ---
 

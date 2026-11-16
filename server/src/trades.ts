@@ -478,6 +478,7 @@ export async function postJournalOnce(
     payoutId?: string;
     refundId?: string;
     fxGroupId?: string;
+    liquidityProviderId?: string;
     lines: Array<{ accountId: string; amountMinor: bigint }>;
   },
 ): Promise<void> {
@@ -494,6 +495,7 @@ export async function postJournalOnce(
     payoutId: input.payoutId,
     refundId: input.refundId,
     fxGroupId: input.fxGroupId,
+    liquidityProviderId: input.liquidityProviderId,
     lines: input.lines,
   });
 }

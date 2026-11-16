@@ -6,6 +6,7 @@ import { disburseMatch, tryMatchTrade } from './matching.js';
 export interface WorkerReport {
   expiredQuotes: number;
   expiredTrades: number;
+  expiredLiquidityOrders: number;
   resumedMatches: number;
   resumedPayouts: number;
   retriedRefunds: number;
@@ -25,6 +26,7 @@ export async function runWorkerPass(ctx: AppContext): Promise<WorkerReport> {
   const report: WorkerReport = {
     expiredQuotes: 0,
     expiredTrades: 0,
+    expiredLiquidityOrders: 0,
     resumedMatches: 0,
     resumedPayouts: 0,
     retriedRefunds: 0,
@@ -39,6 +41,13 @@ export async function runWorkerPass(ctx: AppContext): Promise<WorkerReport> {
   // Expire funded trades whose match deadline has passed. tryMatchTrade owns
   // the status transition and the refund, so the worker does not duplicate it.
   if (ctx.p2pEnabled) {
+    const expiredOrders = await ctx.pool.query(
+      `UPDATE liquidity_orders
+       SET status = 'expired'
+       WHERE status = 'active' AND expires_at <= now()`,
+    );
+    report.expiredLiquidityOrders = expiredOrders.rowCount ?? 0;
+
     const expired = await ctx.pool.query<{ id: string }>(
       `SELECT id FROM trades
        WHERE route = 'p2p'

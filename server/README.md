@@ -10,14 +10,15 @@ Node.js + TypeScript service for CrossPay.
 - **B2.3** — trade initiation, collection lifecycle and trade reads. Built
   2026-11-16.
 - **B2.4** — payouts, refunds and signed provider callbacks. Built 2026-11-16.
-- **B4** — P2P matching v1: FIFO full-fill, two-leg payout saga, compensation
-  and corridor controls. Built 2026-11-16.
+- **B4** — P2P matching, LP standing orders, exposure controls and Phase A ops
+  admin. Built 2026-11-16.
 
 The Flutter app remains the only client contract. `docs/api_contract.md` is the
 contract of record. The B1 plan is `docs/B1_DATABASE_PLAN.md`; the build evidence
 is `docs/B1_IMPLEMENTATION.md`, `docs/B2_IMPLEMENTATION.md`,
 `docs/B2_2_IMPLEMENTATION.md`, `docs/B2_3_B2_4_IMPLEMENTATION.md` and
-`docs/B4_MATCHING_IMPLEMENTATION.md`.
+`docs/B4_MATCHING_IMPLEMENTATION.md`. The full admin plan is
+`docs/ADMIN_PANEL_PLAN.md`.
 
 ---
 
@@ -110,7 +111,12 @@ database, a migration or a log line.
 | POST | `/api/v1/matches/{id}/disburse` | Pays/resumes both match legs |
 | POST | `/api/v1/webhooks/payments/{provider}` | Signed provider callback |
 | GET | `/api/v1/trades/export/download?token=...` | Public one-time CSV download |
-| GET | `/api/v1/market/depth` | `503 MARKET_DATA_NOT_CONFIGURED` |
+| GET | `/admin` | Phase A ops dashboard shell |
+| GET | `/api/v1/admin/overview` | Ops read model (`x-admin-key`) |
+| PATCH | `/api/v1/admin/corridors/{from}/{to}` | Corridor policy (`x-admin-key`) |
+| POST | `/api/v1/admin/trades/{id}/match` | Ops match trigger |
+| POST | `/api/v1/admin/matches/{id}/disburse` | Ops payout trigger |
+| GET/POST | `/api/v1/admin/liquidity/*` | LP providers and prefunded orders |
 
 Every response error uses `{ "error": { "code": "...", "message": "..." } }`.
 Protected routes require `Authorization: Bearer <accessToken>`. The public
@@ -133,9 +139,10 @@ npm run verify:local
 applies every migration and the seed, then exercises the schema, quote
 lifecycle, trade timeline, idempotency race, ledger balance rules, append-only
 guards, encryption, OTP limits, refresh rotation, the HTTP bootstrap,
-collections, payouts, refunds, signed callbacks, P2P matching, market depth,
-analytics, CSV export and the reconciliation worker.
-**88 tests pass.** No Docker or local PostgreSQL installation is required.
+collections, payouts, refunds, signed callbacks, P2P matching, LP liquidity,
+admin policy controls, market depth, analytics, CSV export and the
+reconciliation worker.
+**93 tests pass.** No Docker or local PostgreSQL installation is required.
 
 Live provider smokes (with the sandbox running):
 
@@ -178,6 +185,7 @@ npm run worker                    # every WORKER_INTERVAL_SECONDS
 | `PAYMENT_WEBHOOK_SECRET` | for webhooks | Shared HMAC secret |
 | `PAYMENT_WEBHOOK_MAX_SKEW_SECONDS` | no | Callback timestamp tolerance, default 300 |
 | `P2P_ENABLED` | no | Matching kill switch, default `false`; corridors live in `p2p_corridors` |
+| `ADMIN_API_KEY` | for admin | Phase A ops key; empty keeps admin JSON at `503` |
 | `PUBLIC_API_URL` | for export | Absolute public origin used in export links |
 | `WORKER_INTERVAL_SECONDS` | no | Worker pass interval, default 30 |
 | `WORKER_ONCE` | no | `true` runs one pass and exits |
@@ -222,8 +230,8 @@ npm run worker                    # every WORKER_INTERVAL_SECONDS
 
 ## Next step
 
-1. Add liquidity-provider standing orders and the ops/dashboard surface
-   (B4.4/B4.5).
+1. Build the named-user admin identity/RBAC and bookkeeping/reconciliation
+   phases in `docs/ADMIN_PANEL_PLAN.md`.
 2. Connect approved bank payout rails and name-check/KYC adapters.
 3. Add invoice/share handlers; analytics and CSV export are live.
 4. Replace the sandbox adapter with approved real providers when contracts

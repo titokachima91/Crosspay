@@ -92,6 +92,7 @@ export function buildRuntime(): Runtime {
     paymentWebhookMaxSkewSeconds: positiveInt('PAYMENT_WEBHOOK_MAX_SKEW_SECONDS', 300),
     p2pEnabled: (process.env['P2P_ENABLED'] ?? 'false').trim().toLowerCase() === 'true',
     publicApiUrl: process.env['PUBLIC_API_URL']?.replace(/\/+$/, ''),
+    adminApiKey: process.env['ADMIN_API_KEY'] || null,
   };
 
   return {

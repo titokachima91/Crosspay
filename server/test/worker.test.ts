@@ -376,6 +376,34 @@ describe('reconciliation worker', () => {
     assert.equal(paid.rows[0]?.status, 'paid');
   });
 
+  it('expires a stale liquidity order', async () => {
+    const provider = await db.pool.query<{ id: string }>(
+      `INSERT INTO liquidity_providers (name) VALUES ('Worker LP') RETURNING id`,
+    );
+    const providerId = provider.rows[0]?.id;
+    assert.ok(providerId);
+    const order = await db.pool.query<{ id: string }>(
+      `INSERT INTO liquidity_orders
+         (provider_id, provide_currency, receive_currency, capacity_minor,
+          remaining_minor, min_amount_minor, max_amount_minor, rate,
+          prefund_reference, prefunded_at, expires_at, created_at)
+       VALUES ($1, 'KES', 'TZS', 10000, 10000, 0, 10000, 17.5,
+               'WORKER-LP', now() - interval '2 hours', now() - interval '1 hour',
+               now() - interval '2 hours')
+       RETURNING id`,
+      [providerId],
+    );
+    const orderId = order.rows[0]?.id;
+    assert.ok(orderId);
+    const report = await runWorkerPass(context);
+    assert.equal(report.expiredLiquidityOrders >= 1, true);
+    const stored = await db.pool.query<{ status: string }>(
+      `SELECT status FROM liquidity_orders WHERE id = $1`,
+      [orderId],
+    );
+    assert.equal(stored.rows[0]?.status, 'expired');
+  });
+
   it('resumes a locked match once both provider payouts succeed', async () => {
     await setCorridors(true);
     const a = await escrow(tokenA, userA, 'worker-match-a', {

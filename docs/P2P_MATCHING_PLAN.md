@@ -5,9 +5,11 @@
 **Built**: funded-trade FIFO full-fill, row-locked match creation, single-currency
 settlement journals, two-leg payout saga with first-leg refund and second-leg
 treasury compensation, match deadline expiry, per-corridor enablement and
-exposure caps, `P2P_ENABLED` kill switch.
-**Not built**: scheduled sweep, liquidity-provider standing orders, partial
-fills, ops dashboard, production corridor/spread approvals.
+exposure caps, `P2P_ENABLED` kill switch, allowlisted pre-funded liquidity
+providers with standing orders, LP prefund/return journals, Phase A ops admin
+and append-only admin audit.
+**Not built**: partial fills, production corridor/spread approvals, named-admin
+RBAC/2FA, bookkeeping and reconciliation (see `docs/ADMIN_PANEL_PLAN.md`).
 **Date**: 2026-11-15
 **Owner**: CrossPay backend
 **Prerequisite status**: sandbox provider customers are built (PSP wallets, bank
@@ -386,7 +388,9 @@ estimated settlement time.
 4. **Matching engine**
    - [x] Queue, eligibility, FIFO full-fill, match records, locks.
    - [x] Payout saga with first-leg refund and second-leg compensation.
-   - [ ] Exposure and liquidity controls beyond the per-corridor cap.
+   - [x] Exposure caps, corridor bounds and LP standing orders.
+   - [x] Phase A ops read model and controls.
+   - [ ] Partial fills and production liquidity approvals.
 
 5. **App integration**
    - Point the app at CrossPay API.

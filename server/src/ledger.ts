@@ -27,6 +27,7 @@ export interface PostJournalInput {
   payoutId?: string;
   refundId?: string;
   fxGroupId?: string;
+  liquidityProviderId?: string;
   reversesTransactionId?: string;
   occurredAt?: Date;
 }
@@ -65,8 +66,9 @@ export async function postJournal(
   const transaction = await client.query(
     `INSERT INTO journal_transactions
        (posting_key, kind, trade_id, payment_event_id, payout_id, refund_id,
-        currency_code, fx_group_id, reverses_transaction_id, occurred_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, now()))
+        currency_code, fx_group_id, reverses_transaction_id, occurred_at,
+        liquidity_provider_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, now()), $11)
      RETURNING id`,
     [
       input.postingKey,
@@ -79,6 +81,7 @@ export async function postJournal(
       input.fxGroupId ?? null,
       input.reversesTransactionId ?? null,
       input.occurredAt ?? null,
+      input.liquidityProviderId ?? null,
     ],
   );
 
@@ -126,7 +129,8 @@ export async function reverseJournal(
   },
 ): Promise<{ transactionId: string }> {
   const original = await client.query(
-    `SELECT id, kind, trade_id, payment_event_id, payout_id, refund_id, currency_code
+    `SELECT id, kind, trade_id, payment_event_id, payout_id, refund_id,
+            currency_code, liquidity_provider_id
      FROM journal_transactions
      WHERE id = $1`,
     [input.originalTransactionId],
@@ -148,6 +152,10 @@ export async function reverseJournal(
       input.payoutId ?? (row['payout_id'] === null ? undefined : String(row['payout_id'])),
     refundId:
       input.refundId ?? (row['refund_id'] === null ? undefined : String(row['refund_id'])),
+    liquidityProviderId:
+      row['liquidity_provider_id'] === null
+        ? undefined
+        : String(row['liquidity_provider_id']),
     reversesTransactionId: input.originalTransactionId,
     occurredAt: input.occurredAt,
     lines: lines.map((line) => ({

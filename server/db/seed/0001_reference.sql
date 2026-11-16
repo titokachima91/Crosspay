@@ -150,6 +150,7 @@ WITH chart(code, name, type, normal_side) AS (
     ('1000', 'Partner trust cash', 'asset', 'debit'),
     ('1100', 'Payout clearing', 'asset', 'debit'),
     ('2000', 'Trade payable', 'liability', 'credit'),
+    ('2050', 'Liquidity provider payable', 'liability', 'credit'),
     ('2100', 'Refund payable', 'liability', 'credit'),
     ('3000', 'Fee revenue', 'revenue', 'credit'),
     ('3100', 'Spread revenue', 'revenue', 'credit'),

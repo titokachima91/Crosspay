@@ -26,4 +26,6 @@ export interface AppContext {
   p2pEnabled: boolean;
   /** Absolute public API URL used for export/invoice links. */
   publicApiUrl?: string;
+  /** Ops dashboard key; absent keeps admin endpoints at an honest 503. */
+  adminApiKey?: string | null;
 }

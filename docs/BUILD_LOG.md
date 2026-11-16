@@ -632,4 +632,32 @@ adapters, invoice/share handlers.
 
 ---
 
+## 2026-11-16 - B4.4 liquidity providers and B4.5 Phase A admin
+
+- Migration `0010`: corridor min/max bounds, `p2p_corridor_exposure` view,
+  `liquidity_providers`, `liquidity_orders`, LP match columns, LP traceability
+  on journals, and the `2050` LP payable account.
+- LP standing orders are allowlisted, pre-funded, expiring and capacity-limited.
+  Creating an order books the prefund (`1000` cash / `2050` LP payable) against
+  an operator reference; cancelling an unused order returns the remaining
+  prefund. Matching uses no organic counterparty first, then the cheapest
+  eligible LP order.
+- LP payouts post one send-currency settlement (user payable → LP payable +
+  spread) and one receive-currency settlement (LP payable → user payable), then
+  the normal payout. A failed LP payout refunds the customer and returns the
+  reserved capacity exactly once.
+- Migration `0011`: append-only `admin_audit_log`; every Phase A admin write
+  records actor `env-admin`, resource, before/after, reason and IP.
+- Phase A admin: `/admin` HTML shell, `ADMIN_API_KEY` JSON auth, overview,
+  corridor policy, LP provider/order controls, manual match/disburse triggers.
+- Worker also expires stale LP orders.
+- Verification: Node **93/93**, 19 suites, typecheck clean.
+- Plan for named admin users, RBAC, 2FA, bookkeeping, settlement and
+  reconciliation: `docs/ADMIN_PANEL_PLAN.md`.
+
+Next: admin identity/bookkeeping/reconciliation, bank payout rails,
+KYC/name-check adapters, invoice/share handlers.
+
+---
+
 ## Report End - No fluff. Just facts.

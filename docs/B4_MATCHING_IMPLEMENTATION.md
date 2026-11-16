@@ -2,10 +2,12 @@
 
 **Status**: built and verified 2026-11-16.
 **Code**: `server/src/matching.ts`, `server/src/http/routes/matching.ts`,
-`server/src/payments.ts` (match-mode payout)
-**Schema**: `server/db/migrations/0008_p2p_matching.sql`
-**Tests**: `server/test/matching.test.ts`
+`server/src/http/routes/admin.ts`, `server/src/payments.ts` (match-mode payout)
+**Schema**: `server/db/migrations/0008_p2p_matching.sql`,
+`0010_liquidity_providers.sql`, `0011_admin_audit.sql`
+**Tests**: `server/test/matching.test.ts`, `server/test/liquidity.test.ts`
 **Live smoke**: `npm run smoke:b4`
+**Admin plan**: `docs/ADMIN_PANEL_PLAN.md`
 **Plan**: `docs/P2P_MATCHING_PLAN.md`
 
 ---
@@ -14,7 +16,9 @@
 
 This is the CrossPay matching engine, not a sandbox feature. Two funded users in
 opposite directions match; each user's collected principal pays the other
-user's payout in the same currency.
+user's payout in the same currency. If no organic counterparty is available,
+an allowlisted, pre-funded liquidity-provider standing order can provide the
+receive currency instead.
 
 - A sends TZS, receives KES.
 - B sends KES, receives TZS.
@@ -111,6 +115,52 @@ re-post them.
 
 ---
 
+## 4.1 Liquidity providers
+
+An LP is allowlisted (no public onboarding) and pre-funds a currency at
+CrossPay. A standing order says:
+
+- `provide_currency` — what the LP gives (the user's receive currency);
+- `receive_currency` — what the LP takes (the user's send currency);
+- `capacity_minor` / `remaining_minor` in the provide currency;
+- `min_amount_minor` / `max_amount_minor` per fill;
+- `rate` = receive-currency **minor units** per one provide-currency **minor
+  unit**;
+- `expires_at` and status.
+
+Creation requires an operator prefund reference and books:
+
+| Line | Account | Amount |
+|---|---|---|
+| Debit | `1000` partner trust cash | capacity |
+| Credit | `2050` liquidity provider payable | capacity |
+
+This is an operator confirmation that the LP transfer happened; the reference is
+stored on the order. A cancelled unused order returns the remaining prefund:
+
+| Line | Account | Amount |
+|---|---|---|
+| Debit | `2050` LP payable | remaining |
+| Credit | `1000` partner trust cash | remaining |
+
+Matching uses an LP only when no organic counterparty exists. It picks the
+lowest rate, then earliest expiry. It requires full capacity for the user's
+receive amount and checks the LP cost does not exceed the user's send amount.
+
+LP settlement is two single-currency journals:
+
+| Currency | Debit | Credit |
+|---|---|---|
+| user send | `2000` trade payable (user send) | `2050` LP payable (LP cost), `3100` spread (residual) |
+| user receive | `2050` LP payable (provided amount) | `2000` trade payable (user receive) |
+
+Then the normal payout journal clears the user's receive payable. LP journals
+carry `liquidity_provider_id`, so every LP position is traceable per trade.
+A failed LP payout refunds the customer and returns the reserved order capacity
+exactly once (`liquidity_released_at`).
+
+---
+
 ## 5. Two-leg payout saga
 
 `disburseMatch(ctx, { matchId, userId? })` pays the legs in creation order.
@@ -153,7 +203,8 @@ not by creating a second payout.
   - expires and refunds past-deadline match trades;
   - resumes locked matches (re-reads pending provider payouts);
   - resumes direct-liquidity payouts;
-  - retries pending/submitted refunds.
+  - retries pending/submitted refunds;
+  - expires stale liquidity orders.
 - Every worker action is idempotent by posting key, provider reference or
   refund row.
 
@@ -167,6 +218,17 @@ These are server/ops triggers; the Flutter app does not need to call them.
 |---|---|---|---|
 | POST | `/api/v1/trades/:id/match` | user | one FIFO attempt; `200` matched/expired, `202` queued |
 | POST | `/api/v1/matches/:id/disburse` | one leg's user | pay/resume both legs |
+| GET | `/admin` | none (HTML shell) | Phase A ops dashboard; asks for the admin key |
+| GET | `/api/v1/admin/overview` | admin key | corridors, queue, matches, payouts, refunds, LP orders, alerts |
+| PATCH | `/api/v1/admin/corridors/:send/:receive` | admin key | enable/cap/min/max/deadline/estimate |
+| POST | `/api/v1/admin/trades/:id/match` | admin key | ops match trigger |
+| POST | `/api/v1/admin/matches/:id/disburse` | admin key | ops payout trigger |
+| POST | `/api/v1/admin/liquidity/providers` | admin key | allowlist an LP |
+| POST | `/api/v1/admin/liquidity/orders` | admin key | create a prefunded standing order |
+| PATCH | `/api/v1/admin/liquidity/orders/:id` | admin key | cancel unused order and return prefund |
+
+Admin auth is `x-admin-key` for Phase A. It is a shared env key, not the final
+admin identity; see `docs/ADMIN_PANEL_PLAN.md`.
 
 Responses never reveal counterparty identity. They expose the match id, status,
 currencies, amounts and the caller's leg state.
@@ -195,7 +257,19 @@ currencies, amounts and the caller's leg state.
 - direct payout resume from the provider status;
 - deadline expiry and refund;
 - pending refund retry after a provider outage;
-- locked match resume to released.
+- locked match resume to released;
+- stale liquidity-order expiry.
+
+`server/test/liquidity.test.ts` covers:
+
+- LP order prefund journal and capacity consumption;
+- LP match and payout with send/receive settlement journals;
+- LP payout failure refund and exact capacity release;
+- admin auth, overview, corridor policy and HTML dashboard;
+- LP order cancellation returning the remaining prefund.
+
+Node suite after B4, market depth, analytics, export, the worker, LP matching and
+the Phase A admin: **93/93**, 19 suites, typecheck clean.
 
 Live `smoke:b4` against the running sandbox:
 
@@ -212,16 +286,12 @@ test-only 1,000-minor-unit spread to each quote to create a genuine
 cross-coverage gap. A real platform spread policy is not built yet; this is
 called out rather than hidden.
 
-Node suite after B4, market depth, analytics, export and the worker:
-**88/88**, 18 suites, typecheck clean.
-
 ---
 
 ## 9. Deliberate limits
 
-- Full-fill only; no partial fills or standing liquidity orders.
-- No ops dashboard (queue depth, match list, manual match controls). The
-  `GET /market/depth` read model is built from real funded queues.
+- Full-fill only; no partial trade fills. LP orders may serve multiple full
+  fills until their capacity is consumed.
 - No provider cutoff/business-hours engine beyond the match deadline.
 - Bank payout legs are not connected.
 - `7000` treasury funding is a liability, not an automatic write-off; Finance
@@ -230,3 +300,6 @@ Node suite after B4, market depth, analytics, export and the worker:
   spread and exposure values.
 - The worker is a process, not a distributed queue; run one instance or rely on
   the idempotent row locks when running several.
+- The Phase A admin is an env-key break-glass surface, not the final admin.
+  Named users, 2FA, RBAC, bookkeeping and reconciliation are planned in
+  `docs/ADMIN_PANEL_PLAN.md`.

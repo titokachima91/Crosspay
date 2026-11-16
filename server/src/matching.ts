@@ -12,7 +12,8 @@ import {
 export interface MatchRow {
   id: string;
   buy_trade_id: string;
-  sell_trade_id: string;
+  sell_trade_id: string | null;
+  liquidity_order_id: string | null;
   buy_amount_minor: string;
   sell_amount_minor: string;
   buy_currency: string;
@@ -31,8 +32,23 @@ export interface MatchView {
   sellCurrency: string;
   buyAmountMinor: number;
   sellAmountMinor: number;
+  liquidity: boolean;
   matchedAt: string | null;
   releasedAt: string | null;
+}
+
+export interface LiquidityOrderRow {
+  id: string;
+  provider_id: string;
+  provide_currency: string;
+  receive_currency: string;
+  capacity_minor: string;
+  remaining_minor: string;
+  min_amount_minor: string;
+  max_amount_minor: string;
+  rate: string;
+  status: 'active' | 'depleted' | 'expired' | 'cancelled';
+  expires_at: Date;
 }
 
 export interface CorridorRow {
@@ -40,13 +56,15 @@ export interface CorridorRow {
   receive_currency: string;
   enabled: boolean;
   exposure_cap_minor: string | null;
+  min_amount_minor: string | null;
+  max_amount_minor: string | null;
   match_deadline_seconds: number;
   spread_bps: number;
 }
 
-const MATCH_COLUMNS = `id, buy_trade_id, sell_trade_id, buy_amount_minor,
-  sell_amount_minor, buy_currency, sell_currency, status, match_rate,
-  matched_at, released_at`;
+const MATCH_COLUMNS = `id, buy_trade_id, sell_trade_id, liquidity_order_id,
+  buy_amount_minor, sell_amount_minor, buy_currency, sell_currency, status,
+  match_rate, matched_at, released_at`;
 
 export function mapMatch(row: MatchRow): MatchView {
   return {
@@ -57,6 +75,7 @@ export function mapMatch(row: MatchRow): MatchView {
     sellCurrency: row.sell_currency,
     buyAmountMinor: Number(row.buy_amount_minor),
     sellAmountMinor: Number(row.sell_amount_minor),
+    liquidity: row.liquidity_order_id !== null,
     matchedAt: row.matched_at === null ? null : new Date(row.matched_at).toISOString(),
     releasedAt: row.released_at === null ? null : new Date(row.released_at).toISOString(),
   };
@@ -70,7 +89,7 @@ async function loadCorridor(
 ): Promise<CorridorRow | null> {
   const result = await client.query<CorridorRow>(
     `SELECT send_currency, receive_currency, enabled, exposure_cap_minor,
-            match_deadline_seconds, spread_bps
+            min_amount_minor, max_amount_minor, match_deadline_seconds, spread_bps
      FROM p2p_corridors
      WHERE send_currency = $1 AND receive_currency = $2${forUpdate ? ' FOR UPDATE' : ''}`,
     [sendCurrency, receiveCurrency],
@@ -87,6 +106,66 @@ async function openExposure(client: PoolClient, currency: string): Promise<bigin
     [currency],
   );
   return BigInt(result.rows[0]?.total ?? '0');
+}
+
+async function findLiquidityOrder(
+  client: PoolClient,
+  input: {
+    provideCurrency: string;
+    receiveCurrency: string;
+    provideAmountMinor: bigint;
+  },
+): Promise<LiquidityOrderRow | null> {
+  const result = await client.query<LiquidityOrderRow>(
+    `SELECT o.id, o.provider_id, o.provide_currency, o.receive_currency,
+            o.capacity_minor, o.remaining_minor, o.min_amount_minor,
+            o.max_amount_minor, o.rate, o.status, o.expires_at
+     FROM liquidity_orders o
+     JOIN liquidity_providers p ON p.id = o.provider_id
+     WHERE o.status = 'active'
+       AND p.status = 'active'
+       AND o.prefunded_at IS NOT NULL
+       AND o.provide_currency = $1
+       AND o.receive_currency = $2
+       AND o.remaining_minor >= $3
+       AND o.min_amount_minor <= $3
+       AND o.max_amount_minor >= $3
+       AND o.expires_at > now()
+     ORDER BY o.rate ASC, o.expires_at ASC, o.created_at ASC
+     FOR UPDATE OF o SKIP LOCKED
+     LIMIT 1`,
+    [input.provideCurrency, input.receiveCurrency, input.provideAmountMinor.toString()],
+  );
+  return result.rows[0] ?? null;
+}
+
+function receiveCost(provideAmountMinor: bigint, rate: string): bigint {
+  const value = Number(provideAmountMinor) * Number(rate);
+  if (!Number.isFinite(value) || value > Number.MAX_SAFE_INTEGER) {
+    throw conflict('LIQUIDITY_RATE_UNSUPPORTED', 'The liquidity order amount is too large');
+  }
+  return BigInt(Math.ceil(value));
+}
+
+async function releaseLiquidityOrder(
+  client: PoolClient,
+  input: { matchId: string; orderId: string; amountMinor: bigint },
+): Promise<void> {
+  const released = await client.query(
+    `UPDATE p2p_matches
+     SET liquidity_released_at = now()
+     WHERE id = $1 AND liquidity_order_id = $2 AND liquidity_released_at IS NULL
+     RETURNING id`,
+    [input.matchId, input.orderId],
+  );
+  if (!released.rowCount) return;
+  await client.query(
+    `UPDATE liquidity_orders
+     SET remaining_minor = LEAST(capacity_minor, remaining_minor + $2),
+         status = CASE WHEN status = 'depleted' THEN 'active' ELSE status END
+     WHERE id = $1`,
+    [input.orderId, input.amountMinor.toString()],
+  );
 }
 
 async function recordMatchEvent(
@@ -172,6 +251,18 @@ export async function tryMatchTrade(
     const corridor = await loadCorridor(client, trade.send_currency, trade.receive_currency, true);
     if (!corridor || !corridor.enabled || corridor.exposure_cap_minor === null) {
       throw conflict('CORRIDOR_NOT_MATCHABLE', 'P2P matching is not enabled for this corridor');
+    }
+    if (
+      corridor.min_amount_minor !== null &&
+      BigInt(trade.send_amount_minor) < BigInt(corridor.min_amount_minor)
+    ) {
+      throw conflict('CORRIDOR_AMOUNT_OUT_OF_RANGE', 'The trade is below the corridor minimum');
+    }
+    if (
+      corridor.max_amount_minor !== null &&
+      BigInt(trade.send_amount_minor) > BigInt(corridor.max_amount_minor)
+    ) {
+      throw conflict('CORRIDOR_AMOUNT_OUT_OF_RANGE', 'The trade is above the corridor maximum');
     }
 
     const deadline = trade.match_deadline_at
@@ -310,6 +401,61 @@ export async function tryMatchTrade(
       return { kind: 'matched' as const, trade: current, match };
     }
 
+    // No organic counterparty: try an allowlisted, pre-funded LP order. The
+    // order provides the user's receive currency and is paid in the user's
+    // send currency. A full-fill match never exceeds the order's remaining
+    // prefunded capacity.
+    const provideAmount = BigInt(current.receive_amount_minor);
+    const order = await findLiquidityOrder(client, {
+      provideCurrency: current.receive_currency,
+      receiveCurrency: current.send_currency,
+      provideAmountMinor: provideAmount,
+    });
+    if (order) {
+      const lpReceive = receiveCost(provideAmount, order.rate);
+      if (lpReceive <= BigInt(current.send_amount_minor)) {
+        const rate = (Number(lpReceive) / Number(provideAmount)).toFixed(10);
+        const inserted = await client.query<MatchRow>(
+          `INSERT INTO p2p_matches
+             (buy_trade_id, sell_trade_id, liquidity_order_id,
+              buy_amount_minor, sell_amount_minor, buy_currency, sell_currency,
+              status, matched_at, match_rate)
+           VALUES ($1, NULL, $2, $3, $4, $5, $6, 'locked', now(), $7::numeric)
+           RETURNING ${MATCH_COLUMNS}`,
+          [
+            current.id,
+            order.id,
+            current.send_amount_minor,
+            provideAmount.toString(),
+            current.send_currency,
+            current.receive_currency,
+            rate,
+          ],
+        );
+        const match = inserted.rows[0] as MatchRow;
+        await client.query(
+          `UPDATE liquidity_orders
+           SET remaining_minor = remaining_minor - $2,
+               status = CASE WHEN remaining_minor - $2 <= 0 THEN 'depleted' ELSE status END
+           WHERE id = $1`,
+          [order.id, provideAmount.toString()],
+        );
+        current = await setTradeStatus(client, {
+          tradeId: current.id,
+          from: ['matching'],
+          to: 'matched',
+          actor: 'server',
+        });
+        await recordMatchEvent(client, {
+          matchId: match.id,
+          event: 'matched',
+          noteCode: 'liquidity_provider',
+          actor: 'server',
+        });
+        return { kind: 'matched' as const, trade: current, match };
+      }
+    }
+
     return { kind: 'queued' as const, trade: current };
   });
 
@@ -360,12 +506,21 @@ export async function disburseMatch(
     const match = matchResult.rows[0];
     if (!match) throw notFound('MATCH_NOT_FOUND', 'Match not found');
     if (input.userId) {
-      const owns = await client.query(
-        `SELECT 1 FROM trades
-         WHERE id IN ($1, $2) AND user_id = $3`,
-        [match.buy_trade_id, match.sell_trade_id, input.userId],
-      );
-      if (!owns.rowCount) throw notFound('MATCH_NOT_FOUND', 'Match not found');
+      const ownTradeId = match.liquidity_order_id ? match.buy_trade_id : null;
+      if (ownTradeId) {
+        const owns = await client.query(
+          `SELECT 1 FROM trades WHERE id = $1 AND user_id = $2`,
+          [ownTradeId, input.userId],
+        );
+        if (!owns.rowCount) throw notFound('MATCH_NOT_FOUND', 'Match not found');
+      } else {
+        const owns = await client.query(
+          `SELECT 1 FROM trades
+           WHERE id IN ($1, $2) AND user_id = $3`,
+          [match.buy_trade_id, match.sell_trade_id, input.userId],
+        );
+        if (!owns.rowCount) throw notFound('MATCH_NOT_FOUND', 'Match not found');
+      }
     }
     if (match.status === 'released') {
       return { kind: 'released' as const, match };
@@ -373,6 +528,29 @@ export async function disburseMatch(
     if (['failed', 'cancelled'].includes(match.status)) {
       throw conflict('MATCH_NOT_DISBURSABLE', 'This match can no longer be paid out');
     }
+
+    if (match.liquidity_order_id) {
+      const trade = await client.query<TradeRow>(
+        `SELECT * FROM trades WHERE id = $1 FOR UPDATE`,
+        [match.buy_trade_id],
+      );
+      const order = await client.query<LiquidityOrderRow>(
+        `SELECT id, provider_id, provide_currency, receive_currency,
+                capacity_minor, remaining_minor, min_amount_minor,
+                max_amount_minor, rate, status, expires_at
+         FROM liquidity_orders WHERE id = $1 FOR UPDATE`,
+        [match.liquidity_order_id],
+      );
+      if (!trade.rows[0]) throw notFound('TRADE_NOT_FOUND', 'The matched trade is missing');
+      if (!order.rows[0]) throw notFound('LIQUIDITY_ORDER_NOT_FOUND', 'Liquidity order missing');
+      return {
+        kind: 'liquidity' as const,
+        match,
+        trade: trade.rows[0],
+        order: order.rows[0],
+      };
+    }
+
     const trades = await client.query<TradeRow>(
       `SELECT * FROM trades WHERE id IN ($1, $2) ORDER BY created_at, id FOR UPDATE`,
       [match.buy_trade_id, match.sell_trade_id],
@@ -383,6 +561,67 @@ export async function disburseMatch(
 
   if (prepared.kind === 'released') {
     return { match: mapMatch(prepared.match), legs: [] };
+  }
+
+  if (prepared.kind === 'liquidity') {
+    if (['completed', 'refunded', 'failed'].includes(prepared.trade.status)) {
+      await withTransaction(ctx.pool, async (client) => {
+        await markMatch(client, {
+          matchId: prepared.match.id,
+          status: prepared.trade.status === 'completed' ? 'released' : 'failed',
+          event: prepared.trade.status === 'completed' ? 'released' : 'failed',
+          noteCode: 'liquidity_provider_terminal',
+        });
+        if (prepared.trade.status !== 'completed') {
+          await releaseLiquidityOrder(client, {
+            matchId: prepared.match.id,
+            orderId: prepared.order.id,
+            amountMinor: BigInt(prepared.match.sell_amount_minor),
+          });
+        }
+      });
+      return { match: await reloadMatch(ctx, prepared.match.id), legs: [] };
+    }
+
+    const result = await startDisbursement(ctx, {
+      tradeId: prepared.trade.id,
+      mode: 'match',
+      matchId: prepared.match.id,
+    });
+    const legs = [result];
+    if (result.payout.status === 'failed') {
+      try {
+        await refundTrade(ctx, {
+          tradeId: prepared.trade.id,
+          reasonCode: 'liquidity_payout_failed',
+          allowClosed: false,
+        });
+      } finally {
+        await withTransaction(ctx.pool, async (client) => {
+          await releaseLiquidityOrder(client, {
+            matchId: prepared.match.id,
+            orderId: prepared.order.id,
+            amountMinor: BigInt(prepared.match.sell_amount_minor),
+          });
+          await markMatch(client, {
+            matchId: prepared.match.id,
+            status: 'failed',
+            event: 'failed',
+            noteCode: 'liquidity_payout_failed',
+          });
+        });
+      }
+    } else if (result.payout.status === 'paid') {
+      await withTransaction(ctx.pool, async (client) => {
+        await markMatch(client, {
+          matchId: prepared.match.id,
+          status: 'released',
+          event: 'released',
+          noteCode: 'liquidity_provider_paid',
+        });
+      });
+    }
+    return { match: await reloadMatch(ctx, prepared.match.id), legs };
   }
 
   const [first, second] = prepared.trades;

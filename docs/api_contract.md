@@ -398,6 +398,7 @@ Response:
     "id": "<uuid>", "status": "locked | released | failed",
     "rate": <number|null>, "buyCurrency": "<code>", "sellCurrency": "<code>",
     "buyAmountMinor": <int>, "sellAmountMinor": <int>,
+    "liquidity": <bool: true when an LP order is the counterparty>,
     "matchedAt": "<ISO-8601 UTC|null>", "releasedAt": "<ISO-8601 UTC|null>"
   }   (optional)
 }
@@ -417,6 +418,26 @@ Response:
 - A first-leg failure refunds both legs; a second-leg failure refunds the
   second leg and books a treasury compensation entry.
 - 4xx codes: MATCH_NOT_FOUND, MATCH_NOT_DISBURSABLE, MATCHING_DISABLED.
+
+## Admin ops surface   (Phase A; not used by the app)
+Header: `x-admin-key: <ADMIN_API_KEY>`
+- `GET /api/v1/admin/overview` — corridors, queue, locked matches, pending
+  payouts/refunds, LP orders and alerts. Amounts are separate per currency.
+- `PATCH /api/v1/admin/corridors/{from}/{to}` — enable/disable, exposure cap,
+  min/max amount, match deadline, estimated settle seconds, spread metadata.
+- `POST /api/v1/admin/trades/{id}/match` — one FIFO/LP attempt.
+- `POST /api/v1/admin/matches/{id}/disburse` — resume the payout.
+- `POST /api/v1/admin/liquidity/providers`,
+  `PATCH /api/v1/admin/liquidity/providers/{id}` — allowlist/suspend an LP.
+- `GET|POST /api/v1/admin/liquidity/orders`,
+  `PATCH /api/v1/admin/liquidity/orders/{id}` — prefunded standing orders;
+  creating one requires `prefundReference` and books the prefund.
+- The HTML shell is `/admin`; it asks for the key and stores it in
+  `sessionStorage`.
+- Missing `ADMIN_API_KEY` → `503 ADMIN_NOT_CONFIGURED`; wrong key → `401`.
+- `admin_audit_log` is append-only and records every write. This is a break-glass
+  Phase A surface; the final admin identity/RBAC/bookkeeping plan is
+  `docs/ADMIN_PANEL_PLAN.md`.
 
 ## POST /api/v1/webhooks/payments/{provider}   (provider only)
 Headers: X-Kachi-Timestamp, X-Kachi-Signature

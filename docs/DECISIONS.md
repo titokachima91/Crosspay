@@ -138,3 +138,22 @@ Market depth, analytics and export
   single-purpose token. The link is public only because the token is the
   authentication. No public URL means an honest `503`, never a broken link.
 - Invoice/share stay unavailable until a QR/share service exists.
+
+Liquidity providers and Phase A admin
+- LPs are allowlisted and pre-funded; there is no public onboarding. An order's
+  remaining capacity is the prefunded provide-currency balance not yet consumed.
+- Creating an order requires an operator prefund reference and books
+  `1000` cash / `2050` LP payable. Cancelling an unused order returns the
+  remaining prefund. A locked match blocks cancellation.
+- Matching tries organic opposite trades first, then the cheapest eligible LP
+  order. LP payouts post one send and one receive settlement journal, never a
+  mixed-currency journal.
+- A failed LP payout refunds the customer and returns the reserved capacity
+  exactly once (`liquidity_released_at`).
+- The Phase A admin is an `ADMIN_API_KEY` break-glass surface, not the final
+  admin. It is read-heavy plus corridor/LP controls and manual match/disburse.
+- Every Phase A admin write is append-only audited as `env-admin`. Named admin
+  users, TOTP, RBAC, approvals and bookkeeping are planned in
+  `docs/ADMIN_PANEL_PLAN.md`.
+- The sandbox testing-only revenue mirror remains until the admin bookkeeping
+  and settlement/reconciliation phases pass.

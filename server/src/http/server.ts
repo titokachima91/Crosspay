@@ -17,6 +17,7 @@ import { registerPaymentRoutes } from './routes/payments.js';
 import { registerMatchingRoutes } from './routes/matching.js';
 import { registerMarketRoutes } from './routes/market.js';
 import { registerInsightRoutes } from './routes/insights.js';
+import { registerAdminRoutes, adminDashboardHtml } from './routes/admin.js';
 import { registerWebhookRoutes } from './routes/webhooks.js';
 import { registerUnavailableRoutes } from './routes/unavailable.js';
 
@@ -35,6 +36,7 @@ const PUBLIC_PATHS = new Set([
   '/api/v1/auth/otp/verify',
   '/api/v1/auth/refresh',
   '/api/v1/trades/export/download',
+  '/admin',
 ]);
 
 function requestPath(url: string): string {
@@ -87,6 +89,7 @@ export async function buildServer(
     const path = requestPath(request.url);
     if (PUBLIC_PATHS.has(path)) return;
     if (path.startsWith('/api/v1/webhooks/payments/')) return;
+    if (path.startsWith('/api/v1/admin/')) return;
 
     const token = bearerToken(request);
     const { userId } = await verifyAccessToken(token, ctx.jwtSecret);
@@ -155,6 +158,12 @@ export async function buildServer(
     return { status: 'ok', database: 'ok' };
   });
 
+  app.get('/admin', async (_request, reply) => {
+    reply.header('content-type', 'text/html; charset=utf-8');
+    reply.header('cache-control', 'no-store');
+    return reply.send(adminDashboardHtml());
+  });
+
   await app.register(async (api) => {
     registerConfigRoutes(api, ctx);
     registerAuthRoutes(api, ctx);
@@ -166,6 +175,7 @@ export async function buildServer(
     registerMatchingRoutes(api, ctx);
     registerMarketRoutes(api, ctx);
     registerInsightRoutes(api, ctx);
+    registerAdminRoutes(api, ctx);
     registerWebhookRoutes(api, ctx);
     registerUnavailableRoutes(api, ctx);
   }, { prefix: '/api/v1' });

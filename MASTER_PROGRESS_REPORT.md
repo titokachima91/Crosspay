@@ -4,7 +4,7 @@
 **Project**: CrossPay
 **Package**: crosspay_app
 **Environment**: macOS Monterey | Flutter 3.24.5 | Dart 3.5.4 | Node 24 | PostgreSQL 17 for the API | SQLite for the sandbox
-**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 matching v1 complete · market depth, analytics, CSV export and the reconciliation worker complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · B3 invoice/share and B4.4/B4.5 liquidity/ops remain
+**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 (matching, LP liquidity, exposure, ops admin) complete · market depth, analytics, CSV export and the reconciliation worker complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · CrossPay admin bookkeeping/RBAC, B3 invoice/share and bank payouts remain
 
 ---
 
@@ -227,8 +227,15 @@ connected.
 - [x] B4.1 Funded-trade queue and eligibility
 - [x] B4.2 FIFO full-fill matcher with row locks
 - [x] B4.3 Two-leg payout saga and compensation
-- [ ] B4.4 Corridor exposure and liquidity providers (exposure caps exist; LP standing orders do not)
-- [ ] B4.5 CrossPay ops dashboard and app matching states (app states exist; ops dashboard does not)
+- [x] B4.4 Corridor exposure and liquidity providers
+- [x] B4.5 CrossPay ops dashboard and app matching states
+
+**B4.4**: per-corridor exposure view, min/max bounds, allowlisted pre-funded
+liquidity providers with standing orders, prefund/return journals, LP matching
+and exact capacity release on failure. **B4.5**: `/admin` Phase A dashboard,
+env-key admin API, corridor controls, LP provider/order controls, manual
+match/disburse triggers and append-only admin audit. The final named-user
+admin, bookkeeping and reconciliation are planned in `docs/ADMIN_PANEL_PLAN.md`.
 
 **Built**: `docs/B4_MATCHING_IMPLEMENTATION.md`. Matching is off by
 `P2P_ENABLED=false` and per-corridor rows in `p2p_corridors`; no corridor is
@@ -505,17 +512,20 @@ Completed:
 - Verified snapshots of both projects.
 
 Next, in order:
-1. **Liquidity providers and corridor policy** — standing orders, LP limits,
-   exposure monitoring and the ops dashboard (B4.4/B4.5).
+1. **Admin identity and bookkeeping** — named admin users, TOTP/2FA, RBAC,
+   approvals, journal browser, trial balance, settlement/reconciliation; plan
+   in `docs/ADMIN_PANEL_PLAN.md`.
 2. **Bank payouts and KYC/name-check adapters** — mobile-money payout, refunds,
    callbacks, matching and the reconciliation worker are built; bank rails need
    an approved partner account contract.
 3. **F5.3 remainder** — biometrics and app-side refresh-token handling.
 4. Replace the sandbox pricing/collection/payout adapters with approved real
    providers when contracts exist.
+5. Remove the sandbox testing-only `CROSSPAY` mirror after the admin books and
+   reconciliation pass.
 
-Git: branch `fix/theme-system` is local. B2.3/B2.4/B4 are committed locally;
-nothing has been pushed.
+Git: branch `fix/theme-system` is local. B2.3/B2.4/B4 and the Phase A admin are
+committed locally; nothing has been pushed.
 
 ---
 

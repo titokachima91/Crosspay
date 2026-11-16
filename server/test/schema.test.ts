@@ -25,7 +25,7 @@ describe('schema and reference data', () => {
   it('applies all migrations and is idempotent', async () => {
     const report = await runMigrations(db.pool);
     assert.deepEqual(report.applied, []);
-    assert.equal(report.skipped, 9);
+    assert.equal(report.skipped, 11);
 
     const applied = await db.pool.query(
       `SELECT name FROM schema_migrations ORDER BY name`,
@@ -42,6 +42,8 @@ describe('schema and reference data', () => {
         '0007_guards.sql',
         '0008_p2p_matching.sql',
         '0009_market_depth.sql',
+        '0010_liquidity_providers.sql',
+        '0011_admin_audit.sql',
       ],
     );
   });
@@ -118,7 +120,7 @@ describe('schema and reference data', () => {
     );
     assert.equal(result.rows.length, 6);
     for (const row of result.rows) {
-      assert.equal(Number(row['accounts']), 12);
+      assert.equal(Number(row['accounts']), 13);
       assert.equal(row['all_provisional'], true);
     }
   });
