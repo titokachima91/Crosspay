@@ -25,7 +25,7 @@ describe('schema and reference data', () => {
   it('applies all migrations and is idempotent', async () => {
     const report = await runMigrations(db.pool);
     assert.deepEqual(report.applied, []);
-    assert.equal(report.skipped, 11);
+    assert.equal(report.skipped, 12);
 
     const applied = await db.pool.query(
       `SELECT name FROM schema_migrations ORDER BY name`,
@@ -44,6 +44,7 @@ describe('schema and reference data', () => {
         '0009_market_depth.sql',
         '0010_liquidity_providers.sql',
         '0011_admin_audit.sql',
+        '0012_admin_identity.sql',
       ],
     );
   });

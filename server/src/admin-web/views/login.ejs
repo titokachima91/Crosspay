@@ -1,0 +1,18 @@
+<%- include('partials/header', { title: 'Sign in', user: null, csrf: '', active: '', notice: null, error: error || null }) %>
+<div class="auth-card">
+  <h1>CrossPay Ops</h1>
+  <div class="sub">Sign in with your admin account.</div>
+  <form method="post" action="/login">
+    <div class="field">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" autocomplete="username" required autofocus value="<%= email || '' %>">
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <button class="primary" type="submit">Continue</button>
+  </form>
+  <div class="auth-foot">Authorised staff only. Sessions expire after 8 hours.</div>
+</div>
+<%- include('partials/footer') %>

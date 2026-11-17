@@ -1,0 +1,18 @@
+<%- include('partials/header', { title: 'Set up two-factor', user: null, csrf: '', active: '', notice: null, error: error || null }) %>
+<div class="auth-card">
+  <h1>Set up two-factor</h1>
+  <div class="sub">Scan the QR code with an authenticator app, then enter the six-digit code to finish.</div>
+  <img class="qr" src="<%= qrDataUrl %>" alt="Two-factor QR code">
+  <div class="field">
+    <label>Manual secret</label>
+    <div class="secret"><%= secret %></div>
+  </div>
+  <form method="post" action="/setup-totp">
+    <div class="field">
+      <label for="code">Code</label>
+      <input id="code" name="code" inputmode="numeric" pattern="[0-9 ]{6,8}" autocomplete="one-time-code" required autofocus>
+    </div>
+    <button class="primary" type="submit">Enable two-factor</button>
+  </form>
+</div>
+<%- include('partials/footer') %>

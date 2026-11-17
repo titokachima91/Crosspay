@@ -1,0 +1,9 @@
+<%- include('partials/header', { title: 'Recovery codes', user: null, csrf: '', active: '', notice: null, error: null }) %>
+<div class="auth-card">
+  <h1>Save your recovery codes</h1>
+  <div class="sub">Each code can be used once if you lose your authenticator. Store them offline.</div>
+  <div class="secret"><% for (const code of codes) { %><div><%= code %></div><% } %></div>
+  <p class="muted" style="margin-top:14px">Keep these codes private. They will not be shown again.</p>
+  <a class="button primary" href="/" style="justify-content:center;width:100%;margin-top:8px">Continue</a>
+</div>
+<%- include('partials/footer') %>

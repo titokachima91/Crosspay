@@ -5,9 +5,11 @@
 `server/src/http/routes/admin.ts`, `server/src/payments.ts` (match-mode payout)
 **Schema**: `server/db/migrations/0008_p2p_matching.sql`,
 `0010_liquidity_providers.sql`, `0011_admin_audit.sql`
-**Tests**: `server/test/matching.test.ts`, `server/test/liquidity.test.ts`
+**Tests**: `server/test/matching.test.ts`, `server/test/liquidity.test.ts`,
+`server/test/admin-web.test.ts`
 **Live smoke**: `npm run smoke:b4`
 **Admin plan**: `docs/ADMIN_PANEL_PLAN.md`
+**Admin portal**: `docs/ADMIN_WEB_IMPLEMENTATION.md`
 **Plan**: `docs/P2P_MATCHING_PLAN.md`
 
 ---
@@ -269,7 +271,7 @@ currencies, amounts and the caller's leg state.
 - LP order cancellation returning the remaining prefund.
 
 Node suite after B4, market depth, analytics, export, the worker, LP matching and
-the Phase A admin: **93/93**, 19 suites, typecheck clean.
+the Phase A/B admin: **100/100**, 20 suites, typecheck clean.
 
 Live `smoke:b4` against the running sandbox:
 

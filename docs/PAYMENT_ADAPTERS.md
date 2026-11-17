@@ -153,7 +153,7 @@ sandbox adapter for real money.
 ## 5. Verification
 
 - `npm run typecheck` clean.
-- `npm test` **93/93**, 19 suites.
+- `npm test` **100/100**, 20 suites.
 - Adapter tests cover collection/payout idempotency, provider discovery by
   currency and phone prefix, refund, bank account read/transfer, rejection,
   outage and malformed responses.

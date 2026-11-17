@@ -38,6 +38,31 @@ export async function runWorkerPass(ctx: AppContext): Promise<WorkerReport> {
     return 0;
   });
 
+  // Bounded housekeeping for admin auth state; never touches audit history.
+  await ctx.pool
+    .query(
+      `DELETE FROM admin_sessions
+       WHERE expires_at < now() - interval '7 days'
+          OR (revoked_at IS NOT NULL AND revoked_at < now() - interval '7 days')`,
+    )
+    .catch((error) => {
+      report.errors.push({ scope: 'admin.sessions', id: '-', message: messageOf(error) });
+    });
+  await ctx.pool
+    .query(
+      `DELETE FROM admin_login_challenges
+       WHERE expires_at < now() - interval '1 day'
+          OR (consumed_at IS NOT NULL AND consumed_at < now() - interval '1 day')`,
+    )
+    .catch((error) => {
+      report.errors.push({ scope: 'admin.challenges', id: '-', message: messageOf(error) });
+    });
+  await ctx.pool
+    .query(`DELETE FROM admin_login_attempts WHERE created_at < now() - interval '30 days'`)
+    .catch((error) => {
+      report.errors.push({ scope: 'admin.attempts', id: '-', message: messageOf(error) });
+    });
+
   // Expire funded trades whose match deadline has passed. tryMatchTrade owns
   // the status transition and the refund, so the worker does not duplicate it.
   if (ctx.p2pEnabled) {

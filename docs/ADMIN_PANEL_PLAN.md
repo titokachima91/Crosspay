@@ -1,8 +1,8 @@
 # CrossPay admin panel — plan
 
-**Status**: plan, 2026-11-16. The ops read model and a narrow env-key dashboard
-are in progress; full admin identity, bookkeeping, settlement and compliance are
-not built.
+**Status**: plan, 2026-11-16. Phase A and the local-account Phase B portal are
+built (`docs/ADMIN_WEB_IMPLEMENTATION.md`). SSO, control room/analytics,
+configuration center, bookkeeping, settlement and support/compliance remain.
 **Related**: `docs/REVENUE_AND_BOOKKEEPING.md`, `docs/B4_MATCHING_IMPLEMENTATION.md`,
 `docs/B1_DATABASE_PLAN.md`, `docs/api_contract.md`
 
@@ -71,8 +71,8 @@ customer's full PII without a permissioned, audited reveal.
 
 | Phase | Scope | Gate |
 |---|---|---|
-| A. Ops read + narrow controls | Overview, queue, matches, payouts, refunds, corridors, LP orders; env admin key; audit writes | Current B4.6 Phase A baseline |
-| B. Admin identity and RBAC | Admin users, passwords + TOTP, sessions, roles, CSRF, IP allowlist, audit log UI | No money action without an admin identity |
+| A. Ops read + narrow controls | Overview, queue, matches, payouts, refunds, corridors, LP orders; env admin key; audit writes | Built |
+| B. Admin identity and RBAC | Admin users, passwords + TOTP, sessions, roles, CSRF, IP allowlist, audit log UI | Built for local accounts; SSO/IP allowlist are deployment follow-ups |
 | C. Control room and analytics | Real-time redacted activity feed, SLOs, funnel/corridor/provider/liquidity/support analytics, saved views, exports | Ops can answer “what is happening now?” without SQL |
 | D. Configuration center | Services, fees, spreads, tiers/limits, provider settings, feature flags, maintenance, staged rollout/rollback | Every change is versioned and approved |
 | E. Bookkeeping | Chart approval, journal browser, trial balance, revenue/cost reports, operating-cash transfers | Finance signs the chart and recognition rules |
@@ -80,8 +80,8 @@ customer's full PII without a permissioned, audited reveal.
 | G. Support and compliance | Customer-safe support workspace, cases/notes, KYC queue, sanctions hits, PII reveal workflow | Compliance sign-off |
 | H. Sandbox mirror removal | Remove testing-only `CROSSPAY` book and docs | E and F pass in production/sandbox |
 
-The B4.6 work in this phase is **A only**. It is deliberately read-heavy and
-does not pretend to be the final admin.
+The B4.6 work in this phase is **A and B (local accounts) only**. It is
+deliberately read-heavy and does not pretend to be the final admin.
 
 ---
 
@@ -122,10 +122,13 @@ replaced before production money actions.
 - `ADMIN_API_KEY` in the environment.
 - `x-admin-key` on JSON calls; timing-safe compare.
 - No key configured → `503 ADMIN_NOT_CONFIGURED`.
-- Dashboard at `/admin` is a public HTML shell; it asks for the key and keeps
-  it in `sessionStorage`.
-- The key is never logged. The dashboard is read-mostly plus corridor and LP
-  controls.
+- The Phase A env-key dashboard remains in the customer API as a break-glass
+  surface; the named-admin portal is the separate `admin-web` process documented
+  in `docs/ADMIN_WEB_IMPLEMENTATION.md`.
+- The portal uses named admins, Argon2id, TOTP, server-side sessions, CSRF,
+  origin checks, RBAC and audit. It is the product surface for daily use.
+- The env key should be unset in normal production once the portal is deployed,
+  except for a documented break-glass path.
 
 This is not sufficient for production:
 
@@ -156,6 +159,90 @@ This is not sufficient for production:
 - LP prefund correction or cancellation with remaining balance;
 - any PII reveal or export;
 - any ledger adjustment.
+
+### 5.1 Delivery form: what are we building?
+
+**Recommendation: a private, authenticated internal operations portal — not a
+public site, not a customer portal, and not an admin mode inside the Flutter
+app.**
+
+It should be:
+
+- **desktop-first responsive web app**, usable on a tablet, with a big-screen
+  control-room mode;
+- **server-rendered first** (Fastify + templates + HTMX + small JS islands +
+  SSE), not a heavy SPA in Phase A/B;
+- backed by the existing **admin JSON API**, so a React/Vue SPA can replace the
+  view layer later without changing the domain;
+- deployed on a **separate admin hostname** (`admin.crosspay.example`), behind
+  VPN/IP allowlist and 2FA, with no public signup and no search indexing;
+- built as a **separate service/container** from the customer API, sharing
+  PostgreSQL through a least-privilege role. This keeps admin outages, deploys
+  and attack surface away from customer traffic.
+
+Why server-rendered first:
+
+- fewer moving parts and dependencies than an SPA;
+- session cookies, CSRF and RBAC are simpler to get right;
+- fast on poor connectivity and old laptops;
+- easy to audit and to keep the money actions server-authoritative;
+- HTMX covers tables, filters, forms and pagination; SSE covers the control
+  room; small JS islands cover charts.
+
+When to move to a SPA: if the control room/analytics becomes a genuinely
+interactive product with many client-side views, or the team already has strong
+React/Vue skills. The API contract stays the same, so this is a view-layer
+replacement, not a rewrite.
+
+**Options considered**
+
+| Option | Verdict |
+|---|---|
+| Internal server-rendered portal (Fastify + HTMX + SSE) | **Recommended for B4.6 Phase A–D** |
+| SPA (React/Vue/Svelte + Vite) against the admin API | Good later; more auth/CSRF/tooling surface now |
+| Admin mode inside the Flutter app | No: distribution, device loss, poor tables/keyboard, no big-screen |
+| Public marketing site + admin | No: wrong threat model, SEO/indexing and attack surface |
+| Low-code (Retool/Appsmith) | No for money/ledger; vendor lock-in and weak audit/control |
+| Direct database console | Never |
+
+**Suggested stack**
+
+- Backend: existing Fastify/TypeScript API + a separate `admin-web` process.
+- Views: Eta or Liquid templates, HTMX, Alpine.js where needed, Tailwind (or
+  Pico.css for a zero-build start).
+- Real-time: `admin_activity_events` + SSE (`text/event-stream`), polling
+  fallback. No WebSocket dependency in Phase C.
+- Charts: ECharts or Chart.js, fed by server-computed aggregates/materialized
+  views; no raw row scans in the browser.
+- Auth: Phase A env key only for break-glass; Phase B named users, Argon2id,
+  TOTP, `HttpOnly`/`Secure`/`SameSite=Strict` session, CSRF token, RBAC.
+- Hosting: separate subdomain/container, VPN or IP allowlist, WAF, HSTS, CSP,
+  `X-Robots-Tag: noindex`, separate deploy pipeline and secrets.
+- Observability: Sentry, structured audit logs, uptime checks, synthetic canary
+  trades.
+
+**Suggested URL shape**
+
+- `https://admin.crosspay.example/` — portal
+- `https://admin.crosspay.example/control-room`
+- `https://admin.crosspay.example/analytics`
+- `https://admin.crosspay.example/ops/trades/:reference`
+- `https://admin.crosspay.example/config/fees`
+- `https://admin.crosspay.example/support/cases/:id`
+
+The old `/admin` HTML shell is the **Phase A seed**. The named-admin
+`admin-web` portal is now built and should be deployed on the separate admin
+hostname; the old shell remains break-glass only and should not grow further.
+
+**Decisions to confirm before Phase B**
+
+1. Separate `admin-web` service/container, or the same Fastify process with a
+   separate route group? Recommendation: separate service.
+2. Hosting/VPN/IP allowlist and admin hostname.
+3. Local admin accounts + TOTP, or company SSO/SAML?
+4. HTMX/server-rendered vs a React SPA (recommendation above).
+5. Support workspace priority: if customer support is urgent, ship the safe
+   support vertical slice before full analytics.
 
 ---
 
@@ -899,21 +986,36 @@ Cutover checklist:
 
 ---
 
-## 13. Immediate B4.6 scope (what is being built now)
+## 13. B4.6 built so far
 
-- Env-key protected JSON admin API.
-- `/admin` read model: corridors, funded queue, locked matches, pending
-  payouts/refunds, LP orders, alerts.
-- Corridor enable/disable and policy edits.
-- LP provider/order creation with prefund journal, cancel with remaining return.
-- Manual match/disburse triggers.
-- Append-only audit table (next increment; not yet wired to every action).
-- Tests for auth, overview, corridor patch, LP prefund/cancel and HTML.
-- Documentation and env keys.
+**Phase A and local-account Phase B are built:**
 
-Not in this increment: named admin users/2FA/RBAC, real-time control-room
-stream, analytics charts, fee/service configuration, support cases, bookkeeping
-screens, settlement import, compliance, PII reveal, approvals, SPA, audit UI.
+- separate `admin-web` process with server-rendered pages;
+- named `admin_users`, Argon2id passwords, TOTP, encrypted secrets, recovery
+  codes, replay guard, login rate limit;
+- server-side sessions, HttpOnly/SameSite cookies, CSRF, origin checks, security
+  headers, session revocation;
+- roles `viewer`, `ops`, `finance`, `compliance`, `superadmin`;
+- overview, control-room polling snapshot/live feed, analytics tables, corridors,
+  liquidity providers/orders, trade search/detail, audit, admin-user management;
+- ops actions: re-check, match, disburse/resume, payout retry, refund, refund
+  retry;
+- append-only `admin_audit_log` with the acting admin id;
+- CLI bootstrap (`npm run admin:create`) with terminal QR and recovery codes;
+- tests for auth, replay, CSRF, RBAC, pages, TOTP enrolment, last-superadmin
+  guard and audit.
+
+**Not built yet:**
+
+- SSO; local accounts + TOTP only.
+- Recovery-code login flow.
+- SSE/event outbox for the control room (currently 5-second polling).
+- Analytics charts/exports and saved views.
+- Configuration center for fees/services/tiers/provider settings/feature flags.
+- Bookkeeping, settlement/reconciliation, support cases, compliance/PII reveal,
+  approvals, SPA, IP allowlist deployment.
+
+See `docs/ADMIN_WEB_IMPLEMENTATION.md` for setup and current limitations.
 
 ---
 

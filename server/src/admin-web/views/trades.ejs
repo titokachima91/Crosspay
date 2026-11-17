@@ -1,0 +1,30 @@
+<%- include('partials/header', { title: 'Trades', user, csrf, active: 'trades', notice, error, can }) %>
+<div class="panel">
+  <div class="panel-head"><h2>Search trades</h2><span class="tag">reference, phone, or beneficiary last 4</span></div>
+  <form method="get" action="/trades">
+    <div class="row">
+      <div><label>Search</label><input name="q" value="<%= query %>" placeholder="CP-… / +255… / 4567" autofocus></div>
+      <div class="shrink"><button class="primary">Search</button></div>
+    </div>
+  </form>
+  <div class="divider"></div>
+  <% if (trades.length === 0) { %><div class="empty">No trades found.</div><% } else { %>
+  <table>
+    <thead><tr><th>Reference</th><th>Status</th><th>Corridor</th><th class="num">Send</th><th class="num">Receive</th><th>Recipient</th><th>Created</th></tr></thead>
+    <tbody>
+    <% for (const t of trades) { %>
+      <tr>
+        <td><a class="mono" href="/trades/<%= t.id %>"><%= t.reference %></a><div class="tag">phone …<%= t.phoneLast4 %></div></td>
+        <td><span class="pill <%= t.status === 'completed' ? 'ok' : t.status === 'failed' || t.status === 'refunded' ? 'bad' : 'warn' %>"><%= t.status %></span></td>
+        <td><%= t.sendCurrency %> → <%= t.receiveCurrency %></td>
+        <td class="num"><%= t.sendAmountMinor.toLocaleString('en-US') %></td>
+        <td class="num"><%= t.receiveAmountMinor.toLocaleString('en-US') %></td>
+        <td><%= t.beneficiaryName %> <span class="tag">…<%= t.beneficiaryLast4 %></span></td>
+        <td><%= new Date(t.createdAt).toISOString().replace('T',' ').slice(0,16) %></td>
+      </tr>
+    <% } %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+<%- include('partials/footer') %>

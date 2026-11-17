@@ -157,3 +157,20 @@ Liquidity providers and Phase A admin
   `docs/ADMIN_PANEL_PLAN.md`.
 - The sandbox testing-only revenue mirror remains until the admin bookkeeping
   and settlement/reconciliation phases pass.
+
+B4.6 admin web portal
+- The portal is a separate `admin-web` process in the same repo/package,
+  deployed as its own container and hostname. It does not share the customer API
+  process or customer JWT auth.
+- Identity is local named admins + Argon2id + TOTP for now (no SSO available).
+  TOTP secrets are encrypted; session tokens are stored hashed; cookies are
+  HttpOnly/SameSite/secure.
+- Every state-changing request requires a CSRF token and a matching origin.
+- RBAC roles: viewer, ops, finance, compliance, superadmin. The last active
+  superadmin cannot be suspended or demoted.
+- The portal is server-rendered (EJS + small JS + polling control room); a SPA
+  is a later view-layer decision, not a rewrite.
+- The env-key `/api/v1/admin/*` remains break-glass only. Normal production uses
+  named admins.
+- Ops actions never mark a payment paid or edit a ledger; they call the same
+  domain services as the API and write named-admin audit.

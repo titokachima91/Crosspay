@@ -1,0 +1,96 @@
+<%- include('partials/header', { title: detail.trade.reference, user, csrf, active: 'trades', notice, error, can }) %>
+<div class="panel">
+  <div class="panel-head">
+    <h2><%= detail.trade.reference %></h2>
+    <span class="pill <%= detail.trade.status === 'completed' ? 'ok' : detail.trade.status === 'failed' || detail.trade.status === 'refunded' ? 'bad' : 'warn' %>"><%= detail.trade.status %></span>
+    <a class="button small" href="/trades">Back</a>
+  </div>
+  <div class="detail-grid">
+    <div class="detail"><div class="k">Corridor</div><div class="v"><%= detail.trade.send_currency %> → <%= detail.trade.receive_currency %></div></div>
+    <div class="detail"><div class="k">Send</div><div class="v"><%= Number(detail.trade.send_amount_minor).toLocaleString('en-US') %> <%= detail.trade.send_currency %></div></div>
+    <div class="detail"><div class="k">Fee</div><div class="v"><%= Number(detail.trade.fee_minor).toLocaleString('en-US') %></div></div>
+    <div class="detail"><div class="k">Receive</div><div class="v"><%= Number(detail.trade.receive_amount_minor).toLocaleString('en-US') %> <%= detail.trade.receive_currency %></div></div>
+    <div class="detail"><div class="k">Route</div><div class="v"><%= detail.trade.route %></div></div>
+    <div class="detail"><div class="k">Recipient</div><div class="v"><%= detail.trade.beneficiary_name %> · …<%= detail.trade.beneficiary_last4 %></div></div>
+    <div class="detail"><div class="k">User phone</div><div class="v">…<%= detail.trade.phone_last4 %></div></div>
+    <div class="detail"><div class="k">Created</div><div class="v"><%= new Date(detail.trade.created_at).toISOString().replace('T',' ').slice(0,19) %></div></div>
+  </div>
+  <% if (detail.trade.failure_code) { %><div class="notice error">Failure: <%= detail.trade.failure_code %></div><% } %>
+
+  <div class="actions">
+    <% if (can.ops) { %>
+    <form method="post" action="/ops/trades/<%= detail.trade.id %>/recheck" class="inline">
+      <input type="hidden" name="_csrf" value="<%= csrf %>"><button class="small">Re-check provider</button>
+    </form>
+    <form method="post" action="/ops/trades/<%= detail.trade.id %>/match" class="inline">
+      <input type="hidden" name="_csrf" value="<%= csrf %>"><button class="small">Try match</button>
+    </form>
+    <% } %>
+    <% if (can.ops && detail.match) { %>
+    <form method="post" action="/ops/matches/<%= detail.match.id %>/disburse" class="inline">
+      <input type="hidden" name="_csrf" value="<%= csrf %>"><button class="small">Resume payout</button>
+    </form>
+    <% } %>
+    <% if (can.refund) { %>
+    <form method="post" action="/ops/trades/<%= detail.trade.id %>/refund" class="inline">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <input name="reason" placeholder="refund reason" required style="width:180px">
+      <button class="small danger">Refund</button>
+    </form>
+    <% } %>
+  </div>
+</div>
+
+<div class="grid two" style="margin-top:16px">
+  <div class="panel">
+    <div class="panel-head"><h2>Timeline</h2></div>
+    <table><thead><tr><th>Status</th><th>Actor</th><th>At</th><th>Note</th></tr></thead><tbody>
+      <% for (const e of detail.events) { %>
+      <tr><td><%= e.status %></td><td><%= e.actor %></td><td><%= new Date(e.at).toISOString().replace('T',' ').slice(0,19) %></td><td><%= e.note_code || '' %></td></tr>
+      <% } %>
+    </tbody></table>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>Collection attempts</h2></div>
+    <table><thead><tr><th>Provider</th><th>Reference</th><th>Status</th><th class="num">Amount</th></tr></thead><tbody>
+      <% for (const a of detail.attempts) { %>
+      <tr><td><%= a.provider %></td><td class="mono"><%= a.external_reference || '—' %></td><td><span class="pill"><%= a.status %></span></td><td class="num"><%= Number(a.amount_minor).toLocaleString('en-US') %> <%= a.currency_code %></td></tr>
+      <% } %>
+    </tbody></table>
+  </div>
+</div>
+
+<div class="grid two" style="margin-top:16px">
+  <div class="panel">
+    <div class="panel-head"><h2>Payouts</h2></div>
+    <table><thead><tr><th>Provider</th><th>Reference</th><th>Status</th><th class="num">Amount</th><th></th></tr></thead><tbody>
+      <% for (const p of detail.payouts) { %>
+      <tr><td><%= p.provider %></td><td class="mono"><%= p.provider_reference || '—' %></td><td><span class="pill"><%= p.status %></span><div class="tag"><%= p.last_error_code || '' %></div></td><td class="num"><%= Number(p.amount_minor).toLocaleString('en-US') %> <%= p.currency_code %></td>
+      <td><% if (can.ops && ['pending','submitted'].includes(p.status)) { %>
+        <form method="post" action="/ops/payouts/<%= p.id %>/retry" class="inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="small">Retry</button></form>
+      <% } %></td></tr>
+      <% } %>
+    </tbody></table>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>Refunds</h2></div>
+    <table><thead><tr><th>Reason</th><th>Reference</th><th>Status</th><th class="num">Amount</th><th></th></tr></thead><tbody>
+      <% for (const r of detail.refunds) { %>
+      <tr><td><%= r.reason_code %></td><td class="mono"><%= r.provider_reference || '—' %></td><td><span class="pill"><%= r.status %></span></td><td class="num"><%= Number(r.amount_minor).toLocaleString('en-US') %> <%= r.currency_code %></td>
+      <td><% if (can.refund && ['pending','submitted'].includes(r.status)) { %>
+        <form method="post" action="/ops/refunds/<%= r.id %>/retry" class="inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="small">Retry</button></form>
+      <% } %></td></tr>
+      <% } %>
+    </tbody></table>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <div class="panel-head"><h2>Ledger lines</h2><span class="tag">per journal, single currency</span></div>
+  <table><thead><tr><th>Kind</th><th>Currency</th><th>Account</th><th class="num">Amount</th><th>At</th></tr></thead><tbody>
+    <% for (const j of detail.journals) { %>
+    <tr><td><%= j.kind %></td><td><%= j.currency_code %></td><td><span class="mono"><%= j.code %></span> <%= j.name %></td><td class="num"><%= Number(j.amount_minor).toLocaleString('en-US') %></td><td><%= new Date(j.created_at).toISOString().replace('T',' ').slice(0,19) %></td></tr>
+    <% } %>
+  </tbody></table>
+</div>
+<%- include('partials/footer') %>

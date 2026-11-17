@@ -1,0 +1,160 @@
+<%- include('partials/header', { title: 'Overview', user, csrf, active: 'overview', notice, error, can }) %>
+<div class="kpis">
+  <div class="kpi"><div class="label">Funded queue</div><div class="value"><%= data.counts.queue %></div><div class="hint">escrowed or matching</div></div>
+  <div class="kpi"><div class="label">Locked matches</div><div class="value"><%= data.counts.matches %></div><div class="hint">waiting or paying</div></div>
+  <div class="kpi"><div class="label">Pending payouts</div><div class="value"><%= data.counts.payouts %></div><div class="hint">pending or submitted</div></div>
+  <div class="kpi"><div class="label">Pending refunds</div><div class="value"><%= data.counts.refunds %></div><div class="hint">pending or submitted</div></div>
+  <div class="kpi"><div class="label">Active LP orders</div><div class="value"><%= data.counts.liquidityOrders %></div><div class="hint">prefunded and live</div></div>
+</div>
+
+<% if (data.alerts.length > 0) { %>
+<div class="panel" style="margin-bottom:16px">
+  <div class="panel-head"><h2>Alerts</h2><span class="pill warn"><%= data.alerts.length %></span></div>
+  <% for (const alert of data.alerts) { %>
+    <div class="alert <%= alert.level %>"><span class="dot"></span><%= alert.message %></div>
+  <% } %>
+</div>
+<% } %>
+
+<div class="grid two">
+  <div class="panel">
+    <div class="panel-head"><h2>Corridors</h2><a class="button small" href="/corridors">Policy</a></div>
+    <% if (data.corridors.length === 0) { %><div class="empty">No corridors configured.</div><% } else { %>
+    <table>
+      <thead><tr><th>Corridor</th><th>Status</th><th class="num">Open</th><th class="num">Exposure</th><th>Use</th></tr></thead>
+      <tbody>
+      <% for (const c of data.corridors) { %>
+        <tr>
+          <td><strong><%= c.from %> → <%= c.to %></strong></td>
+          <td><span class="pill <%= c.enabled ? 'ok' : 'bad' %>"><%= c.enabled ? 'on' : 'off' %></span></td>
+          <td class="num"><%= c.openTrades %></td>
+          <td class="num"><%= c.openSendMinor.toLocaleString('en-US') %> / <%= c.exposureCapMinor === null ? '—' : c.exposureCapMinor.toLocaleString('en-US') %></td>
+          <td>
+            <% const use = c.utilizationPercent; %>
+            <div class="bar <%= use !== null && use >= 100 ? 'bad' : use !== null && use >= 80 ? 'warn' : '' %>"><span style="width:<%= Math.min(100, use === null ? 0 : use) %>%"></span></div>
+            <span class="tag"><%= use === null ? 'no cap' : use + '%' %></span>
+          </td>
+        </tr>
+      <% } %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Recent alerts / activity</h2><a class="button small" href="/control-room">Control room</a></div>
+    <div class="feed" id="mini-feed" data-endpoint="/control-room/data">
+      <div class="empty">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<div class="grid two" style="margin-top:16px">
+  <div class="panel">
+    <div class="panel-head"><h2>Funded queue</h2><span class="tag">oldest first</span></div>
+    <% if (data.queue.length === 0) { %><div class="empty">Nothing waiting.</div><% } else { %>
+    <table>
+      <thead><tr><th>Reference</th><th>Status</th><th>Corridor</th><th class="num">Amount</th><th class="num">Age</th><th></th></tr></thead>
+      <tbody>
+      <% for (const t of data.queue) { %>
+        <tr>
+          <td><a class="mono" href="/trades/<%= t.id %>"><%= t.reference %></a><div class="tag">phone …<%= t.phoneLast4 %></div></td>
+          <td><span class="pill info"><%= t.status %></span></td>
+          <td><%= t.sendCurrency %> → <%= t.receiveCurrency %></td>
+          <td class="num"><%= t.sendAmountMinor.toLocaleString('en-US') %></td>
+          <td class="num"><%= t.ageSeconds %>s</td>
+          <td>
+            <% if (can.ops) { %>
+            <form method="post" action="/ops/trades/<%= t.id %>/match" class="inline">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <button class="small">Match</button>
+            </form>
+            <% } %>
+          </td>
+        </tr>
+      <% } %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Locked matches</h2></div>
+    <% if (data.matches.length === 0) { %><div class="empty">No locked matches.</div><% } else { %>
+    <table>
+      <thead><tr><th>Match</th><th>Counterparty</th><th class="num">Buy</th><th class="num">Sell</th><th class="num">Age</th><th></th></tr></thead>
+      <tbody>
+      <% for (const m of data.matches) { %>
+        <tr>
+          <td><span class="mono"><%= String(m.id).slice(0, 8) %></span><div class="tag"><%= m.status %></div></td>
+          <td><span class="pill <%= m.liquidity ? 'info' : '' %>"><%= m.liquidity ? 'LP' : 'user' %></span></td>
+          <td class="num"><%= m.buyCurrency %> <%= m.buyAmountMinor.toLocaleString('en-US') %></td>
+          <td class="num"><%= m.sellCurrency %> <%= m.sellAmountMinor.toLocaleString('en-US') %></td>
+          <td class="num"><%= m.matchedAt ? Math.round((Date.now() - new Date(m.matchedAt).getTime()) / 1000) : '—' %>s</td>
+          <td>
+            <% if (can.ops) { %>
+            <form method="post" action="/ops/matches/<%= m.id %>/disburse" class="inline">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <button class="small">Disburse</button>
+            </form>
+            <% } %>
+          </td>
+        </tr>
+      <% } %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+</div>
+
+<div class="grid two" style="margin-top:16px">
+  <div class="panel">
+    <div class="panel-head"><h2>Pending payouts</h2></div>
+    <% if (data.payouts.length === 0) { %><div class="empty">Nothing pending.</div><% } else { %>
+    <table>
+      <thead><tr><th>Trade</th><th>Provider</th><th class="num">Amount</th><th>Status</th></tr></thead>
+      <tbody>
+      <% for (const p of data.payouts) { %>
+        <tr><td><a class="mono" href="/trades/<%= p.tradeId %>"><%= p.reference %></a></td><td><%= p.provider %><div class="tag"><%= p.providerReference || '—' %></div></td><td class="num"><%= p.currency %> <%= p.amountMinor.toLocaleString('en-US') %></td><td><span class="pill warn"><%= p.status %></span></td></tr>
+      <% } %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>Pending refunds</h2></div>
+    <% if (data.refunds.length === 0) { %><div class="empty">Nothing pending.</div><% } else { %>
+    <table>
+      <thead><tr><th>Trade</th><th>Reason</th><th class="num">Amount</th><th>Status</th></tr></thead>
+      <tbody>
+      <% for (const r of data.refunds) { %>
+        <tr><td><a class="mono" href="/trades/<%= r.tradeId %>"><%= r.reference %></a></td><td><%= r.reasonCode %></td><td class="num"><%= r.currency %> <%= r.amountMinor.toLocaleString('en-US') %></td><td><span class="pill warn"><%= r.status %></span></td></tr>
+      <% } %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <div class="panel-head"><h2>LP orders</h2><a class="button small" href="/liquidity">Manage</a></div>
+  <% if (data.liquidityOrders.length === 0) { %><div class="empty">No liquidity orders.</div><% } else { %>
+  <table>
+    <thead><tr><th>Provider</th><th>Provide</th><th>Receive</th><th class="num">Remaining</th><th class="num">Rate</th><th>Status</th><th>Expires</th></tr></thead>
+    <tbody>
+    <% for (const o of data.liquidityOrders) { %>
+      <tr>
+        <td><%= o.providerName %></td>
+        <td><%= o.provideCurrency %></td>
+        <td><%= o.receiveCurrency %></td>
+        <td class="num"><%= o.remainingMinor.toLocaleString('en-US') %> / <%= o.capacityMinor.toLocaleString('en-US') %></td>
+        <td class="num"><%= o.rate %></td>
+        <td><span class="pill <%= o.status === 'active' ? 'ok' : o.status === 'depleted' ? 'warn' : '' %>"><%= o.status %></span></td>
+        <td><%= new Date(o.expiresAt).toISOString().replace('T',' ').slice(0,16) %></td>
+      </tr>
+    <% } %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+<%- include('partials/footer') %>

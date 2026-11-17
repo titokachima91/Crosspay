@@ -1,0 +1,14 @@
+<%- include('partials/header', { title: 'Two-factor code', user: null, csrf: '', active: '', notice: null, error: error || null }) %>
+<div class="auth-card">
+  <h1>Two-factor code</h1>
+  <div class="sub">Enter the six-digit code from your authenticator app.</div>
+  <form method="post" action="/login/totp">
+    <div class="field">
+      <label for="code">Code</label>
+      <input id="code" name="code" inputmode="numeric" pattern="[0-9 ]{6,8}" autocomplete="one-time-code" required autofocus>
+    </div>
+    <button class="primary" type="submit">Verify</button>
+  </form>
+  <div class="auth-foot">Lost your authenticator? Ask a superadmin to reset it.</div>
+</div>
+<%- include('partials/footer') %>

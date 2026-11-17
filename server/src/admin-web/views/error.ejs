@@ -1,0 +1,7 @@
+<%- include('partials/header', { title: 'Not available', user: user || null, csrf: csrf || '', active: active || '', notice: null, error: null }) %>
+<div class="panel">
+  <h2><%= heading || 'Something went wrong' %></h2>
+  <p class="muted"><%= message || 'The request could not be completed.' %></p>
+  <p><% if (user) { %><a class="button" href="/">Back to overview</a><% } else { %><a class="button" href="/login">Sign in</a><% } %></p>
+</div>
+<%- include('partials/footer') %>

@@ -10,15 +10,16 @@ Node.js + TypeScript service for CrossPay.
 - **B2.3** — trade initiation, collection lifecycle and trade reads. Built
   2026-11-16.
 - **B2.4** — payouts, refunds and signed provider callbacks. Built 2026-11-16.
-- **B4** — P2P matching, LP standing orders, exposure controls and Phase A ops
-  admin. Built 2026-11-16.
+- **B4** — P2P matching, LP standing orders, exposure controls, Phase A ops
+  admin and the named-admin web portal. Built 2026-11-16.
 
 The Flutter app remains the only client contract. `docs/api_contract.md` is the
 contract of record. The B1 plan is `docs/B1_DATABASE_PLAN.md`; the build evidence
 is `docs/B1_IMPLEMENTATION.md`, `docs/B2_IMPLEMENTATION.md`,
 `docs/B2_2_IMPLEMENTATION.md`, `docs/B2_3_B2_4_IMPLEMENTATION.md` and
 `docs/B4_MATCHING_IMPLEMENTATION.md`. The full admin plan is
-`docs/ADMIN_PANEL_PLAN.md`.
+`docs/ADMIN_PANEL_PLAN.md`; the portal build is
+`docs/ADMIN_WEB_IMPLEMENTATION.md`.
 
 ---
 
@@ -140,9 +141,9 @@ applies every migration and the seed, then exercises the schema, quote
 lifecycle, trade timeline, idempotency race, ledger balance rules, append-only
 guards, encryption, OTP limits, refresh rotation, the HTTP bootstrap,
 collections, payouts, refunds, signed callbacks, P2P matching, LP liquidity,
-admin policy controls, market depth, analytics, CSV export and the
-reconciliation worker.
-**93 tests pass.** No Docker or local PostgreSQL installation is required.
+admin policy controls, admin portal auth/RBAC, market depth, analytics, CSV
+export and the reconciliation worker.
+**100 tests pass.** No Docker or local PostgreSQL installation is required.
 
 Live provider smokes (with the sandbox running):
 
@@ -159,6 +160,18 @@ Reconciliation worker:
 WORKER_ONCE=true npm run worker   # one pass
 npm run worker                    # every WORKER_INTERVAL_SECONDS
 ```
+
+Admin portal (separate process):
+
+```sh
+npm run admin:create -- --email ops@example.com --name "Ops Admin" --role superadmin
+npm run admin:dev
+npm run build && npm run admin:start
+```
+
+The portal is documented in `docs/ADMIN_WEB_IMPLEMENTATION.md`. It uses named
+admin users, Argon2id, TOTP, HttpOnly sessions, CSRF and RBAC. Put it behind a
+zero-trust proxy or VPN and a separate `admin.` hostname in production.
 
 `npm run verify` is for a real database. It checks migration state, the five
 `/config` lists, payout-rail kinds, seeded rows and ledger balance.
@@ -185,7 +198,12 @@ npm run worker                    # every WORKER_INTERVAL_SECONDS
 | `PAYMENT_WEBHOOK_SECRET` | for webhooks | Shared HMAC secret |
 | `PAYMENT_WEBHOOK_MAX_SKEW_SECONDS` | no | Callback timestamp tolerance, default 300 |
 | `P2P_ENABLED` | no | Matching kill switch, default `false`; corridors live in `p2p_corridors` |
-| `ADMIN_API_KEY` | for admin | Phase A ops key; empty keeps admin JSON at `503` |
+| `ADMIN_API_KEY` | for admin | Phase A break-glass ops key; empty keeps admin JSON at `503` |
+| `ADMIN_BASE_URL` | for portal | Public admin origin used for links/origin checks |
+| `ADMIN_WEB_PORT` / `HOST` | no | Portal listener, default `3001` / `127.0.0.1` |
+| `ADMIN_COOKIE_SECURE` | no | Force secure cookies; defaults to HTTPS/production |
+| `ADMIN_SESSION_TTL_SECONDS` | no | Admin session lifetime, default 8 hours |
+| `ADMIN_TOTP_ISSUER` | no | TOTP issuer label, default `CrossPay Admin` |
 | `PUBLIC_API_URL` | for export | Absolute public origin used in export links |
 | `WORKER_INTERVAL_SECONDS` | no | Worker pass interval, default 30 |
 | `WORKER_ONCE` | no | `true` runs one pass and exits |

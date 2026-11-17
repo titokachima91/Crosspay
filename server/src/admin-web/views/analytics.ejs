@@ -1,0 +1,48 @@
+<%- include('partials/header', { title: 'Analytics', user, csrf, active: 'analytics', notice, error, can }) %>
+<div class="grid two">
+  <div class="panel">
+    <div class="panel-head"><h2>Trades by status</h2><span class="tag">per currency</span></div>
+    <table><thead><tr><th>Currency</th><th>Status</th><th class="num">Trades</th><th class="num">Sent</th></tr></thead><tbody>
+      <% for (const r of data.byStatus) { %>
+      <tr><td><%= r.send_currency %></td><td><span class="pill"><%= r.status %></span></td><td class="num"><%= r.trades %></td><td class="num"><%= Number(r.send_minor).toLocaleString('en-US') %></td></tr>
+      <% } %>
+    </tbody></table>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>Completed corridors</h2><span class="tag">no mixed-currency totals</span></div>
+    <table><thead><tr><th>Corridor</th><th class="num">Trades</th><th class="num">Sent</th><th class="num">Received</th></tr></thead><tbody>
+      <% for (const r of data.byCorridor) { %>
+      <tr><td><%= r.send_currency %> → <%= r.receive_currency %></td><td class="num"><%= r.trades %></td><td class="num"><%= Number(r.send_minor).toLocaleString('en-US') %> <%= r.send_currency %></td><td class="num"><%= Number(r.receive_minor).toLocaleString('en-US') %> <%= r.receive_currency %></td></tr>
+      <% } %>
+    </tbody></table>
+  </div>
+</div>
+
+<div class="grid two" style="margin-top:16px">
+  <div class="panel">
+    <div class="panel-head"><h2>Payouts by status</h2></div>
+    <table><thead><tr><th>Currency</th><th>Status</th><th class="num">Count</th><th class="num">Amount</th></tr></thead><tbody>
+      <% for (const r of data.payouts) { %>
+      <tr><td><%= r.currency_code %></td><td><span class="pill"><%= r.status %></span></td><td class="num"><%= r.count %></td><td class="num"><%= Number(r.amount_minor).toLocaleString('en-US') %></td></tr>
+      <% } %>
+    </tbody></table>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>Refunds by status</h2></div>
+    <table><thead><tr><th>Currency</th><th>Status</th><th class="num">Count</th><th class="num">Amount</th></tr></thead><tbody>
+      <% for (const r of data.refunds) { %>
+      <tr><td><%= r.currency_code %></td><td><span class="pill"><%= r.status %></span></td><td class="num"><%= r.count %></td><td class="num"><%= Number(r.amount_minor).toLocaleString('en-US') %></td></tr>
+      <% } %>
+    </tbody></table>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <div class="panel-head"><h2>Liquidity by currency</h2><span class="tag">remaining prefund per status</span></div>
+  <table><thead><tr><th>Provide currency</th><th>Status</th><th class="num">Orders</th><th class="num">Remaining</th></tr></thead><tbody>
+    <% for (const r of data.liquidity) { %>
+    <tr><td><%= r.provide_currency %></td><td><span class="pill"><%= r.status %></span></td><td class="num"><%= r.count %></td><td class="num"><%= Number(r.remaining_minor).toLocaleString('en-US') %></td></tr>
+    <% } %>
+  </tbody></table>
+</div>
+<%- include('partials/footer') %>

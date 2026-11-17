@@ -9,8 +9,11 @@
   },
   "scripts": {
     "dev": "tsx src/http/start.ts",
-    "build": "tsc -p tsconfig.build.json",
+    "admin:dev": "tsx src/admin-web/server.ts",
+    "admin:create": "tsx scripts/create-admin.ts",
+    "build": "tsc -p tsconfig.build.json && mkdir -p dist/admin-web && cp -R src/admin-web/views dist/admin-web/views && cp -R src/admin-web/public dist/admin-web/public",
     "start": "node dist/http/start.js",
+    "admin:start": "node dist/admin-web/server.js",
     "typecheck": "tsc --noEmit",
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seed.ts",
@@ -25,22 +28,33 @@
     "test:spec": "node --import tsx --test --test-concurrency=1 --test-force-exit test/*.test.ts"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.1.5",
     "@fastify/cors": "^11.4.3",
+    "@fastify/formbody": "^9.0.2",
+    "@fastify/static": "^10.1.11",
+    "@fastify/view": "^12.0.1",
+    "argon2": "^0.45.2",
     "dotenv": "^17.2.3",
+    "ejs": "^7.0.2",
     "fastify": "^5.12.8",
     "jose": "^6.2.17",
+    "otpauth": "^9.6.0",
     "pg": "^8.16.3",
+    "qrcode": "^1.5.4",
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/ejs": "^3.1.5",
     "@types/node": "^24.10.1",
     "@types/pg": "^8.15.6",
+    "@types/qrcode": "^1.5.6",
     "embedded-postgres": "17.11.0-beta.19",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   },
   "allowScripts": {
     "@embedded-postgres/darwin-x64@17.11.0-beta.19": true,
-    "esbuild@0.28.2": true
+    "esbuild@0.28.2": true,
+    "argon2@0.45.2": true
   }
 }

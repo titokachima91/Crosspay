@@ -1,0 +1,18 @@
+<%- include('partials/header', { title: 'Audit', user, csrf, active: 'audit', notice, error, can }) %>
+<div class="panel">
+  <div class="panel-head"><h2>Admin audit</h2><span class="tag">append-only</span></div>
+  <% if (rows.length === 0) { %><div class="empty">No admin actions yet.</div><% } else { %>
+  <table><thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Resource</th><th>Reason</th></tr></thead><tbody>
+    <% for (const r of rows) { %>
+    <tr>
+      <td><%= new Date(r.created_at).toISOString().replace('T',' ').slice(0,19) %></td>
+      <td><%= r.admin_email || r.actor_label %></td>
+      <td><span class="mono"><%= r.action %></span></td>
+      <td><%= r.resource_type %> <span class="tag"><%= r.resource_id || '' %></span></td>
+      <td><%= r.reason || '' %></td>
+    </tr>
+    <% } %>
+  </tbody></table>
+  <% } %>
+</div>
+<%- include('partials/footer') %>

@@ -1,0 +1,80 @@
+<%- include('partials/header', { title: 'Admin users', user, csrf, active: 'users', notice, error, can }) %>
+<div class="grid two">
+  <div class="panel">
+    <div class="panel-head"><h2>Admin users</h2><span class="tag">named identities</span></div>
+    <table><thead><tr><th>User</th><th>Roles</th><th>Status</th><th>2FA</th><th>Last login</th><th></th></tr></thead><tbody>
+      <% for (const u of users) { %>
+      <tr>
+        <td><strong><%= u.name %></strong><div class="tag"><%= u.email %></div></td>
+        <td><%= u.roles.join(', ') %></td>
+        <td><span class="pill <%= u.status === 'active' ? 'ok' : 'bad' %>"><%= u.status %></span></td>
+        <td><span class="pill <%= u.totpEnrolledAt ? 'ok' : 'warn' %>"><%= u.totpEnrolledAt ? 'on' : 'pending' %></span></td>
+        <td><%= u.lastLoginAt ? new Date(u.lastLoginAt).toISOString().replace('T',' ').slice(0,16) : '—' %></td>
+        <td>
+          <% if (u.id !== user.id) { %>
+          <form method="post" action="/admin-users/<%= u.id %>/status" class="inline">
+            <input type="hidden" name="_csrf" value="<%= csrf %>">
+            <input type="hidden" name="status" value="<%= u.status === 'active' ? 'suspended' : 'active' %>">
+            <button class="small <%= u.status === 'active' ? 'danger' : '' %>"><%= u.status === 'active' ? 'Suspend' : 'Activate' %></button>
+          </form>
+          <% } %>
+        </td>
+      </tr>
+      <% } %>
+    </tbody></table>
+    <p class="tag">New users enrol TOTP on their first sign-in. The last superadmin cannot be suspended.</p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Add admin</h2></div>
+    <form method="post" action="/admin-users">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="field"><label>Name</label><input name="name" required></div>
+      <div class="field"><label>Email</label><input name="email" type="email" required></div>
+      <div class="field"><label>Temporary password</label><input name="password" type="password" minlength="12" required autocomplete="new-password"></div>
+      <div class="field"><label>Role</label>
+        <select name="role">
+          <option value="viewer">viewer</option>
+          <option value="ops">ops</option>
+          <option value="finance">finance</option>
+          <option value="compliance">compliance</option>
+          <option value="superadmin">superadmin</option>
+        </select>
+      </div>
+      <button class="primary">Create user</button>
+    </form>
+    <div class="divider"></div>
+    <h3>Change role</h3>
+    <form method="post" action="/admin-users/role">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="field"><label>User</label>
+        <select name="userId">
+          <% for (const u of users) { %><option value="<%= u.id %>"><%= u.email %></option><% } %>
+        </select>
+      </div>
+      <div class="field"><label>Role</label>
+        <select name="role">
+          <option value="viewer">viewer</option>
+          <option value="ops">ops</option>
+          <option value="finance">finance</option>
+          <option value="compliance">compliance</option>
+          <option value="superadmin">superadmin</option>
+        </select>
+      </div>
+      <button>Set role</button>
+    </form>
+    <div class="divider"></div>
+    <h3>Reset password</h3>
+    <form method="post" action="/admin-users/password">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="field"><label>User</label>
+        <select name="userId">
+          <% for (const u of users) { %><option value="<%= u.id %>"><%= u.email %></option><% } %>
+        </select>
+      </div>
+      <div class="field"><label>New password</label><input name="password" type="password" minlength="12" required autocomplete="new-password"></div>
+      <button>Reset password</button>
+    </form>
+  </div>
+</div>
+<%- include('partials/footer') %>

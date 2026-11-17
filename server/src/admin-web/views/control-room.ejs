@@ -1,0 +1,28 @@
+<%- include('partials/header', { title: 'Control room', user, csrf, active: 'control', notice, error, can }) %>
+<div class="kpis">
+  <div class="kpi"><div class="label">Funded queue</div><div class="value" id="kpi-queue">—</div><div class="hint">escrowed or matching</div></div>
+  <div class="kpi"><div class="label">Locked matches</div><div class="value" id="kpi-matches">—</div><div class="hint">waiting or paying</div></div>
+  <div class="kpi"><div class="label">Pending payouts</div><div class="value" id="kpi-payouts">—</div><div class="hint">pending or submitted</div></div>
+  <div class="kpi"><div class="label">Pending refunds</div><div class="value" id="kpi-refunds">—</div><div class="hint">pending or submitted</div></div>
+  <div class="kpi"><div class="label">Active LP orders</div><div class="value" id="kpi-lp">—</div><div class="hint">prefunded and live</div></div>
+</div>
+
+<div class="grid two">
+  <div class="panel">
+    <div class="panel-head"><h2>Live activity</h2><span class="tag" id="feed-updated">connecting…</span></div>
+    <div class="feed" id="control-feed" data-endpoint="/control-room/data"><div class="empty">Loading…</div></div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>Alerts</h2></div>
+    <div id="control-alerts"><div class="empty">Loading…</div></div>
+    <div class="divider"></div>
+    <div class="panel-head"><h2>Live corridors</h2></div>
+    <div id="control-corridors"><div class="empty">Loading…</div></div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <div class="panel-head"><h2>Recent admin actions</h2><a class="button small" href="/audit">Audit</a></div>
+  <div id="control-audit"><div class="empty">Loading…</div></div>
+</div>
+<%- include('partials/footer') %>

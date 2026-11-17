@@ -1,0 +1,34 @@
+<%- include('partials/header', { title: 'Corridors', user, csrf, active: 'corridors', notice, error, can }) %>
+<div class="panel">
+  <div class="panel-head"><h2>Corridor policy</h2><span class="tag">Changes are audited</span></div>
+  <% if (!can.corridor) { %><div class="notice">You have read-only access to corridor policy.</div><% } %>
+  <% if (data.length === 0) { %><div class="empty">No corridors configured. Insert an approved corridor row or use the admin API.</div><% } %>
+  <% for (const c of data) { %>
+    <div class="panel" style="background:#0d1319;margin-top:12px">
+      <div class="panel-head">
+        <h2><%= c.from %> → <%= c.to %></h2>
+        <span class="pill <%= c.enabled ? 'ok' : 'bad' %>"><%= c.enabled ? 'enabled' : 'disabled' %></span>
+        <span class="tag">open <%= c.openTrades %> · <%= c.openSendMinor.toLocaleString('en-US') %> / <%= c.exposureCapMinor === null ? 'no cap' : c.exposureCapMinor.toLocaleString('en-US') %></span>
+      </div>
+      <% if (can.corridor) { %>
+      <form method="post" action="/corridors/<%= c.from %>/<%= c.to %>">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <div class="row">
+          <div class="shrink">
+            <label>Enabled</label>
+            <label class="check"><input type="checkbox" name="enabled" value="true" <%= c.enabled ? 'checked' : '' %>> Live</label>
+          </div>
+          <div><label>Exposure cap</label><input name="exposureCapMinor" type="number" min="1" value="<%= c.exposureCapMinor ?? '' %>" placeholder="required"></div>
+          <div><label>Min amount</label><input name="minAmountMinor" type="number" min="0" value="<%= c.minAmountMinor ?? '' %>"></div>
+          <div><label>Max amount</label><input name="maxAmountMinor" type="number" min="1" value="<%= c.maxAmountMinor ?? '' %>"></div>
+          <div><label>Deadline (s)</label><input name="matchDeadlineSeconds" type="number" min="30" max="86400" value="<%= c.matchDeadlineSeconds %>"></div>
+          <div><label>Estimate (s)</label><input name="estimatedSettleSeconds" type="number" min="1" value="<%= c.estimatedSettleSeconds ?? '' %>"></div>
+          <div><label>Spread bps</label><input name="spreadBps" type="number" min="0" max="10000" value="<%= c.spreadBps %>"></div>
+          <div class="shrink"><button class="primary">Save</button></div>
+        </div>
+      </form>
+      <% } %>
+    </div>
+  <% } %>
+</div>
+<%- include('partials/footer') %>

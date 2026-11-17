@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title><%= title %> · CrossPay</title>
+  <link rel="stylesheet" href="/assets/admin.css">
+</head>
+<body>
+<% if (typeof user !== 'undefined' && user) { %>
+<header class="top">
+  <div class="brand">CrossPay <span>Ops</span></div>
+  <nav class="nav">
+    <a href="/" class="<%= active === 'overview' ? 'active' : '' %>">Overview</a>
+    <a href="/control-room" class="<%= active === 'control' ? 'active' : '' %>">Control room</a>
+    <a href="/analytics" class="<%= active === 'analytics' ? 'active' : '' %>">Analytics</a>
+    <a href="/corridors" class="<%= active === 'corridors' ? 'active' : '' %>">Corridors</a>
+    <a href="/liquidity" class="<%= active === 'liquidity' ? 'active' : '' %>">Liquidity</a>
+    <a href="/trades" class="<%= active === 'trades' ? 'active' : '' %>">Trades</a>
+    <% if (typeof can !== 'undefined' && can.audit) { %><a href="/audit" class="<%= active === 'audit' ? 'active' : '' %>">Audit</a><% } %>
+    <% if (typeof can !== 'undefined' && can.users) { %><a href="/admin-users" class="<%= active === 'users' ? 'active' : '' %>">Admin users</a><% } %>
+  </nav>
+  <div class="who">
+    <strong><%= user.name %></strong>
+    <%= user.roles.join(' · ') %>
+  </div>
+  <form method="post" action="/logout" class="inline">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <button class="small">Sign out</button>
+  </form>
+</header>
+<% } %>
+<main class="<%= typeof user !== 'undefined' && user ? '' : 'auth' %>">
+<% if (typeof notice !== 'undefined' && notice) { %><div class="notice ok"><%= notice %></div><% } %>
+<% if (typeof error !== 'undefined' && error) { %><div class="notice error"><%= error %></div><% } %>

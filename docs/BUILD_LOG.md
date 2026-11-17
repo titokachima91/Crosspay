@@ -660,4 +660,35 @@ KYC/name-check adapters, invoice/share handlers.
 
 ---
 
+## 2026-11-16 - B4.6 named-admin web portal (Phase A/B)
+
+- New separate `admin-web` process in `server/src/admin-web/` with its own
+  Fastify server, EJS views, CSS and minimal JS. Same package/repo, separate
+  container/entrypoint (`npm run admin:dev`, `npm run admin:start`).
+- Migration `0012`: `admin_users`, roles, server-side sessions, login
+  challenges, recovery codes, login attempts, TOTP replay guard and
+  `admin_audit_log.admin_user_id`.
+- Auth: Argon2id, TOTP enrolment with terminal/QR bootstrap
+  (`npm run admin:create`), challenge cookies, HttpOnly/SameSite sessions,
+  CSRF/origin checks, session revocation, login rate limit and TOTP replay
+  rejection.
+- RBAC: viewer, ops, finance, compliance, superadmin. Last active superadmin
+  cannot be suspended/demoted.
+- Pages: overview, control-room polling snapshot/activity feed, analytics
+  tables, corridors, liquidity providers/orders, trade search/detail, audit,
+  admin-user management.
+- Ops actions: re-check provider, match, disburse/resume, payout retry (match
+  aware), refund, refund retry. Every action is named-admin audited.
+- Security headers: CSP, frame denial, noindex, no-store HTML, HSTS when HTTPS.
+- Renamed the ops-admin track to **B4.6**; B4.5 is the app matching states.
+- Verification: Node **100/100**, 20 suites, typecheck clean. Portal tests cover
+  login, TOTP replay, CSRF, RBAC, pages, first-login enrolment and audit.
+- Detail: `docs/ADMIN_WEB_IMPLEMENTATION.md`; full plan:
+  `docs/ADMIN_PANEL_PLAN.md`.
+
+Next: Phase C control room SSE/analytics charts, Phase D configuration center,
+Phase E/F bookkeeping/reconciliation, Phase G support/compliance.
+
+---
+
 ## Report End - No fluff. Just facts.
