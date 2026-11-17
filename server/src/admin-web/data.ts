@@ -386,7 +386,7 @@ export async function loadTradeDetail(pool: Pool, tradeId: string) {
   const trade = await pool.query(
     `SELECT t.id, t.reference, t.status, t.route, t.send_currency, t.receive_currency,
             t.send_amount_minor, t.fee_minor, t.receive_amount_minor, t.rate,
-            t.beneficiary_name, t.beneficiary_last4,
+            t.user_id, t.beneficiary_name, t.beneficiary_last4,
             t.failure_code, t.created_at, t.updated_at, t.completed_at,
             right(u.phone, 4) AS phone_last4
      FROM (

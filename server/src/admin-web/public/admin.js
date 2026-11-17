@@ -236,4 +236,25 @@
       if (!window.confirm(form.dataset.confirm)) event.preventDefault();
     }
   });
+
+  const cannedSelect = document.getElementById('canned');
+  const messageBody = document.querySelector('[data-message-body]');
+  if (cannedSelect && messageBody) {
+    cannedSelect.addEventListener('change', () => {
+      const option = cannedSelect.selectedOptions && cannedSelect.selectedOptions[0];
+      const body = option && option.dataset ? option.dataset.body : '';
+      if (!body) return;
+      messageBody.value = body;
+      messageBody.focus();
+    });
+  }
+
+  const messageMode = document.getElementById('mode');
+  if (messageMode && messageBody) {
+    const syncLimit = () => {
+      messageBody.maxLength = messageMode.value === 'sms' ? 480 : 4000;
+    };
+    messageMode.addEventListener('change', syncLimit);
+    syncLimit();
+  }
 })();

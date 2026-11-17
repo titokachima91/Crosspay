@@ -1,0 +1,154 @@
+<%- include('partials/header', { title: detail.reference, user, csrf, active: 'support', notice, error, can }) %>
+<div class="panel">
+  <div class="panel-head">
+    <h2 class="mono"><%= detail.reference %></h2>
+    <span class="pill <%= detail.status === 'resolved' || detail.status === 'closed' ? 'ok' : detail.status === 'pending_customer' ? 'warn' : 'info' %>"><%= detail.status.replaceAll('_', ' ') %></span>
+    <span class="pill <%= detail.priority === 'urgent' || detail.priority === 'high' ? 'bad' : 'info' %>"><%= detail.priority %></span>
+    <span class="pill"><%= detail.category.replaceAll('_', ' ') %></span>
+    <a class="button small" href="/support">Back</a>
+    <a class="button small" href="/support/new?user=<%= detail.customer.id %><% if (detail.trade) { %>&trade=<%= encodeURIComponent(detail.trade.reference) %><% } %>">New case</a>
+  </div>
+  <h3><%= detail.subject %></h3>
+  <div class="detail-grid">
+    <div class="detail"><div class="k">Opened</div><div class="v"><%= detail.createdAt.replace('T', ' ').slice(0, 16) %></div></div>
+    <div class="detail"><div class="k">Opened via</div><div class="v"><%= detail.openedVia %></div></div>
+    <div class="detail"><div class="k">Opened by</div><div class="v"><%= detail.creatorName || detail.creatorEmail || '—' %></div></div>
+    <div class="detail"><div class="k">Assignee</div><div class="v"><%= detail.assigneeName || 'Unassigned' %></div></div>
+    <div class="detail"><div class="k">Last activity</div><div class="v"><%= detail.lastActivityAt.replace('T', ' ').slice(0, 16) %></div></div>
+    <div class="detail"><div class="k">First response</div><div class="v"><%= detail.firstResponseAt ? detail.firstResponseAt.replace('T', ' ').slice(0, 16) : '—' %></div></div>
+  </div>
+</div>
+
+<% if (reveal) { %>
+<div class="notice error" style="border-width:2px">
+  <strong>Customer PII revealed</strong> · reason: <%= revealReason %> · this access is recorded.
+  <div class="detail-grid" style="margin-top:10px">
+    <div class="detail"><div class="k">Full phone</div><div class="v mono"><%= reveal.phone %></div></div>
+    <div class="detail"><div class="k">Beneficiary name</div><div class="v"><%= reveal.beneficiaryName || '—' %></div></div>
+    <div class="detail"><div class="k">Beneficiary account</div><div class="v mono"><%= reveal.beneficiaryAccount || '—' %></div></div>
+  </div>
+  <p class="tag">Do not copy this into notes, SMS or email. Ask only for the fields needed to resolve this case.</p>
+</div>
+<% } %>
+
+<div class="grid two">
+  <div class="panel">
+    <div class="panel-head"><h2>Conversation and notes</h2><span class="tag">append-only</span></div>
+    <% if (detail.messages.length === 0) { %><div class="empty">No notes yet.</div><% } %>
+    <div class="thread">
+      <% for (const message of detail.messages) { %>
+      <div class="thread-item <%= message.visibility === 'internal' ? 'internal' : 'customer' %>">
+        <div class="thread-head">
+          <span class="pill <%= message.visibility === 'internal' ? 'warn' : 'ok' %>"><%= message.visibility === 'internal' ? 'internal note' : 'customer-visible' %></span>
+          <span class="tag"><%= message.channel %></span>
+          <% if (message.deliveryStatus !== 'not_applicable') { %>
+            <span class="pill <%= message.deliveryStatus === 'sent' ? 'ok' : message.deliveryStatus === 'failed' ? 'bad' : 'warn' %>"><%= message.deliveryStatus %></span>
+          <% } %>
+          <span class="tag"><%= message.authorName || message.authorEmail || 'system' %></span>
+          <span class="tag"><%= message.createdAt.replace('T', ' ').slice(0, 16) %></span>
+        </div>
+        <div class="thread-body"><%= message.body %></div>
+        <% if (message.errorCode) { %><div class="tag">Delivery error: <%= message.errorCode %></div><% } %>
+      </div>
+      <% } %>
+    </div>
+
+    <div class="divider"></div>
+    <% if (can.supportWrite) { %>
+    <form method="post" action="/support/cases/<%= detail.id %>/messages" id="support-message-form">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="row">
+        <div>
+          <label for="mode">Type</label>
+          <select id="mode" name="mode">
+            <option value="note">Internal note</option>
+            <option value="sms" <%= smsAvailable ? '' : 'disabled' %>>Customer SMS<%= smsAvailable ? '' : ' (not connected)' %></option>
+          </select>
+        </div>
+        <div style="flex:2 1 240px">
+          <label for="canned">Canned reply</label>
+          <select id="canned" name="canned" data-canned-target="message-body">
+            <option value="">None</option>
+            <% for (const reply of canned) { %><option value="<%= reply.id %>" data-body="<%= reply.body %>"><%= reply.title %></option><% } %>
+          </select>
+        </div>
+      </div>
+      <label for="message-body">Text</label>
+      <textarea id="message-body" name="body" rows="4" maxlength="4000" required data-message-body></textarea>
+      <p class="tag">Internal notes stay in the case. SMS is only sent when a provider is connected; otherwise the request is refused and nothing is recorded as sent. SMS limit: 480 characters.</p>
+      <button class="primary">Add</button>
+    </form>
+    <% } else { %>
+      <p class="tag">Your role can read support cases but not write to them.</p>
+    <% } %>
+  </div>
+
+  <div>
+    <div class="panel" style="margin-bottom:16px">
+      <div class="panel-head"><h2>Customer</h2><a class="button small" href="/support/customers/<%= detail.customer.id %>">Customer 360</a></div>
+      <div class="detail-grid">
+        <div class="detail"><div class="k">Name</div><div class="v"><%= detail.customer.displayName || 'Unnamed customer' %></div></div>
+        <div class="detail"><div class="k">Phone</div><div class="v">…<%= detail.customer.phoneLast4 %> <span class="tag"><%= detail.customer.phoneVerified ? 'verified' : 'unverified' %></span></div></div>
+        <div class="detail"><div class="k">KYC</div><div class="v"><%= detail.customer.kycStatus %></div></div>
+        <div class="detail"><div class="k">Tier</div><div class="v"><%= detail.customer.tierCode %></div></div>
+        <div class="detail"><div class="k">Account</div><div class="v"><%= detail.customer.accountType %></div></div>
+        <div class="detail"><div class="k">Joined</div><div class="v"><%= detail.customer.createdAt.replace('T', ' ').slice(0, 10) %></div></div>
+      </div>
+      <% if (can.pii) { %>
+      <form method="post" action="/support/cases/<%= detail.id %>/reveal" data-confirm="Reveal the customer's full phone and beneficiary account? This is logged.">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <label for="reason">Reason for reveal</label>
+        <input id="reason" name="reason" required minlength="5" maxlength="300" placeholder="Why the masked data is not enough">
+        <button class="danger">Reveal PII</button>
+      </form>
+      <% } else { %>
+      <p class="tag">Full phone and account reveal needs the compliance PII permission.</p>
+      <% } %>
+    </div>
+
+    <% if (detail.trade) { %>
+    <div class="panel" style="margin-bottom:16px">
+      <div class="panel-head"><h2>Trade</h2><a class="button small" href="/trades/<%= detail.trade.id %>">Open trade</a></div>
+      <div class="detail-grid">
+        <div class="detail"><div class="k">Reference</div><div class="v mono"><%= detail.trade.reference %></div></div>
+        <div class="detail"><div class="k">Status</div><div class="v"><%= detail.trade.status %></div></div>
+        <div class="detail"><div class="k">Corridor</div><div class="v"><%= detail.trade.sendCurrency %> → <%= detail.trade.receiveCurrency %></div></div>
+        <div class="detail"><div class="k">Send</div><div class="v"><%= detail.trade.sendAmountMinor.toLocaleString('en-US') %></div></div>
+        <div class="detail"><div class="k">Receive</div><div class="v"><%= detail.trade.receiveAmountMinor.toLocaleString('en-US') %></div></div>
+        <div class="detail"><div class="k">Recipient</div><div class="v"><%= detail.trade.beneficiaryName %> · …<%= detail.trade.beneficiaryLast4 %></div></div>
+      </div>
+    </div>
+    <% } %>
+
+    <% if (can.supportWrite) { %>
+    <div class="panel">
+      <div class="panel-head"><h2>Case state</h2></div>
+      <form method="post" action="/support/cases/<%= detail.id %>/update">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <div class="row">
+          <div>
+            <label for="status">Status</label>
+            <select id="status" name="status">
+              <% for (const status of statuses) { %><option value="<%= status %>" <%= detail.status === status ? 'selected' : '' %>><%= status.replaceAll('_', ' ') %></option><% } %>
+            </select>
+          </div>
+          <div>
+            <label for="priority">Priority</label>
+            <select id="priority" name="priority">
+              <% for (const priority of priorities) { %><option value="<%= priority %>" <%= detail.priority === priority ? 'selected' : '' %>><%= priority %></option><% } %>
+            </select>
+          </div>
+        </div>
+        <label for="assigneeAdminId">Assignee</label>
+        <select id="assigneeAdminId" name="assigneeAdminId">
+          <option value="">Unassigned</option>
+          <% for (const agent of agents) { %><option value="<%= agent.id %>" <%= detail.assigneeAdminId === agent.id ? 'selected' : '' %>><%= agent.name %> · <%= agent.email %></option><% } %>
+        </select>
+        <button class="primary">Save case state</button>
+      </form>
+      <% if (detail.resolvedAt) { %><p class="tag">Resolved <%= detail.resolvedAt.replace('T', ' ').slice(0, 16) %><% if (detail.closedAt) { %> · closed <%= detail.closedAt.replace('T', ' ').slice(0, 16) %><% } %></p><% } %>
+    </div>
+    <% } %>
+  </div>
+</div>
+<%- include('partials/footer') %>

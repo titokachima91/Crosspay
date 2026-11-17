@@ -17,7 +17,10 @@ export type AdminPermission =
   | 'refund:write'
   | 'admin:users'
   | 'audit:read'
-  | 'ledger:read';
+  | 'ledger:read'
+  | 'support:read'
+  | 'support:write'
+  | 'pii:reveal';
 
 const PERMISSIONS: Record<AdminPermission, AdminRole[]> = {
   view: ['viewer', 'ops', 'finance', 'compliance', 'superadmin'],
@@ -28,6 +31,9 @@ const PERMISSIONS: Record<AdminPermission, AdminRole[]> = {
   'admin:users': ['superadmin'],
   'audit:read': ['compliance', 'superadmin'],
   'ledger:read': ['finance', 'compliance', 'superadmin'],
+  'support:read': ['ops', 'compliance', 'superadmin'],
+  'support:write': ['ops', 'compliance', 'superadmin'],
+  'pii:reveal': ['compliance', 'superadmin'],
 };
 
 export interface AdminSession {

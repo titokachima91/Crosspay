@@ -1,0 +1,46 @@
+<%- include('partials/header', { title: 'Canned replies', user, csrf, active: 'support', notice, error, can }) %>
+<div class="grid two">
+  <div class="panel">
+    <div class="panel-head"><h2>Replies</h2><a class="button small" href="/support">Back to cases</a></div>
+    <% if (replies.length === 0) { %><div class="empty">No canned replies yet.</div><% } else { %>
+    <table>
+      <thead><tr><th>Title</th><th>Body</th><th>Category</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% for (const reply of replies) { %>
+        <tr>
+          <td><strong><%= reply.title %></strong></td>
+          <td style="max-width:420px"><%= reply.body %></td>
+          <td><%= reply.category ? reply.category.replaceAll('_', ' ') : '—' %></td>
+          <td><span class="pill <%= reply.active ? 'ok' : 'bad' %>"><%= reply.active ? 'active' : 'inactive' %></span></td>
+          <td>
+            <form method="post" action="/support/canned/<%= reply.id %>/toggle" class="inline">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <button class="small"><%= reply.active ? 'Deactivate' : 'Activate' %></button>
+            </form>
+          </td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>New canned reply</h2></div>
+    <form method="post" action="/support/canned">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <label for="title">Title</label>
+      <input id="title" name="title" required minlength="3" maxlength="120" placeholder="e.g. Provider delay acknowledgement">
+      <label for="body">Body</label>
+      <textarea id="body" name="body" rows="5" required minlength="3" maxlength="2000" placeholder="Plain text. No placeholders are expanded."></textarea>
+      <label for="category">Category (optional)</label>
+      <select id="category" name="category">
+        <option value="">Any category</option>
+        <% for (const category of categories) { %><option value="<%= category %>"><%= category.replaceAll('_', ' ') %></option><% } %>
+      </select>
+      <p class="tag">Canned replies are operator-managed content. They are not sent automatically and never bypass the SMS provider check.</p>
+      <button class="primary">Create</button>
+    </form>
+  </div>
+</div>
+<%- include('partials/footer') %>

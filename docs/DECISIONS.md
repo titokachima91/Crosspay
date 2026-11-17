@@ -198,3 +198,29 @@ B4.6 control room, analytics and bookkeeping
   not fail a deployment through a non-negative check constraint.
 - The build replaces `dist/admin-web/views` and `public` on every run; copying
   into an existing directory nested `public/public` on the second build.
+
+Support workspace
+- Support is manual case management, not a fake in-app chat. The app support
+  screen still copies request details; there is no customer-facing thread yet.
+- A case belongs to one customer and optionally one trade. The database refuses
+  a trade that belongs to another customer, rather than trusting the form.
+- Case messages are append-only. Notes are internal; SMS replies are
+  customer-visible. Only SMS delivery state may change, and only from
+  `pending` to `sent` or `failed`.
+- An outbound SMS row is written before the gateway call so a crash cannot hide
+  that a reply was attempted. A rejected gateway keeps the text and failure
+  code; it is never recorded as sent.
+- `SMS_PROVIDER=disabled` refuses the reply with `503 SMS_NOT_CONFIGURED`
+  instead of queueing a message nowhere.
+- Support screens mask phone numbers to the last four digits. Full phone and
+  the decrypted beneficiary account need `pii:reveal`, a reason, and write an
+  append-only `support_pii_reveals` row plus admin audit. The control room sees
+  a warning event with field names only.
+- Support activity never carries subjects, names, phones or message bodies.
+  Message events carry channel, visibility, delivery state and body length.
+- Support audit rows are de-duplicated from the control room because support
+  triggers already emit a more useful event; the audit log still records every
+  action.
+- Support does not mark payments paid, edit journals, promise refunds or bypass
+  KYC. Money actions stay on the trade/refund screens under their own
+  permission.

@@ -1,0 +1,60 @@
+<%- include('partials/header', { title: 'New support case', user, csrf, active: 'support', notice, error, can }) %>
+<div class="grid two">
+  <div class="panel">
+    <div class="panel-head"><h2>Open a case</h2><a class="button small" href="/support">Back</a></div>
+    <form method="post" action="/support">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <% if (customer) { %>
+        <input type="hidden" name="userId" value="<%= customer.customer.id %>">
+        <div class="notice">
+          Customer: <strong><%= customer.customer.displayName || 'Unnamed customer' %></strong> · …<%= customer.customer.phoneLast4 %> ·
+          <%= customer.customer.kycStatus %> ·
+          <a href="/support/customers/<%= customer.customer.id %>">Customer 360</a>
+        </div>
+      <% } else { %>
+        <label for="phone">Customer phone</label>
+        <input id="phone" name="phone" required placeholder="+2557…" autocomplete="off">
+        <p class="tag">International format. The case is refused if no customer account matches.</p>
+      <% } %>
+      <label for="tradeReference">Trade reference (optional)</label>
+      <input id="tradeReference" name="tradeReference" value="<%= tradeReference %>" placeholder="CP-…" autocomplete="off">
+      <label for="subject">Subject</label>
+      <input id="subject" name="subject" required minlength="3" maxlength="200" placeholder="What is the customer asking about?">
+      <div class="row">
+        <div>
+          <label for="category">Category</label>
+          <select id="category" name="category">
+            <% for (const category of categories) { %><option value="<%= category %>"><%= category.replaceAll('_', ' ') %></option><% } %>
+          </select>
+        </div>
+        <div>
+          <label for="priority">Priority</label>
+          <select id="priority" name="priority">
+            <% for (const priority of priorities) { %><option value="<%= priority %>" <%= priority === 'normal' ? 'selected' : '' %>><%= priority %></option><% } %>
+          </select>
+        </div>
+        <div>
+          <label for="openedVia">Opened via</label>
+          <select id="openedVia" name="openedVia">
+            <% for (const via of openedVia) { %><option value="<%= via %>" <%= via === 'phone' ? 'selected' : '' %>><%= via %></option><% } %>
+          </select>
+        </div>
+      </div>
+      <label for="note">Opening note</label>
+      <textarea id="note" name="note" rows="5" maxlength="4000" placeholder="What the customer reported, in their words where possible."></textarea>
+      <p class="tag">Internal only. The customer does not see this note.</p>
+      <button class="primary">Open case</button>
+    </form>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>Ground rules</h2></div>
+    <ul class="tag" style="line-height:1.7">
+      <li>This is a manual case workspace, not in-app chat. There is no customer-facing reply screen yet.</li>
+      <li>Internal notes are never sent. A customer reply needs a connected SMS provider; otherwise the screen says so and you copy the text.</li>
+      <li>Do not mark a payment paid, edit a ledger or promise a refund from here. Use the trade actions when policy allows.</li>
+      <li>Full phone and beneficiary account reveal requires the compliance PII permission and a reason. Every reveal is logged.</li>
+      <li>One case is attached to one customer, optionally one trade.</li>
+    </ul>
+  </div>
+</div>
+<%- include('partials/footer') %>

@@ -723,4 +723,37 @@ Phase G support/compliance.
 
 ---
 
+## 2026-11-17 - B4.6 Phase G manual support workspace
+
+- Migration `0014`: `support_cases`, append-only `support_case_messages`,
+  `support_canned_replies` and append-only `support_pii_reveals`. A case belongs
+  to one customer and optionally one trade; the database refuses a trade from a
+  different customer. Case references are `CS-YYMMDD-XXXXXX`.
+- Permissions: `support:read`/`support:write` for ops, compliance and
+  superadmin; `pii:reveal` for compliance and superadmin only. Viewer and
+  finance cannot read support cases.
+- Pages: case queue, new case from a customer/trade, customer 360, case detail
+  with append-only thread, state/assignee, canned replies, PII reveal and
+  provider-gated SMS reply.
+- Notes are internal; SMS replies are customer-visible. Message bodies/authors
+  cannot be rewritten or deleted. Only SMS delivery state can move
+  `pending → sent/failed`; a failed gateway keeps the text and code, never marks
+  it sent.
+- Phone numbers stay masked to the last four digits; full phone and decrypted
+  beneficiary account require permission plus a 5-300 character reason. Each
+  reveal writes `support_pii_reveals` and admin audit; the control room gets a
+  warning event with field names only.
+- Support activity is trigger-fed and excludes subjects, names, phone numbers
+  and message bodies; message events carry channel/visibility/delivery and body
+  length. Support audit rows are de-duplicated in the control room because the
+  support triggers already emit the event.
+- SMS uses the existing `SmsSender`; disabled is an honest `503`, the HTTP
+  sender now shares one free-text path with OTP, and the test fake captures both.
+- Verification: Node **105/105**, 20 suites, typecheck clean.
+
+Next: Phase D configuration center, Phase F settlement/reconciliation and the
+remaining compliance queues.
+
+---
+
 ## Report End - No fluff. Just facts.

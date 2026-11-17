@@ -60,6 +60,26 @@ import {
   loadJournals,
   loadTrialBalance,
 } from './bookkeeping.js';
+import {
+  SUPPORT_CATEGORIES,
+  SUPPORT_OPENED_VIA,
+  SUPPORT_PRIORITIES,
+  SUPPORT_STATUSES,
+  appendSupportNote,
+  createCannedReply,
+  createSupportCase,
+  loadCannedReplies,
+  loadCustomer360,
+  loadSupportAgents,
+  loadSupportCase,
+  loadSupportCasePii,
+  loadSupportCases,
+  loadSupportSummary,
+  recordPiiReveal,
+  sendSupportSms,
+  toggleCannedReply,
+  updateSupportCase,
+} from './support.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -85,6 +105,12 @@ function formValue(body: unknown, key: string): string {
 function formChecked(body: unknown, key: string): boolean {
   const value = (body as Record<string, unknown> | undefined)?.[key];
   return value === 'true' || value === 'on' || value === '1';
+}
+
+function queryValue(request: FastifyRequest, key: string): string {
+  if (typeof request.query !== 'object' || !request.query) return '';
+  const value = (request.query as Record<string, unknown>)[key];
+  return typeof value === 'string' ? value : '';
 }
 
 function jsonBody(body: unknown): Record<string, unknown> {
@@ -119,6 +145,9 @@ function can(session: AdminSession) {
     audit: hasPermission(roles, 'audit:read'),
     users: hasPermission(roles, 'admin:users'),
     ledger: hasPermission(roles, 'ledger:read'),
+    support: hasPermission(roles, 'support:read'),
+    supportWrite: hasPermission(roles, 'support:write'),
+    pii: hasPermission(roles, 'pii:reveal'),
   };
 }
 
@@ -131,7 +160,7 @@ function view(
   return reply.view(template, {
     user: session ? session.user : null,
     csrf: session ? session.csrfToken : '',
-    can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false },
+    can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false, support: false, supportWrite: false, pii: false },
     notice: null,
     error: null,
     ...data,
@@ -283,7 +312,7 @@ export function registerAdminWebRoutes(
       {
         user: session ? session.user : null,
         csrf: session ? session.csrfToken : '',
-        can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false },
+        can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false, support: false, supportWrite: false, pii: false },
         active: '',
         notice: null,
         error: statusCode >= 500 ? 'Unexpected error. Check the service logs.' : failure.message,
@@ -1108,6 +1137,303 @@ export function registerAdminWebRoutes(
       after: result,
     });
     return redirect(reply, `/trades/${row.trade_id}`, `Refund ${result.refund.status}`);
+  });
+
+  app.get('/support', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'support:read');
+    const query = queryValue(request, 'q');
+    const status = queryValue(request, 'status');
+    const priority = queryValue(request, 'priority');
+    const assignee = queryValue(request, 'assignee') || 'all';
+    const [cases, summary] = await Promise.all([
+      loadSupportCases(ctx.pool, {
+        query,
+        status,
+        priority,
+        assignee,
+        adminId: session.user.id,
+      }),
+      loadSupportSummary(ctx.pool, session.user.id),
+    ]);
+    return view(reply, 'support', session, {
+      title: 'Support',
+      active: 'support',
+      cases,
+      summary,
+      filters: { query, status, priority, assignee },
+      statuses: SUPPORT_STATUSES,
+      priorities: SUPPORT_PRIORITIES,
+    });
+  });
+
+  app.get('/support/new', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'support:write');
+    const userId = queryValue(request, 'user');
+    const tradeReference = queryValue(request, 'trade').toUpperCase();
+    const customer = userId ? await loadCustomer360(ctx.pool, userId) : null;
+    if (userId && !customer) {
+      throw errorWith(404, 'SUPPORT_CUSTOMER_NOT_FOUND', 'Customer not found');
+    }
+    return view(reply, 'support-new', session, {
+      title: 'New support case',
+      active: 'support',
+      customer,
+      tradeReference,
+      categories: SUPPORT_CATEGORIES,
+      priorities: SUPPORT_PRIORITIES,
+      openedVia: SUPPORT_OPENED_VIA,
+    });
+  });
+
+  app.post('/support', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'support:write');
+    const created = await createSupportCase(ctx, {
+      userId: formValue(request.body, 'userId') || undefined,
+      phone: formValue(request.body, 'phone'),
+      tradeReference: formValue(request.body, 'tradeReference'),
+      subject: formValue(request.body, 'subject'),
+      category: formValue(request.body, 'category'),
+      priority: formValue(request.body, 'priority'),
+      openedVia: formValue(request.body, 'openedVia'),
+      note: formValue(request.body, 'note'),
+      adminId: session.user.id,
+    });
+    await audit(ctx, request, session, {
+      action: 'support.case.create',
+      resourceType: 'support_case',
+      resourceId: created.id,
+      after: {
+        reference: created.reference,
+        tradeId: created.tradeId,
+        priority: formValue(request.body, 'priority'),
+        category: formValue(request.body, 'category'),
+      },
+    });
+    return redirect(reply, `/support/cases/${created.id}`, `Case ${created.reference} opened`);
+  });
+
+  app.get('/support/customers/:id', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'support:read');
+    const id = (request.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) {
+      throw errorWith(404, 'SUPPORT_CUSTOMER_NOT_FOUND', 'Customer not found');
+    }
+    const detail = await loadCustomer360(ctx.pool, id);
+    if (!detail) throw errorWith(404, 'SUPPORT_CUSTOMER_NOT_FOUND', 'Customer not found');
+    return view(reply, 'support-customer', session, {
+      title: detail.customer.displayName ?? `Customer …${detail.customer.phoneLast4}`,
+      active: 'support',
+      detail,
+    });
+  });
+
+  app.get('/support/cases/:id', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'support:read');
+    const id = (request.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) {
+      throw errorWith(404, 'SUPPORT_CASE_NOT_FOUND', 'Support case not found');
+    }
+    const [detail, agents, canned] = await Promise.all([
+      loadSupportCase(ctx.pool, id),
+      loadSupportAgents(ctx.pool),
+      loadCannedReplies(ctx.pool, true),
+    ]);
+    if (!detail) throw errorWith(404, 'SUPPORT_CASE_NOT_FOUND', 'Support case not found');
+    return view(reply, 'support-case', session, {
+      title: detail.reference,
+      active: 'support',
+      detail,
+      agents,
+      canned,
+      statuses: SUPPORT_STATUSES,
+      priorities: SUPPORT_PRIORITIES,
+      notice: queryValue(request, 'ok') || null,
+      error: queryValue(request, 'error') || null,
+      reveal: null,
+      revealReason: null,
+      smsAvailable: ctx.smsSender.available,
+    });
+  });
+
+  app.post('/support/cases/:id/messages', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'support:write');
+    const id = (request.params as { id: string }).id;
+    const mode = formValue(request.body, 'mode') === 'sms' ? 'sms' : 'note';
+    const body = formValue(request.body, 'body');
+
+    if (mode === 'note') {
+      const messageId = await appendSupportNote(ctx, {
+        caseId: id,
+        adminId: session.user.id,
+        body,
+      });
+      await audit(ctx, request, session, {
+        action: 'support.message.note',
+        resourceType: 'support_message',
+        resourceId: messageId,
+        after: { caseId: id, channel: 'note', visibility: 'internal', length: body.length },
+      });
+      return redirect(reply, `/support/cases/${id}`, 'Internal note added');
+    }
+
+    const result = await sendSupportSms(ctx, {
+      caseId: id,
+      adminId: session.user.id,
+      body,
+    });
+    await audit(ctx, request, session, {
+      action: result.status === 'sent' ? 'support.message.sms' : 'support.message.sms_failed',
+      resourceType: 'support_message',
+      resourceId: result.messageId,
+      after: {
+        caseId: id,
+        channel: 'sms',
+        visibility: 'customer',
+        status: result.status,
+        errorCode: result.errorCode,
+        length: body.length,
+      },
+    });
+    if (result.status === 'failed') {
+      return reply
+        .code(303)
+        .redirect(
+          `/support/cases/${id}?error=${encodeURIComponent(
+            'The SMS gateway did not accept the reply. It is recorded as failed; copy the text and use another channel.',
+          )}`,
+        );
+    }
+    return redirect(reply, `/support/cases/${id}`, 'SMS sent and recorded');
+  });
+
+  app.post('/support/cases/:id/update', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'support:write');
+    const id = (request.params as { id: string }).id;
+    const change = await updateSupportCase(ctx, {
+      caseId: id,
+      status: formValue(request.body, 'status'),
+      priority: formValue(request.body, 'priority'),
+      assigneeAdminId: formValue(request.body, 'assigneeAdminId') || null,
+    });
+    await audit(ctx, request, session, {
+      action: 'support.case.update',
+      resourceType: 'support_case',
+      resourceId: id,
+      before: change.before,
+      after: change.after,
+    });
+    return redirect(reply, `/support/cases/${id}`, 'Case updated');
+  });
+
+  app.post('/support/cases/:id/reveal', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'pii:reveal');
+    const id = (request.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) {
+      throw errorWith(404, 'SUPPORT_CASE_NOT_FOUND', 'Support case not found');
+    }
+    const reason = formValue(request.body, 'reason').trim();
+    if (reason.length < 5 || reason.length > 300) {
+      throw errorWith(422, 'SUPPORT_REASON_INVALID', 'A reason of 5-300 characters is required');
+    }
+    const [detail, pii, agents, canned] = await Promise.all([
+      loadSupportCase(ctx.pool, id),
+      loadSupportCasePii(ctx, id),
+      loadSupportAgents(ctx.pool),
+      loadCannedReplies(ctx.pool, true),
+    ]);
+    if (!detail || !pii) {
+      throw errorWith(404, 'SUPPORT_CASE_NOT_FOUND', 'Support case not found');
+    }
+    const fields = ['phone'];
+    if (pii.beneficiaryAccount) fields.push('beneficiaryAccount');
+    if (pii.beneficiaryName) fields.push('beneficiaryName');
+    await recordPiiReveal(ctx, {
+      caseId: id,
+      adminId: session.user.id,
+      reason,
+      fields,
+    });
+    await audit(ctx, request, session, {
+      action: 'support.pii.reveal',
+      resourceType: 'support_case',
+      resourceId: id,
+      reason,
+      after: { fields },
+    });
+    return reply.header('cache-control', 'no-store').view('support-case', {
+      user: session.user,
+      csrf: session.csrfToken,
+      can: can(session),
+      title: detail.reference,
+      active: 'support',
+      detail,
+      agents,
+      canned,
+      statuses: SUPPORT_STATUSES,
+      priorities: SUPPORT_PRIORITIES,
+      notice: 'Customer PII revealed. This access is logged.',
+      error: null,
+      reveal: pii,
+      revealReason: reason,
+      smsAvailable: ctx.smsSender.available,
+    });
+  });
+
+  app.get('/support/canned', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'support:write');
+    const replies = await loadCannedReplies(ctx.pool, false);
+    return view(reply, 'support-canned', session, {
+      title: 'Canned replies',
+      active: 'support',
+      replies,
+      categories: SUPPORT_CATEGORIES,
+    });
+  });
+
+  app.post('/support/canned', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'support:write');
+    const id = await createCannedReply(ctx, {
+      title: formValue(request.body, 'title'),
+      body: formValue(request.body, 'body'),
+      category: formValue(request.body, 'category'),
+      adminId: session.user.id,
+    });
+    await audit(ctx, request, session, {
+      action: 'support.canned.create',
+      resourceType: 'support_canned_reply',
+      resourceId: id,
+      after: { category: formValue(request.body, 'category') || null },
+    });
+    return redirect(reply, '/support/canned', 'Canned reply created');
+  });
+
+  app.post('/support/canned/:id/toggle', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'support:write');
+    const id = (request.params as { id: string }).id;
+    const change = await toggleCannedReply(ctx, id);
+    await audit(ctx, request, session, {
+      action: 'support.canned.toggle',
+      resourceType: 'support_canned_reply',
+      resourceId: id,
+      before: { active: change.before },
+      after: { active: change.after },
+    });
+    return redirect(
+      reply,
+      '/support/canned',
+      change.after ? 'Canned reply activated' : 'Canned reply deactivated',
+    );
   });
 
   app.get('/audit', async (request, reply) => {

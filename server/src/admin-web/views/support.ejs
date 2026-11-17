@@ -1,0 +1,65 @@
+<%- include('partials/header', { title: 'Support', user, csrf, active: 'support', notice, error, can }) %>
+<div class="kpis">
+  <div class="kpi"><div class="label">Open</div><div class="value"><%= summary.open %></div><div class="hint">open or internal follow-up</div></div>
+  <div class="kpi"><div class="label">Waiting on customer</div><div class="value"><%= summary.pendingCustomer %></div><div class="hint">reply or SMS sent</div></div>
+  <div class="kpi"><div class="label">Unassigned</div><div class="value"><%= summary.unassigned %></div><div class="hint">needs an owner</div></div>
+  <div class="kpi"><div class="label">High / urgent</div><div class="value"><%= summary.urgent %></div><div class="hint">open priority</div></div>
+  <div class="kpi"><div class="label">Mine</div><div class="value"><%= summary.mine %></div><div class="hint">assigned to me</div></div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>Cases</h2>
+    <a class="button small" href="/support/canned">Canned replies</a>
+    <a class="button primary small" href="/support/new">New case</a>
+  </div>
+  <form method="get" action="/support">
+    <div class="row">
+      <div style="flex:1 1 240px"><label>Search</label><input name="q" value="<%= filters.query %>" placeholder="Case, phone or trade reference"></div>
+      <div><label>Status</label>
+        <select name="status">
+          <option value="">All statuses</option>
+          <% for (const status of statuses) { %><option value="<%= status %>" <%= filters.status === status ? 'selected' : '' %>><%= status.replaceAll('_', ' ') %></option><% } %>
+        </select>
+      </div>
+      <div><label>Priority</label>
+        <select name="priority">
+          <option value="">All priorities</option>
+          <% for (const priority of priorities) { %><option value="<%= priority %>" <%= filters.priority === priority ? 'selected' : '' %>><%= priority %></option><% } %>
+        </select>
+      </div>
+      <div><label>Assignee</label>
+        <select name="assignee">
+          <option value="all" <%= filters.assignee === 'all' ? 'selected' : '' %>>Everyone</option>
+          <option value="me" <%= filters.assignee === 'me' ? 'selected' : '' %>>Me</option>
+          <option value="unassigned" <%= filters.assignee === 'unassigned' ? 'selected' : '' %>>Unassigned</option>
+        </select>
+      </div>
+      <div class="shrink"><button class="primary">Filter</button></div>
+      <div class="shrink"><a class="button" href="/support">Clear</a></div>
+    </div>
+  </form>
+  <div class="divider"></div>
+  <% if (cases.length === 0) { %>
+    <div class="empty">No support cases match. <a href="/support/new">Open one</a>.</div>
+  <% } else { %>
+  <table>
+    <thead><tr><th>Case</th><th>Customer</th><th>Subject</th><th>Category</th><th>Status</th><th>Priority</th><th>Assignee</th><th>Updated</th></tr></thead>
+    <tbody>
+      <% for (const item of cases) { %>
+      <tr>
+        <td><a class="mono" href="/support/cases/<%= item.id %>"><%= item.reference %></a><% if (item.tradeReference) { %><div class="tag"><%= item.tradeReference %></div><% } %></td>
+        <td><%= item.customerName || 'Unnamed customer' %><div class="tag">…<%= item.phoneLast4 %></div></td>
+        <td><%= item.subject %></td>
+        <td><span class="pill"><%= item.category.replaceAll('_', ' ') %></span></td>
+        <td><span class="pill <%= item.status === 'resolved' || item.status === 'closed' ? 'ok' : item.status === 'pending_customer' ? 'warn' : 'info' %>"><%= item.status.replaceAll('_', ' ') %></span></td>
+        <td><span class="pill <%= item.priority === 'urgent' || item.priority === 'high' ? 'bad' : item.priority === 'normal' ? 'info' : '' %>"><%= item.priority %></span></td>
+        <td><%= item.assigneeName || 'Unassigned' %></td>
+        <td><%= item.lastActivityAt.replace('T', ' ').slice(0, 16) %></td>
+      </tr>
+      <% } %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+<%- include('partials/footer') %>

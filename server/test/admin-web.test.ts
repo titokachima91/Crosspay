@@ -6,6 +6,8 @@ import type { TestDatabase } from './helpers/test-database.js';
 import { createQuote, createUser, insertTrade, startTestDatabase } from './helpers/test-database.js';
 import { CryptoBox } from '../src/crypto.js';
 import { DisabledSmsSender } from '../src/providers/sms.js';
+import type { SmsSender } from '../src/providers/sms.js';
+import { CapturingSmsSender } from './helpers/fake-sms.js';
 import { DisabledPricingProvider } from '../src/providers/pricing.js';
 import { DisabledPaymentProvider } from '../src/providers/payments.js';
 import type { AppContext } from '../src/http/context.js';
@@ -158,6 +160,30 @@ async function createRoleUser(email: string, role: AdminRole): Promise<{ email: 
     crypto: ctx.crypto,
   });
   return { email, secret };
+}
+
+async function supportFixture(
+  phone: string,
+  reference: string,
+): Promise<{ user: string; tradeId: string }> {
+  const user = await createUser(db.pool, {
+    phone,
+    displayName: 'Support Customer',
+    kycStatus: 'verified',
+    limitCurrency: 'TZS',
+  });
+  const quote = await createQuote(db.pool, user);
+  const tradeId = await insertTrade(db.pool, {
+    userId: user,
+    quote,
+    status: 'escrowed',
+    reference,
+  });
+  await db.pool.query(
+    `UPDATE trades SET beneficiary_account_encrypted = $2 WHERE id = $1`,
+    [tradeId, ctx.crypto.encrypt('0123456789')],
+  );
+  return { user, tradeId };
 }
 
 describe('admin portal identity and pages', () => {
@@ -447,6 +473,357 @@ describe('admin portal identity and pages', () => {
     } finally {
       controller.abort();
     }
+  });
+
+  it('opens support cases, appends notes and keeps activity private', async () => {
+    const ops = await createRoleUser('ops-support@crosspay.test', 'ops');
+    const opsLogin = await login(ops.email, PASSWORD, ops.secret);
+    const { user, tradeId } = await supportFixture('+255755980010', 'CP-SUPPORT01');
+
+    const created = await postForm(
+      '/support',
+      {
+        _csrf: opsLogin.csrf,
+        phone: '+255755980010',
+        tradeReference: 'CP-SUPPORT01',
+        subject: 'Customer says the collection is missing',
+        category: 'payment_not_received',
+        priority: 'normal',
+        openedVia: 'phone',
+        note: 'Opening note from the call.',
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(created.statusCode, 303, created.body);
+    const location = String(created.headers.location ?? '');
+    const caseId = /\/support\/cases\/([0-9a-f-]{36})/.exec(location)?.[1];
+    assert.ok(caseId, `case id in redirect: ${location}`);
+
+    const list = await app.inject({
+      method: 'GET',
+      url: '/support',
+      headers: { cookie: `cp_admin_session=${opsLogin.session}` },
+    });
+    assert.equal(list.statusCode, 200, list.body);
+    assert.match(list.body, /CP-SUPPORT01/);
+    assert.match(list.body, /New case/);
+
+    const customerPage = await app.inject({
+      method: 'GET',
+      url: `/support/customers/${user}`,
+      headers: { cookie: `cp_admin_session=${opsLogin.session}` },
+    });
+    assert.equal(customerPage.statusCode, 200, customerPage.body);
+    assert.match(customerPage.body, /CP-SUPPORT01/);
+    assert.match(customerPage.body, /…0010/);
+
+    const newPage = await app.inject({
+      method: 'GET',
+      url: `/support/new?user=${user}&trade=CP-SUPPORT01`,
+      headers: { cookie: `cp_admin_session=${opsLogin.session}` },
+    });
+    assert.equal(newPage.statusCode, 200, newPage.body);
+    assert.match(newPage.body, /Open a case/);
+    assert.match(newPage.body, /CP-SUPPORT01/);
+
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/support/cases/${caseId}`,
+      headers: { cookie: `cp_admin_session=${opsLogin.session}` },
+    });
+    assert.equal(detail.statusCode, 200, detail.body);
+    assert.match(detail.body, /CP-SUPPORT01/);
+    assert.match(detail.body, /…0010/);
+    assert.ok(!detail.body.includes('+255755980010'), 'support list must mask the phone');
+    assert.match(detail.body, /Opening note from the call/);
+
+    const note = 'SECRET-NOTE-BODY customer called again';
+    const added = await postForm(
+      `/support/cases/${caseId}/messages`,
+      { _csrf: opsLogin.csrf, mode: 'note', body: note },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(added.statusCode, 303, added.body);
+    const afterNote = await app.inject({
+      method: 'GET',
+      url: `/support/cases/${caseId}`,
+      headers: { cookie: `cp_admin_session=${opsLogin.session}` },
+    });
+    assert.match(afterNote.body, /SECRET-NOTE-BODY/);
+    await assert.rejects(
+      db.pool.query(`UPDATE support_case_messages SET body = 'rewritten' WHERE case_id = $1`, [
+        caseId,
+      ]),
+      /append-only/,
+    );
+
+    const reference = await db.pool.query<{ reference: string }>(
+      `SELECT reference FROM support_cases WHERE id = $1`,
+      [caseId],
+    );
+    const activity = await db.pool.query<{ summary: string; payload: Record<string, unknown> }>(
+      `SELECT summary, payload FROM admin_activity_events
+       WHERE source = 'support' AND event_type = 'message.note' AND reference = $1
+       ORDER BY id DESC LIMIT 1`,
+      [reference.rows[0]?.reference],
+    );
+    assert.ok(activity.rows[0], 'support note activity is visible to the control room');
+    assert.ok(!activity.rows[0]!.summary.includes('SECRET-NOTE-BODY'));
+    assert.ok(!JSON.stringify(activity.rows[0]!.payload).includes('SECRET-NOTE-BODY'));
+    assert.equal(
+      activity.rows[0]!.payload['bodyLength'],
+      note.length,
+      'activity records only the message length',
+    );
+
+    const opsRow = await db.pool.query<{ id: string }>(
+      `SELECT id FROM admin_users WHERE email = $1`,
+      [ops.email],
+    );
+    const updated = await postForm(
+      `/support/cases/${caseId}/update`,
+      {
+        _csrf: opsLogin.csrf,
+        status: 'resolved',
+        priority: 'high',
+        assigneeAdminId: opsRow.rows[0]!.id,
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(updated.statusCode, 303, updated.body);
+    const stored = await db.pool.query<{
+      status: string;
+      priority: string;
+      assignee_admin_id: string;
+      resolved_at: Date | null;
+    }>(
+      `SELECT status, priority, assignee_admin_id, resolved_at
+       FROM support_cases WHERE id = $1`,
+      [caseId],
+    );
+    assert.equal(stored.rows[0]?.status, 'resolved');
+    assert.equal(stored.rows[0]?.priority, 'high');
+    assert.equal(stored.rows[0]?.assignee_admin_id, opsRow.rows[0]?.id);
+    assert.ok(stored.rows[0]?.resolved_at);
+
+    const viewer = await createRoleUser('viewer-support@crosspay.test', 'viewer');
+    const viewerLogin = await login(viewer.email, PASSWORD, viewer.secret);
+    const forbidden = await app.inject({
+      method: 'GET',
+      url: '/support',
+      headers: { cookie: `cp_admin_session=${viewerLogin.session}` },
+    });
+    assert.equal(forbidden.statusCode, 403, forbidden.body);
+
+    const canned = await postForm(
+      '/support/canned',
+      {
+        _csrf: opsLogin.csrf,
+        title: 'Provider delay acknowledgement',
+        body: 'We are checking this transaction with the provider and will update you.',
+        category: 'payout_delay',
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(canned.statusCode, 303, canned.body);
+    const storedCanned = await db.pool.query<{ id: string; active: boolean }>(
+      `SELECT id, active FROM support_canned_replies
+       WHERE title = 'Provider delay acknowledgement'`,
+    );
+    assert.equal(storedCanned.rows[0]?.active, true);
+    const cannedPage = await app.inject({
+      method: 'GET',
+      url: '/support/canned',
+      headers: { cookie: `cp_admin_session=${opsLogin.session}` },
+    });
+    assert.equal(cannedPage.statusCode, 200, cannedPage.body);
+    assert.match(cannedPage.body, /Provider delay acknowledgement/);
+    const toggled = await postForm(
+      `/support/canned/${storedCanned.rows[0]!.id}/toggle`,
+      { _csrf: opsLogin.csrf },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(toggled.statusCode, 303, toggled.body);
+    const afterToggle = await db.pool.query<{ active: boolean }>(
+      `SELECT active FROM support_canned_replies WHERE id = $1`,
+      [storedCanned.rows[0]!.id],
+    );
+    assert.equal(afterToggle.rows[0]?.active, false);
+
+    const trade = await db.pool.query<{ user_id: string }>(
+      `SELECT user_id FROM trades WHERE id = $1`,
+      [tradeId],
+    );
+    assert.equal(trade.rows[0]?.user_id, user);
+  });
+
+  it('requires compliance permission, a reason and an audit for PII reveal', async () => {
+    const ops = await createRoleUser('ops-pii@crosspay.test', 'ops');
+    const compliance = await createRoleUser('compliance-pii@crosspay.test', 'compliance');
+    const opsLogin = await login(ops.email, PASSWORD, ops.secret);
+    const complianceLogin = await login(compliance.email, PASSWORD, compliance.secret);
+    await supportFixture('+255755980011', 'CP-SUPPORT02');
+
+    const created = await postForm(
+      '/support',
+      {
+        _csrf: opsLogin.csrf,
+        phone: '+255755980011',
+        tradeReference: 'CP-SUPPORT02',
+        subject: 'Beneficiary account needs checking',
+        category: 'beneficiary',
+        priority: 'high',
+        openedVia: 'phone',
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(created.statusCode, 303, created.body);
+    const caseId = /\/support\/cases\/([0-9a-f-]{36})/.exec(
+      String(created.headers.location ?? ''),
+    )?.[1];
+    assert.ok(caseId);
+
+    const denied = await postForm(
+      `/support/cases/${caseId}/reveal`,
+      { _csrf: opsLogin.csrf, reason: 'Trying to help the customer' },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(denied.statusCode, 403, denied.body);
+
+    const revealed = await postForm(
+      `/support/cases/${caseId}/reveal`,
+      { _csrf: complianceLogin.csrf, reason: 'Confirming the beneficiary account for a recall' },
+      { cookie: `cp_admin_session=${complianceLogin.session}` },
+    );
+    assert.equal(revealed.statusCode, 200, revealed.body);
+    assert.match(revealed.body, /\+255755980011/);
+    assert.match(revealed.body, /0123456789/);
+    assert.match(revealed.body, /Confirming the beneficiary account/);
+
+    const reveals = await db.pool.query<{ reason: string }>(
+      `SELECT reason FROM support_pii_reveals WHERE case_id = $1`,
+      [caseId],
+    );
+    assert.equal(reveals.rows.length, 1);
+    assert.match(reveals.rows[0]!.reason, /Confirming the beneficiary account/);
+
+    const audit = await db.pool.query<{ reason: string; admin_user_id: string }>(
+      `SELECT reason, admin_user_id FROM admin_audit_log
+       WHERE action = 'support.pii.reveal' AND resource_id = $1
+       ORDER BY created_at DESC LIMIT 1`,
+      [caseId],
+    );
+    assert.match(audit.rows[0]?.reason ?? '', /Confirming the beneficiary account/);
+    assert.ok(audit.rows[0]?.admin_user_id);
+
+    const activity = await db.pool.query<{ summary: string; payload: Record<string, unknown> }>(
+      `SELECT summary, payload FROM admin_activity_events
+       WHERE source = 'support' AND event_type = 'pii.reveal' AND reference = (
+         SELECT reference FROM support_cases WHERE id = $1
+       )
+       ORDER BY id DESC LIMIT 1`,
+      [caseId],
+    );
+    assert.ok(activity.rows[0], 'PII reveal is visible to the control room');
+    const serialized = JSON.stringify(activity.rows[0]);
+    assert.ok(!serialized.includes('+255755980011'));
+    assert.ok(!serialized.includes('0123456789'));
+  });
+
+  it('only records an SMS reply when the gateway accepts it', async () => {
+    const ops = await createRoleUser('ops-sms@crosspay.test', 'ops');
+    const opsLogin = await login(ops.email, PASSWORD, ops.secret);
+    await supportFixture('+255755980012', 'CP-SUPPORT03');
+    const created = await postForm(
+      '/support',
+      {
+        _csrf: opsLogin.csrf,
+        phone: '+255755980012',
+        tradeReference: 'CP-SUPPORT03',
+        subject: 'Customer needs an update',
+        category: 'payout_delay',
+        priority: 'normal',
+        openedVia: 'phone',
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(created.statusCode, 303, created.body);
+    const caseId = /\/support\/cases\/([0-9a-f-]{36})/.exec(
+      String(created.headers.location ?? ''),
+    )?.[1];
+    assert.ok(caseId);
+
+    const blocked = await postForm(
+      `/support/cases/${caseId}/messages`,
+      { _csrf: opsLogin.csrf, mode: 'sms', body: 'We are checking your payout.' },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(blocked.statusCode, 503, blocked.body);
+    const before = await db.pool.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM support_case_messages
+       WHERE case_id = $1 AND channel = 'sms'`,
+      [caseId],
+    );
+    assert.equal(before.rows[0]?.count, 0, 'nothing is recorded when SMS is not configured');
+
+    const original = ctx.smsSender;
+    const captured = new CapturingSmsSender();
+    ctx.smsSender = captured;
+    try {
+      const sent = await postForm(
+        `/support/cases/${caseId}/messages`,
+        { _csrf: opsLogin.csrf, mode: 'sms', body: 'We are checking your payout.' },
+        { cookie: `cp_admin_session=${opsLogin.session}` },
+      );
+      assert.equal(sent.statusCode, 303, sent.body);
+      assert.equal(captured.texts.length, 1);
+      assert.equal(captured.texts[0]?.phone, '+255755980012');
+      assert.equal(captured.texts[0]?.message, 'We are checking your payout.');
+    } finally {
+      ctx.smsSender = original;
+    }
+    const sentRow = await db.pool.query<{ delivery_status: string }>(
+      `SELECT delivery_status FROM support_case_messages
+       WHERE case_id = $1 AND channel = 'sms' ORDER BY created_at DESC LIMIT 1`,
+      [caseId],
+    );
+    assert.equal(sentRow.rows[0]?.delivery_status, 'sent');
+    const supportCase = await db.pool.query<{
+      status: string;
+      first_response_at: Date | null;
+    }>(`SELECT status, first_response_at FROM support_cases WHERE id = $1`, [caseId]);
+    assert.equal(supportCase.rows[0]?.status, 'pending_customer');
+    assert.ok(supportCase.rows[0]?.first_response_at);
+
+    const failing: SmsSender = {
+      available: true,
+      async sendOtp() {},
+      async sendMessage() {
+        throw new Error('gateway down');
+      },
+    };
+    ctx.smsSender = failing;
+    try {
+      const failed = await postForm(
+        `/support/cases/${caseId}/messages`,
+        { _csrf: opsLogin.csrf, mode: 'sms', body: 'Second attempt' },
+        { cookie: `cp_admin_session=${opsLogin.session}` },
+      );
+      assert.equal(failed.statusCode, 303, failed.body);
+      assert.match(String(failed.headers.location ?? ''), /error=/);
+    } finally {
+      ctx.smsSender = new DisabledSmsSender();
+    }
+    const failedRow = await db.pool.query<{
+      delivery_status: string;
+      error_code: string | null;
+    }>(
+      `SELECT delivery_status, error_code FROM support_case_messages
+       WHERE case_id = $1 AND channel = 'sms' AND body = 'Second attempt'`,
+      [caseId],
+    );
+    assert.equal(failedRow.rows[0]?.delivery_status, 'failed');
+    assert.equal(failedRow.rows[0]?.error_code, 'SMS_DELIVERY_FAILED');
   });
 
   it('creates a named admin and refuses to suspend the last superadmin', async () => {

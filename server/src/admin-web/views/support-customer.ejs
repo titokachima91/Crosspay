@@ -1,0 +1,63 @@
+<%- include('partials/header', { title: 'Customer 360', user, csrf, active: 'support', notice, error, can }) %>
+<div class="panel">
+  <div class="panel-head">
+    <h2><%= detail.customer.displayName || 'Unnamed customer' %></h2>
+    <span class="pill info">…<%= detail.customer.phoneLast4 %></span>
+    <span class="pill"><%= detail.customer.kycStatus %></span>
+    <a class="button small" href="/support">Back</a>
+    <a class="button primary small" href="/support/new?user=<%= detail.customer.id %>">New case</a>
+  </div>
+  <div class="detail-grid">
+    <div class="detail"><div class="k">Account type</div><div class="v"><%= detail.customer.accountType %></div></div>
+    <div class="detail"><div class="k">Tier</div><div class="v"><%= detail.customer.tierCode %></div></div>
+    <div class="detail"><div class="k">Limit currency</div><div class="v"><%= detail.customer.limitCurrencyCode || '—' %></div></div>
+    <div class="detail"><div class="k">Phone verified</div><div class="v"><%= detail.customer.phoneVerified ? 'yes' : 'no' %></div></div>
+    <div class="detail"><div class="k">Joined</div><div class="v"><%= detail.customer.createdAt.replace('T', ' ').slice(0, 10) %></div></div>
+    <div class="detail"><div class="k">Cases</div><div class="v"><%= detail.caseCount %> total · <%= detail.openCaseCount %> open</div></div>
+  </div>
+  <p class="tag">The full phone and beneficiary account are masked here. Open a case and use the permissioned reveal to see them; every reveal is logged.</p>
+</div>
+
+<div class="grid two" style="margin-top:16px">
+  <div class="panel">
+    <div class="panel-head"><h2>Support cases</h2></div>
+    <% if (detail.cases.length === 0) { %><div class="empty">No cases for this customer.</div><% } else { %>
+    <table>
+      <thead><tr><th>Case</th><th>Subject</th><th>Status</th><th>Priority</th><th>Assignee</th><th>Updated</th></tr></thead>
+      <tbody>
+        <% for (const item of detail.cases) { %>
+        <tr>
+          <td><a class="mono" href="/support/cases/<%= item.id %>"><%= item.reference %></a></td>
+          <td><%= item.subject %></td>
+          <td><span class="pill <%= item.status === 'resolved' || item.status === 'closed' ? 'ok' : item.status === 'pending_customer' ? 'warn' : 'info' %>"><%= item.status.replaceAll('_', ' ') %></span></td>
+          <td><span class="pill <%= item.priority === 'high' || item.priority === 'urgent' ? 'bad' : 'info' %>"><%= item.priority %></span></td>
+          <td><%= item.assigneeName || 'Unassigned' %></td>
+          <td><%= item.lastActivityAt.replace('T', ' ').slice(0, 16) %></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Recent trades</h2></div>
+    <% if (detail.trades.length === 0) { %><div class="empty">No trades for this customer.</div><% } else { %>
+    <table>
+      <thead><tr><th>Reference</th><th>Status</th><th>Corridor</th><th class="num">Send</th><th>Created</th></tr></thead>
+      <tbody>
+        <% for (const trade of detail.trades) { %>
+        <tr>
+          <td><a class="mono" href="/trades/<%= trade.id %>"><%= trade.reference %></a></td>
+          <td><span class="pill"><%= trade.status %></span><div class="tag"><%= trade.route %></div></td>
+          <td><%= trade.sendCurrency %> → <%= trade.receiveCurrency %></td>
+          <td class="num"><%= trade.sendAmountMinor.toLocaleString('en-US') %> <%= trade.sendCurrency %><div class="tag"><%= trade.receiveAmountMinor.toLocaleString('en-US') %> <%= trade.receiveCurrency %></div></td>
+          <td><%= trade.createdAt.replace('T', ' ').slice(0, 16) %></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+</div>
+<%- include('partials/footer') %>

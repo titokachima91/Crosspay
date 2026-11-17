@@ -24,6 +24,7 @@ export class SmsDeliveryError extends Error {
  * adapter rather than bending this one.
  */
 export class HttpSmsSender implements SmsSender {
+  readonly available = true;
   private readonly url: string;
   private readonly apiKey?: string;
   private readonly senderId?: string;
@@ -37,7 +38,13 @@ export class HttpSmsSender implements SmsSender {
   }
 
   async sendOtp(phone: string, code: string): Promise<void> {
-    const message = `Your CrossPay verification code is ${code}. It expires in 5 minutes. Never share it.`;
+    await this.sendMessage(
+      phone,
+      `Your CrossPay verification code is ${code}. It expires in 5 minutes. Never share it.`,
+    );
+  }
+
+  async sendMessage(phone: string, message: string): Promise<void> {
     const headers: Record<string, string> = {
       'content-type': 'application/json',
     };

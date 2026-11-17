@@ -77,7 +77,7 @@ customer's full PII without a permissioned, audited reveal.
 | D. Configuration center | Services, fees, spreads, tiers/limits, provider settings, feature flags, maintenance, staged rollout/rollback | Every change is versioned and approved |
 | E. Bookkeeping | Chart approval, journal browser, trial balance, revenue/cost reports, operating-cash transfers | Read-only journal browser/trial balance built; chart approval and reports remain |
 | F. Settlement and reconciliation | Provider statements, bank/PSP statement import or API, matching, exceptions, daily close | One clean end-to-end settlement cycle |
-| G. Support and compliance | Customer-safe support workspace, cases/notes, KYC queue, sanctions hits, PII reveal workflow | Compliance sign-off |
+| G. Support and compliance | Customer-safe support workspace, cases/notes, KYC queue, sanctions hits, PII reveal workflow | Manual cases/notes/SMS/PII reveal built; KYC and sanctions queues remain |
 | H. Sandbox mirror removal | Remove testing-only `CROSSPAY` book and docs | E and F pass in production/sandbox |
 
 The B4.6 work in this phase is **A and B (local accounts) only**. It is
@@ -988,8 +988,8 @@ Cutover checklist:
 
 ## 13. B4.6 built so far
 
-**Phase A, local-account Phase B and the Phase C feed/analytics plus read-only
-bookkeeping are built:**
+**Phase A, local-account Phase B and the Phase C feed/analytics, read-only
+bookkeeping and Phase G manual support workspace are built:**
 
 - separate `admin-web` process with server-rendered pages;
 - named `admin_users`, Argon2id passwords, TOTP, encrypted secrets, recovery
@@ -1003,6 +1003,9 @@ bookkeeping are built:**
   admin-user management;
 - read-only bookkeeping: debit-positive trial balance per currency, journal
   browser/detail, reversal and FX-partner links, `ledger:read` permission;
+- manual support workspace: `CS-…` cases from a customer/trade, append-only
+  notes, priority/status/assignee, canned replies, customer 360, masked PII,
+  permissioned/reasoned PII reveal and optional provider-gated SMS replies;
 - trigger-fed append-only `admin_activity_events` outbox and
   `pg_notify('admin_activity')`, so every process feeds the control room;
 - ops actions: re-check, match, disburse/resume, payout retry, refund, refund
@@ -1010,7 +1013,8 @@ bookkeeping are built:**
 - append-only `admin_audit_log` with the acting admin id;
 - CLI bootstrap (`npm run admin:create`) with terminal QR and recovery codes;
 - tests for auth, replay, CSRF, RBAC, pages, stream delivery, analytics,
-  bookkeeping, TOTP enrolment, last-superadmin guard and audit.
+  bookkeeping, support masking/append-only notes/PII audit/SMS gating,
+  TOTP enrolment, last-superadmin guard and audit.
 
 **Not built yet:**
 
@@ -1019,8 +1023,9 @@ bookkeeping are built:**
 - `LISTEN/NOTIFY` transport (polling + SSE is live); analytics charts, saved
   views and scheduled exports.
 - Configuration center for fees/services/tiers/provider settings/feature flags.
-- Settlement/reconciliation, support cases, compliance/PII reveal, approvals,
-  SPA, IP allowlist deployment.
+- Settlement/reconciliation, KYC/sanctions compliance queues, approvals,
+  SPA, IP allowlist deployment. Support has no customer-facing chat, email or
+  WhatsApp channel yet.
 
 See `docs/ADMIN_WEB_IMPLEMENTATION.md` for setup and current limitations.
 

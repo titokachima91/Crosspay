@@ -18,6 +18,9 @@
   <% if (detail.trade.failure_code) { %><div class="notice error">Failure: <%= detail.trade.failure_code %></div><% } %>
 
   <div class="actions">
+    <% if (can.support) { %>
+    <a class="button small" href="/support/new?user=<%= detail.trade.user_id %>&trade=<%= encodeURIComponent(detail.trade.reference) %>">Open support case</a>
+    <% } %>
     <% if (can.ops) { %>
     <form method="post" action="/ops/trades/<%= detail.trade.id %>/recheck" class="inline">
       <input type="hidden" name="_csrf" value="<%= csrf %>"><button class="small">Re-check provider</button>

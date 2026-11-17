@@ -1,5 +1,8 @@
 export interface SmsSender {
+  /** False keeps the support UI honest instead of queuing a message nowhere. */
+  readonly available: boolean;
   sendOtp(phone: string, code: string): Promise<void>;
+  sendMessage(phone: string, message: string): Promise<void>;
 }
 
 export class SmsNotConfiguredError extends Error {
@@ -15,7 +18,13 @@ export class SmsNotConfiguredError extends Error {
  * to deliver a code. The OTP request endpoint returns 503 SMS_NOT_CONFIGURED.
  */
 export class DisabledSmsSender implements SmsSender {
+  readonly available = false;
+
   async sendOtp(): Promise<void> {
+    throw new SmsNotConfiguredError();
+  }
+
+  async sendMessage(): Promise<void> {
     throw new SmsNotConfiguredError();
   }
 }

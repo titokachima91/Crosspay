@@ -1,13 +1,15 @@
 # Admin web portal — implementation
 
 **Status**: Phase A/B portal built 2026-11-16. Phase C live control room,
-windowed analytics and read-only bookkeeping built 2026-11-17. Named local
-admins, TOTP, sessions, CSRF, RBAC, ops pages and audit are live. SSO,
-settlement import and deployment-level IP allowlist remain.
+windowed analytics and read-only bookkeeping built 2026-11-17. Manual support
+workspace with audited PII reveal built 2026-11-17. Named local admins, TOTP,
+sessions, CSRF, RBAC, ops pages and audit are live. SSO, settlement import and
+deployment-level IP allowlist remain.
 **Code**: `server/src/admin-web/`, `server/scripts/create-admin.ts`
 **Tests**: `server/test/admin-web.test.ts`
 **Migrations**: `server/db/migrations/0012_admin_identity.sql`,
-`server/db/migrations/0013_admin_activity.sql`
+`server/db/migrations/0013_admin_activity.sql`,
+`server/db/migrations/0014_support_workspace.sql`
 **Plan**: `docs/ADMIN_PANEL_PLAN.md`
 
 ---
@@ -110,11 +112,11 @@ No customer JWT is accepted by the portal.
 
 | Role | Access |
 |---|---|
-| `viewer` | read-only overview, control room, analytics, trades |
-| `ops` | viewer + match/disburse/recheck/payout retry, corridor policy |
-| `finance` | viewer + LP providers/orders + refunds |
-| `compliance` | viewer + audit |
-| `superadmin` | everything, admin-user management |
+| `viewer` | read-only overview, control room, analytics, trades; no support cases |
+| `ops` | viewer + match/disburse/recheck/payout retry, corridor policy, support cases and notes/SMS replies |
+| `finance` | viewer + LP providers/orders + refunds + bookkeeping; no support cases |
+| `compliance` | viewer + audit + bookkeeping + support cases + customer PII reveal |
+| `superadmin` | everything, including admin-user management and PII reveal |
 
 The role map is in `src/admin-web/auth.ts`. Named users can have multiple roles.
 The last active superadmin cannot be suspended or demoted.
@@ -133,7 +135,12 @@ The last active superadmin cannot be suspended or demoted.
 | `/corridors` | enable/cap/min/max/deadline/estimate/spread forms |
 | `/liquidity` | providers, prefunded orders, create/cancel |
 | `/trades` | search by reference, phone, beneficiary last 4 |
-| `/trades/:id` | timeline, attempts, payouts, refunds, ledger lines, safe actions |
+| `/trades/:id` | timeline, attempts, payouts, refunds, ledger lines, safe actions, open support case |
+| `/support` | case queue with status/priority/assignee filters and masked customer identity |
+| `/support/new` | open a case from a customer, optionally attached to one trade |
+| `/support/cases/:id` | case detail, append-only notes, SMS reply, state/assignee, audited PII reveal |
+| `/support/customers/:id` | customer 360: masked identity, cases, recent trades |
+| `/support/canned` | operator-managed reply templates, create/activate/deactivate |
 | `/audit` | append-only admin audit (compliance/superadmin) |
 | `/admin-users` | create user, set role, suspend, reset password (superadmin) |
 
@@ -162,11 +169,14 @@ future support tool.
 | `payout` | `payouts` insert/status changes |
 | `refund` | `refunds` insert/status changes |
 | `liquidity` | `liquidity_orders` insert/status changes |
-| `admin` | `admin_audit_log` inserts |
+| `support` | case insert/status/priority/assignee, message insert/delivery, PII reveal |
+| `admin` | `admin_audit_log` inserts (support resources are de-duplicated) |
 
 The payload carries references, statuses, currencies and minor amounts only.
-Recipient names, phone numbers and account numbers never enter the activity
-table. Updates and deletes on the table are rejected by a trigger.
+Recipient names, phone numbers, account numbers, case subjects and message
+bodies never enter the activity table. Support message events record only the
+channel, visibility, delivery state and body length. Updates and deletes on the
+activity table are rejected by a trigger.
 
 The control room:
 
@@ -212,7 +222,41 @@ and never labels a ledger balance “matched” against a real account.
 
 ---
 
-## 9. Current limitations
+## 9. Support workspace
+
+Migration `0014` adds manual case management. It is not an in-app chat and does
+not pretend to be one: the Flutter support screen can only copy request details
+today.
+
+- A case belongs to one customer and optionally one trade. The database refuses
+  a trade that belongs to a different customer.
+- Cases have a stable `CS-YYMMDD-XXXXXX` reference, category, priority, status,
+  assignee, opening channel and first-response timestamp.
+- Case messages are append-only. Notes are internal; SMS replies are
+  customer-visible. A trigger rejects rewriting the body or author of a message.
+  The only mutable field is SMS delivery state (`pending` → `sent`/`failed`).
+- Canned replies are operator-managed plain text. They are never sent
+  automatically and placeholders are not expanded.
+- The customer phone is masked to the last four digits throughout the support
+  screens. The beneficiary name and last four are visible; the full phone and
+  encrypted beneficiary account are not.
+- Customer 360 shows masked identity, open/total cases and recent trades.
+- PII reveal requires `pii:reveal` (compliance/superadmin), a 5-300 character
+  reason, and writes both `support_pii_reveals` (append-only) and
+  `admin_audit_log`. The response is `no-store`; the control room records a
+  warning event with field names only.
+- Customer SMS replies require an SMS provider. With `SMS_PROVIDER=disabled`
+  the request returns an honest `503 SMS_NOT_CONFIGURED` and records nothing.
+  With a provider, the message row is written as `pending` before delivery,
+  then `sent` or `failed`. A failed reply keeps its text and failure code so the
+  operator can copy it; it is never marked sent.
+- Support actions never mark a payment paid, edit a journal, promise a refund or
+  bypass KYC. They call only support services and leave money actions to the
+  trade/refund screens.
+
+---
+
+## 10. Current limitations
 
 - No SSO yet; local accounts + TOTP only.
 - No recovery-code **login** flow; a superadmin resets TOTP by resetting the
@@ -221,15 +265,22 @@ and never labels a ledger balance “matched” against a real account.
   `LISTEN/NOTIFY` consumption. The notify trigger is ready for that change.
 - Analytics is server-rendered tables; charts and saved views are later.
 - Configuration center (fees/services/tiers/flags) is Phase D.
-- Settlement/reconciliation and support cases are later phases. Bookkeeping is
-  ledger-only until a statement source exists.
+- Settlement/reconciliation is a later phase. Bookkeeping is ledger-only until a
+  statement source exists.
+- Support is a manual case workspace: no customer-facing chat, no email/WhatsApp
+  outbound, no attachments, no CSAT survey and no automated replies. SMS is the
+  only outbound channel and requires a configured provider.
+- A process crash between writing a pending SMS row and calling/updating the
+  gateway leaves the row `pending`; there is no retry worker for that state yet.
+- Compliance case queues (KYC reviews, sanctions hits) are not built; they will
+  link to the same case model.
 - IP allowlist/VPN/zero-trust is deployment configuration, not application code.
 - The env-key `/api/v1/admin/*` remains a break-glass surface until it is
   retired or restricted.
 
 ---
 
-## 10. Tests
+## 11. Tests
 
 `server/test/admin-web.test.ts` covers:
 
@@ -244,15 +295,22 @@ and never labels a ledger balance “matched” against a real account.
 - SSE resume from `after`/`Last-Event-ID` without replaying older activity;
 - analytics window tabs, revenue and funnel sections;
 - bookkeeping trial balance and journal detail with a posted opening journal;
+- support case creation, masked phone, append-only notes, state/assignee update,
+  viewer denial, canned reply create/deactivate and control-room activity that
+  excludes message bodies;
+- PII reveal denied without `pii:reveal`, allowed with a reason for compliance,
+  recorded in `support_pii_reveals`/audit/activity without the values;
+- SMS reply refused when no provider is configured, recorded as `sent` when the
+  gateway accepts it and `failed` when the gateway rejects it;
 - named admin creation and last-superadmin self-protection;
 - first-login TOTP enrolment and recovery-code display;
 - audit rows with the acting admin id.
 
-Suite after this phase: **102/102**, 20 suites, typecheck clean.
+Suite after this phase: **105/105**, 20 suites, typecheck clean.
 
 ---
 
-## 11. Deployment
+## 12. Deployment
 
 - Run `admin-web` as its own container/process with the same image as the API
   but `node dist/admin-web/server.js`.
@@ -264,9 +322,10 @@ Suite after this phase: **102/102**, 20 suites, typecheck clean.
 - Keep `ADMIN_API_KEY` unset in normal production if the portal is the only admin
   surface; use it only as a documented break-glass path.
 - Monitor 5xx, login failures, TOTP failures, audit insert failures, session
-  table growth and `admin_activity_events` growth. The outbox is append-only, so
-  retention needs an explicit partitioned-table/export decision rather than an
-  ad-hoc delete.
+  table growth, `admin_activity_events` growth and `support_case_messages` rows
+  stuck in `pending` (a gateway or process failure). The activity outbox is
+  append-only, so retention needs an explicit partitioned-table/export decision
+  rather than an ad-hoc delete.
 - The control room SSE holds one connection per browser. The shared poller keeps
   database load flat, but put the portal behind a proxy that does not buffer
   `text/event-stream`.
