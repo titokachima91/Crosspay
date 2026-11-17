@@ -379,7 +379,9 @@ describe('HTTP bootstrap, auth and recipients', () => {
       ...context,
       smsSender: new HttpSmsSender({
         url: `http://127.0.0.1:${address.port}/v1/send-sms`,
-        timeoutMs: 2_000,
+        // Full-suite load can delay a localhost response; delivery failure
+        // mapping is covered by the SMS adapter tests.
+        timeoutMs: 15_000,
       }),
     });
     await wired.ready();

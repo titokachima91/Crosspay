@@ -206,7 +206,10 @@ after(async () => {
 });
 
 function provider(): SandboxPaymentProvider {
-  return new SandboxPaymentProvider({ baseUrl, apiKey: 'provider-key', timeoutMs: 2_000 });
+  // The suite runs embedded PostgreSQL clusters before this file; a 2-second
+  // socket timeout is too tight under that load even though the test server is
+  // local. Keep the adapter's own timeout covered by the slow-response test.
+  return new SandboxPaymentProvider({ baseUrl, apiKey: 'provider-key', timeoutMs: 15_000 });
 }
 
 describe('sandbox payment provider adapter', () => {

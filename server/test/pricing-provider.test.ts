@@ -105,7 +105,9 @@ describe('sandbox pricing provider adapter', () => {
   const provider = () => new SandboxPricingProvider({
     baseUrl: `${baseUrl}/`,
     apiKey: 'provider-key',
-    timeoutMs: 2_000,
+    // Full-suite load can delay a localhost response; the adapter's own
+    // timeout behaviour is covered separately.
+    timeoutMs: 15_000,
   });
 
   it('reads rates, estimates and quotes from the sandbox contract', async () => {
