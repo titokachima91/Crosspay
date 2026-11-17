@@ -77,6 +77,12 @@ export interface OverviewData {
     refunds: number;
     liquidityOrders: number;
   };
+  oldest: {
+    queueSeconds: number | null;
+    matchSeconds: number | null;
+    payoutSeconds: number | null;
+    refundSeconds: number | null;
+  };
   queue: Array<{
     id: string;
     reference: string;
@@ -184,13 +190,32 @@ export async function loadOverview(pool: Pool): Promise<OverviewData> {
       payouts: string;
       refunds: string;
       liquidity_orders: string;
+      queue_seconds: number | null;
+      match_seconds: number | null;
+      payout_seconds: number | null;
+      refund_seconds: number | null;
     }>(
       `SELECT
          (SELECT count(*) FROM trades WHERE status IN ('escrowed', 'matching'))::text AS queue,
          (SELECT count(*) FROM p2p_matches WHERE status = 'locked')::text AS matches,
          (SELECT count(*) FROM payouts WHERE status IN ('pending', 'submitted'))::text AS payouts,
          (SELECT count(*) FROM refunds WHERE status IN ('pending', 'submitted'))::text AS refunds,
-         (SELECT count(*) FROM liquidity_orders WHERE status = 'active')::text AS liquidity_orders`,
+         (SELECT count(*) FROM liquidity_orders WHERE status = 'active')::text AS liquidity_orders,
+         (SELECT EXTRACT(EPOCH FROM (now() - min(funded_at)))::int
+          FROM (
+            SELECT COALESCE(
+                     (SELECT min(te.at) FROM trade_events te
+                      WHERE te.trade_id = t.id AND te.status = 'escrowed'),
+                     t.created_at) AS funded_at
+            FROM trades t
+            WHERE t.status IN ('escrowed', 'matching')
+          ) funded) AS queue_seconds,
+         (SELECT EXTRACT(EPOCH FROM (now() - min(matched_at)))::int
+          FROM p2p_matches WHERE status = 'locked') AS match_seconds,
+         (SELECT EXTRACT(EPOCH FROM (now() - min(requested_at)))::int
+          FROM payouts WHERE status IN ('pending', 'submitted')) AS payout_seconds,
+         (SELECT EXTRACT(EPOCH FROM (now() - min(requested_at)))::int
+          FROM refunds WHERE status IN ('pending', 'submitted')) AS refund_seconds`,
     ),
   ]);
 
@@ -203,14 +228,43 @@ export async function loadOverview(pool: Pool): Promise<OverviewData> {
       });
     }
   }
-  if (matches.rows.some((m) => m.matched_at && Date.now() - new Date(m.matched_at).getTime() > 5 * 60_000)) {
-    alerts.push({ level: 'warning', message: 'A locked match is older than five minutes' });
-  }
   if (Number(counts.rows[0]?.payouts ?? '0') > 0) {
     alerts.push({ level: 'warning', message: `${counts.rows[0]?.payouts} payout(s) pending` });
   }
   if (Number(counts.rows[0]?.refunds ?? '0') > 0) {
     alerts.push({ level: 'warning', message: `${counts.rows[0]?.refunds} refund(s) pending` });
+  }
+
+  const oldest = {
+    queueSeconds: counts.rows[0]?.queue_seconds ?? null,
+    matchSeconds: counts.rows[0]?.match_seconds ?? null,
+    payoutSeconds: counts.rows[0]?.payout_seconds ?? null,
+    refundSeconds: counts.rows[0]?.refund_seconds ?? null,
+  };
+
+  if (oldest.queueSeconds !== null && oldest.queueSeconds > 600) {
+    alerts.push({
+      level: oldest.queueSeconds > 1_800 ? 'critical' : 'warning',
+      message: `Oldest funded trade has waited ${Math.round(oldest.queueSeconds / 60)} minutes`,
+    });
+  }
+  if (oldest.matchSeconds !== null && oldest.matchSeconds > 300) {
+    alerts.push({
+      level: oldest.matchSeconds > 900 ? 'critical' : 'warning',
+      message: `Oldest locked match is ${Math.round(oldest.matchSeconds / 60)} minutes old`,
+    });
+  }
+  if (oldest.payoutSeconds !== null && oldest.payoutSeconds > 900) {
+    alerts.push({
+      level: oldest.payoutSeconds > 3_600 ? 'critical' : 'warning',
+      message: `Oldest pending payout is ${Math.round(oldest.payoutSeconds / 60)} minutes old`,
+    });
+  }
+  if (oldest.refundSeconds !== null && oldest.refundSeconds > 900) {
+    alerts.push({
+      level: oldest.refundSeconds > 3_600 ? 'critical' : 'warning',
+      message: `Oldest pending refund is ${Math.round(oldest.refundSeconds / 60)} minutes old`,
+    });
   }
 
   return {
@@ -223,6 +277,7 @@ export async function loadOverview(pool: Pool): Promise<OverviewData> {
       refunds: Number(counts.rows[0]?.refunds ?? '0'),
       liquidityOrders: Number(counts.rows[0]?.liquidity_orders ?? '0'),
     },
+    oldest,
     queue: queue.rows.map((row) => ({
       id: String(row['id']),
       reference: String(row['reference']),
@@ -398,47 +453,184 @@ export async function loadTradeDetail(pool: Pool, tradeId: string) {
   };
 }
 
-export async function loadAnalytics(pool: Pool) {
-  const [byStatus, byCorridor, payouts, refunds, liquidity] = await Promise.all([
-    pool.query(
-      `SELECT send_currency, status, count(*)::int AS trades,
-              COALESCE(sum(send_amount_minor), 0)::text AS send_minor
-       FROM trades GROUP BY send_currency, status
-       ORDER BY send_currency, status`,
-    ),
-    pool.query(
-      `SELECT send_currency, receive_currency, count(*)::int AS trades,
-              COALESCE(sum(send_amount_minor), 0)::text AS send_minor,
-              COALESCE(sum(receive_amount_minor), 0)::text AS receive_minor
-       FROM trades WHERE status = 'completed'
-       GROUP BY send_currency, receive_currency
-       ORDER BY send_currency, receive_currency`,
-    ),
-    pool.query(
-      `SELECT currency_code, status, count(*)::int AS count,
-              COALESCE(sum(amount_minor), 0)::text AS amount_minor
-       FROM payouts GROUP BY currency_code, status
-       ORDER BY currency_code, status`,
-    ),
-    pool.query(
-      `SELECT currency_code, status, count(*)::int AS count,
-              COALESCE(sum(amount_minor), 0)::text AS amount_minor
-       FROM refunds GROUP BY currency_code, status
-       ORDER BY currency_code, status`,
-    ),
-    pool.query(
-      `SELECT provide_currency, status, count(*)::int AS count,
-              COALESCE(sum(remaining_minor), 0)::text AS remaining_minor
-       FROM liquidity_orders GROUP BY provide_currency, status
-       ORDER BY provide_currency, status`,
-    ),
-  ]);
+export type AnalyticsWindow = '24h' | '7d' | '30d' | 'all';
+
+const ANALYTICS_INTERVALS: Record<AnalyticsWindow, string | null> = {
+  '24h': '24 hours',
+  '7d': '7 days',
+  '30d': '30 days',
+  all: null,
+};
+
+export async function loadAnalytics(pool: Pool, window: AnalyticsWindow = '7d') {
+  const interval = ANALYTICS_INTERVALS[window];
+  const [byStatus, byCorridor, payouts, refunds, liquidity, funnel, revenue, providers, refundReasons] =
+    await Promise.all([
+      pool.query(
+        `SELECT send_currency, status, count(*)::int AS trades,
+                COALESCE(sum(send_amount_minor), 0)::text AS send_minor
+         FROM trades
+         WHERE $1::interval IS NULL OR created_at >= now() - $1::interval
+         GROUP BY send_currency, status
+         ORDER BY send_currency, status`,
+        [interval],
+      ),
+      pool.query(
+        `SELECT send_currency, receive_currency, count(*)::int AS trades,
+                COALESCE(sum(send_amount_minor), 0)::text AS send_minor,
+                COALESCE(sum(receive_amount_minor), 0)::text AS receive_minor
+         FROM trades
+         WHERE status = 'completed'
+           AND ($1::interval IS NULL OR created_at >= now() - $1::interval)
+         GROUP BY send_currency, receive_currency
+         ORDER BY send_currency, receive_currency`,
+        [interval],
+      ),
+      pool.query(
+        `SELECT currency_code, status, count(*)::int AS count,
+                COALESCE(sum(amount_minor), 0)::text AS amount_minor
+         FROM payouts
+         WHERE ($1::interval IS NULL OR requested_at >= now() - $1::interval)
+         GROUP BY currency_code, status
+         ORDER BY currency_code, status`,
+        [interval],
+      ),
+      pool.query(
+        `SELECT currency_code, status, count(*)::int AS count,
+                COALESCE(sum(amount_minor), 0)::text AS amount_minor
+         FROM refunds
+         WHERE ($1::interval IS NULL OR requested_at >= now() - $1::interval)
+         GROUP BY currency_code, status
+         ORDER BY currency_code, status`,
+        [interval],
+      ),
+      pool.query(
+        `SELECT provide_currency, status, count(*)::int AS count,
+                COALESCE(sum(remaining_minor), 0)::text AS remaining_minor
+         FROM liquidity_orders
+         WHERE ($1::interval IS NULL OR created_at >= now() - $1::interval)
+         GROUP BY provide_currency, status
+         ORDER BY provide_currency, status`,
+        [interval],
+      ),
+      pool.query<{
+        send_currency: string;
+        created: number;
+        funded: number;
+        matched: number;
+        completed: number;
+        refunded: number;
+      }>(
+        `SELECT t.send_currency,
+                count(DISTINCT t.id)::int AS created,
+                count(DISTINCT t.id) FILTER (WHERE te.status = 'escrowed')::int AS funded,
+                count(DISTINCT t.id) FILTER (WHERE te.status IN ('matched', 'disbursing'))::int AS matched,
+                count(DISTINCT t.id) FILTER (WHERE te.status = 'completed')::int AS completed,
+                count(DISTINCT t.id) FILTER (WHERE te.status = 'refunded')::int AS refunded
+         FROM trades t
+         LEFT JOIN trade_events te ON te.trade_id = t.id
+         WHERE $1::interval IS NULL OR t.created_at >= now() - $1::interval
+         GROUP BY t.send_currency
+         ORDER BY t.send_currency`,
+        [interval],
+      ),
+      pool.query<{
+        currency_code: string;
+        fee_minor: string;
+        spread_minor: string;
+        provider_fee_minor: string;
+        compensation_minor: string;
+      }>(
+        `SELECT a.currency_code,
+                COALESCE(-sum(l.amount_minor) FILTER (WHERE a.code LIKE '3000-%'), 0)::text AS fee_minor,
+                COALESCE(-sum(l.amount_minor) FILTER (WHERE a.code LIKE '3100-%'), 0)::text AS spread_minor,
+                COALESCE(sum(l.amount_minor) FILTER (WHERE a.code LIKE '6000-%'), 0)::text AS provider_fee_minor,
+                COALESCE(sum(l.amount_minor) FILTER (WHERE a.code LIKE '6100-%'), 0)::text AS compensation_minor
+         FROM journal_lines l
+         JOIN journal_transactions tx ON tx.id = l.transaction_id
+         JOIN ledger_accounts a ON a.id = l.account_id
+         WHERE ($1::interval IS NULL OR tx.created_at >= now() - $1::interval)
+           AND (a.code LIKE '3000-%' OR a.code LIKE '3100-%'
+                OR a.code LIKE '6000-%' OR a.code LIKE '6100-%')
+         GROUP BY a.currency_code
+         ORDER BY a.currency_code`,
+        [interval],
+      ),
+      pool.query<{
+        provider: string;
+        currency_code: string;
+        total: number;
+        paid: number;
+        failed: number;
+        pending: number;
+        amount_minor: string;
+      }>(
+        `SELECT provider, currency_code,
+                count(*)::int AS total,
+                count(*) FILTER (WHERE status = 'paid')::int AS paid,
+                count(*) FILTER (WHERE status = 'failed')::int AS failed,
+                count(*) FILTER (WHERE status IN ('pending', 'submitted'))::int AS pending,
+                COALESCE(sum(amount_minor), 0)::text AS amount_minor
+         FROM payouts
+         WHERE ($1::interval IS NULL OR requested_at >= now() - $1::interval)
+         GROUP BY provider, currency_code
+         ORDER BY provider, currency_code`,
+        [interval],
+      ),
+      pool.query<{
+        reason_code: string;
+        currency_code: string;
+        count: number;
+        amount_minor: string;
+      }>(
+        `SELECT reason_code, currency_code, count(*)::int AS count,
+                COALESCE(sum(amount_minor), 0)::text AS amount_minor
+         FROM refunds
+         WHERE ($1::interval IS NULL OR requested_at >= now() - $1::interval)
+         GROUP BY reason_code, currency_code
+         ORDER BY count DESC, reason_code
+         LIMIT 25`,
+        [interval],
+      ),
+    ]);
   return {
+    window,
+    generatedAt: new Date().toISOString(),
     byStatus: byStatus.rows,
     byCorridor: byCorridor.rows,
     payouts: payouts.rows,
     refunds: refunds.rows,
     liquidity: liquidity.rows,
+    funnel: funnel.rows.map((row) => ({
+      currency: row.send_currency,
+      created: row.created,
+      funded: row.funded,
+      matched: row.matched,
+      completed: row.completed,
+      refunded: row.refunded,
+    })),
+    revenue: revenue.rows.map((row) => ({
+      currency: row.currency_code,
+      feeMinor: Number(row.fee_minor),
+      spreadMinor: Number(row.spread_minor),
+      providerFeeMinor: Number(row.provider_fee_minor),
+      compensationMinor: Number(row.compensation_minor),
+    })),
+    providers: providers.rows.map((row) => ({
+      provider: row.provider,
+      currency: row.currency_code,
+      total: row.total,
+      paid: row.paid,
+      failed: row.failed,
+      pending: row.pending,
+      amountMinor: Number(row.amount_minor),
+    })),
+    refundReasons: refundReasons.rows.map((row) => ({
+      reasonCode: row.reason_code,
+      currency: row.currency_code,
+      count: row.count,
+      amountMinor: Number(row.amount_minor),
+    })),
   };
 }
 

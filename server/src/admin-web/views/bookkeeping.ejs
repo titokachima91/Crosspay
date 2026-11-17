@@ -1,0 +1,71 @@
+<%- include('partials/header', { title: 'Bookkeeping', user, csrf, active: 'bookkeeping', notice, error, can }) %>
+<div class="notice">
+  Ledger-only view. Bank and PSP statement import is not connected, so this is
+  not a reconciliation and no balance is marked “matched” against a real
+  account. Every journal below is balanced in a single currency.
+</div>
+
+<% for (const group of trialBalance) { %>
+<div class="panel" style="margin-bottom:16px">
+  <div class="panel-head">
+    <h2>Trial balance · <%= group.currency %></h2>
+    <span class="pill <%= group.balanced ? 'ok' : 'bad' %>"><%= group.balanced ? 'balanced' : 'out of balance' %></span>
+    <span class="tag">debits <%= group.totalDebitMinor.toLocaleString('en-US') %> · credits <%= group.totalCreditMinor.toLocaleString('en-US') %> minor</span>
+  </div>
+  <table>
+    <thead><tr><th>Account</th><th>Type</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th><th class="num">Lines</th></tr></thead>
+    <tbody>
+      <% for (const account of group.accounts) { %>
+      <tr>
+        <td><span class="mono"><%= account.code %></span> <%= account.name %></td>
+        <td><span class="pill"><%= account.type %></span></td>
+        <td class="num"><%= account.debitMinor.toLocaleString('en-US') %></td>
+        <td class="num"><%= account.creditMinor.toLocaleString('en-US') %></td>
+        <td class="num"><strong><%= account.side %> <%= account.balanceMinor.toLocaleString('en-US') %></strong></td>
+        <td class="num"><%= account.lineCount %></td>
+      </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+<% if (trialBalance.length === 0) { %><div class="panel"><div class="empty">No journal lines yet.</div></div><% } %>
+
+<div class="panel" style="margin-top:16px">
+  <div class="panel-head"><h2>Journal browser</h2><span class="tag">latest 100</span></div>
+  <form method="get" action="/bookkeeping">
+    <div class="row">
+      <div><label>Currency</label><input name="currency" maxlength="3" value="<%= filters.currency %>" placeholder="All"></div>
+      <div><label>Kind</label>
+        <select name="kind">
+          <option value="">All kinds</option>
+          <% for (const kind of kinds) { %><option value="<%= kind %>" <%= filters.kind === kind ? 'selected' : '' %>><%= kind %></option><% } %>
+        </select>
+      </div>
+      <div><label>Trade reference</label><input name="reference" value="<%= filters.reference %>" placeholder="CP-…"></div>
+      <div class="shrink"><button class="primary">Filter</button></div>
+      <div class="shrink"><a class="button" href="/bookkeeping">Clear</a></div>
+    </div>
+  </form>
+  <div class="divider"></div>
+  <% if (journals.length === 0) { %><div class="empty">No journals match.</div><% } else { %>
+  <table>
+    <thead><tr><th>Posted</th><th>Kind</th><th>Currency</th><th>Posting key</th><th>Trade</th><th class="num">Debit</th><th class="num">Lines</th><th></th></tr></thead>
+    <tbody>
+      <% for (const journal of journals) { %>
+      <tr>
+        <td><%= journal.createdAt.replace('T',' ').slice(0,19) %></td>
+        <td><span class="pill"><%= journal.kind %></span></td>
+        <td><%= journal.currency %></td>
+        <td class="mono"><%= journal.postingKey %></td>
+        <td><% if (journal.reference) { %><% if (journal.tradeId) { %><a class="mono" href="/trades/<%= journal.tradeId %>"><%= journal.reference %></a><% } else { %><span class="mono"><%= journal.reference %></span><% } %><% } else { %>—<% } %></td>
+        <td class="num"><%= journal.debitMinor.toLocaleString('en-US') %></td>
+        <td class="num"><%= journal.lineCount %></td>
+        <td><a class="button small" href="/bookkeeping/journals/<%= journal.id %>">Open</a></td>
+      </tr>
+      <% } %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+<%- include('partials/footer') %>

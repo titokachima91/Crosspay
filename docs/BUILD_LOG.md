@@ -686,8 +686,40 @@ KYC/name-check adapters, invoice/share handlers.
 - Detail: `docs/ADMIN_WEB_IMPLEMENTATION.md`; full plan:
   `docs/ADMIN_PANEL_PLAN.md`.
 
-Next: Phase C control room SSE/analytics charts, Phase D configuration center,
-Phase E/F bookkeeping/reconciliation, Phase G support/compliance.
+Next: Phase D configuration center, settlement/reconciliation, Phase G
+support/compliance, and removal of the sandbox `CROSSPAY` mirror.
+
+---
+
+## 2026-11-17 - B4.6 Phase C control room, analytics windows and bookkeeping
+
+- Migration `0013`: `admin_activity_events` append-only outbox fed by database
+  triggers for trade events, matches, payouts, refunds, LP orders and admin
+  audit. Payloads carry references/statuses/currencies/minor amounts, never
+  recipient PII. `pg_notify('admin_activity', id)` is installed; the portal
+  currently uses a bounded shared poller.
+- New `ActivityStream`: one 2-second poller fans out to every browser, reads a
+  10-second overlap and dedupes by id. Control room SSE catches up from
+  `Last-Event-ID`, sends heartbeats, reconnects after 10 minutes and falls back
+  to the 5-second JSON snapshot. Source filter and pause/buffer in the UI.
+- Overview now reports oldest funded trade/match/payout/refund ages and emits
+  SLO alerts.
+- Analytics windows `24h|7d|30d|all`, funnel by send currency, ledger-backed fee
+  and spread revenue, provider success rates, compensation/provider costs and
+  refund reasons. No currency totals are mixed.
+- Read-only bookkeeping: `ledger:read` permission, debit-positive trial balance
+  per currency, journal browser filters, journal detail with lines, balance
+  check, reversals and FX partners. No editing, “mark as paid” or statement
+  matching claim.
+- Fixed the build asset copy so repeated builds replace `views/`/`public/`
+  instead of nesting `public/public`.
+- Migration timing is clamped at zero: a clock step during a long migration no
+  longer fails a deploy on `execution_ms >= 0`.
+- Verification: Node **102/102**, 20 suites, typecheck clean, production build
+  contains both new EJS views.
+
+Next: Phase D configuration center, Phase F settlement/reconciliation and
+Phase G support/compliance.
 
 ---
 

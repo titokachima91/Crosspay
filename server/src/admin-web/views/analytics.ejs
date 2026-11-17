@@ -1,20 +1,100 @@
 <%- include('partials/header', { title: 'Analytics', user, csrf, active: 'analytics', notice, error, can }) %>
+<div class="tabs">
+  <% for (const option of [['24h','Last 24 hours'],['7d','Last 7 days'],['30d','Last 30 days'],['all','All time']]) { %>
+    <a href="/analytics?window=<%= option[0] %>" class="<%= data.window === option[0] ? 'active' : '' %>"><%= option[1] %></a>
+  <% } %>
+  <span class="tag" style="align-self:center">Generated <%= new Date(data.generatedAt).toISOString().replace('T',' ').slice(0,16) %> · never summed across currencies</span>
+</div>
+
 <div class="grid two">
   <div class="panel">
-    <div class="panel-head"><h2>Trades by status</h2><span class="tag">per currency</span></div>
+    <div class="panel-head"><h2>Fee and spread revenue</h2><span class="tag">ledger 3000 / 3100</span></div>
+    <% if (data.revenue.length === 0) { %><div class="empty">No revenue postings in this window.</div><% } else { %>
+    <table><thead><tr><th>Currency</th><th class="num">Fee revenue</th><th class="num">Spread</th><th class="num">Provider fees</th><th class="num">Compensation</th></tr></thead><tbody>
+      <% for (const r of data.revenue) { %>
+      <tr>
+        <td><strong><%= r.currency %></strong></td>
+        <td class="num"><%= r.feeMinor.toLocaleString('en-US') %></td>
+        <td class="num"><%= r.spreadMinor.toLocaleString('en-US') %></td>
+        <td class="num muted"><%= r.providerFeeMinor.toLocaleString('en-US') %></td>
+        <td class="num muted"><%= r.compensationMinor.toLocaleString('en-US') %></td>
+      </tr>
+      <% } %>
+    </tbody></table>
+    <p class="tag">Minor units per currency. Fee revenue is net of the collection provider fee; payout and compensation costs are shown separately and are not subtracted across currencies.</p>
+    <% } %>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Funnel by send currency</h2><span class="tag">trades that reached a state</span></div>
+    <% if (data.funnel.length === 0) { %><div class="empty">No trades in this window.</div><% } else { %>
+    <table><thead><tr><th>Currency</th><th class="num">Created</th><th class="num">Funded</th><th class="num">Matched</th><th class="num">Completed</th><th class="num">Refunded</th></tr></thead><tbody>
+      <% for (const r of data.funnel) { %>
+      <tr>
+        <td><strong><%= r.currency %></strong></td>
+        <td class="num"><%= r.created %></td>
+        <td class="num"><%= r.funded %><div class="tag"><%= r.created ? Math.round((r.funded / r.created) * 100) : 0 %>%</div></td>
+        <td class="num"><%= r.matched %><div class="tag"><%= r.created ? Math.round((r.matched / r.created) * 100) : 0 %>%</div></td>
+        <td class="num"><%= r.completed %><div class="tag"><%= r.created ? Math.round((r.completed / r.created) * 100) : 0 %>%</div></td>
+        <td class="num"><%= r.refunded %></td>
+      </tr>
+      <% } %>
+    </tbody></table>
+    <% } %>
+  </div>
+</div>
+
+<div class="grid two" style="margin-top:16px">
+  <div class="panel">
+    <div class="panel-head"><h2>Provider performance</h2><span class="tag">payout outcomes</span></div>
+    <% if (data.providers.length === 0) { %><div class="empty">No payouts in this window.</div><% } else { %>
+    <table><thead><tr><th>Provider</th><th>Currency</th><th class="num">Total</th><th class="num">Paid</th><th class="num">Failed</th><th>Success</th></tr></thead><tbody>
+      <% for (const r of data.providers) { const rate = r.total ? Math.round((r.paid / r.total) * 100) : 0; %>
+      <tr>
+        <td><strong><%= r.provider %></strong></td>
+        <td><%= r.currency %></td>
+        <td class="num"><%= r.total %><div class="tag"><%= r.amountMinor.toLocaleString('en-US') %> minor</div></td>
+        <td class="num"><%= r.paid %></td>
+        <td class="num"><%= r.failed %></td>
+        <td><div class="bar <%= rate < 90 ? 'bad' : rate < 98 ? 'warn' : '' %>"><span style="width:<%= rate %>%"></span></div><span class="tag"><%= rate %>%</span></td>
+      </tr>
+      <% } %>
+    </tbody></table>
+    <% } %>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Refund reasons</h2><span class="tag">finance review</span></div>
+    <% if (data.refundReasons.length === 0) { %><div class="empty">No refunds in this window.</div><% } else { %>
+    <table><thead><tr><th>Reason</th><th>Currency</th><th class="num">Count</th><th class="num">Amount</th></tr></thead><tbody>
+      <% for (const r of data.refundReasons) { %>
+      <tr><td class="mono"><%= r.reasonCode %></td><td><%= r.currency %></td><td class="num"><%= r.count %></td><td class="num"><%= r.amountMinor.toLocaleString('en-US') %></td></tr>
+      <% } %>
+    </tbody></table>
+    <% } %>
+  </div>
+</div>
+
+<div class="grid two" style="margin-top:16px">
+  <div class="panel">
+    <div class="panel-head"><h2>Trades by status</h2><span class="tag">current state</span></div>
+    <% if (data.byStatus.length === 0) { %><div class="empty">No trades in this window.</div><% } else { %>
     <table><thead><tr><th>Currency</th><th>Status</th><th class="num">Trades</th><th class="num">Sent</th></tr></thead><tbody>
       <% for (const r of data.byStatus) { %>
       <tr><td><%= r.send_currency %></td><td><span class="pill"><%= r.status %></span></td><td class="num"><%= r.trades %></td><td class="num"><%= Number(r.send_minor).toLocaleString('en-US') %></td></tr>
       <% } %>
     </tbody></table>
+    <% } %>
   </div>
   <div class="panel">
     <div class="panel-head"><h2>Completed corridors</h2><span class="tag">no mixed-currency totals</span></div>
+    <% if (data.byCorridor.length === 0) { %><div class="empty">No completed trades in this window.</div><% } else { %>
     <table><thead><tr><th>Corridor</th><th class="num">Trades</th><th class="num">Sent</th><th class="num">Received</th></tr></thead><tbody>
       <% for (const r of data.byCorridor) { %>
       <tr><td><%= r.send_currency %> → <%= r.receive_currency %></td><td class="num"><%= r.trades %></td><td class="num"><%= Number(r.send_minor).toLocaleString('en-US') %> <%= r.send_currency %></td><td class="num"><%= Number(r.receive_minor).toLocaleString('en-US') %> <%= r.receive_currency %></td></tr>
       <% } %>
     </tbody></table>
+    <% } %>
   </div>
 </div>
 

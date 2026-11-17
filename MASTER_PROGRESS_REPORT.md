@@ -1,10 +1,10 @@
 # CROSSPAY: MASTER PROGRESS REPORT
 
-**Updated**: 2026-11-16
+**Updated**: 2026-11-17
 **Project**: CrossPay
 **Package**: crosspay_app
 **Environment**: macOS Monterey | Flutter 3.24.5 | Dart 3.5.4 | Node 24 | PostgreSQL 17 for the API | SQLite for the sandbox
-**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 (matching, LP liquidity, exposure, app matching states, Phase A/B ops admin portal) complete · market depth, analytics, CSV export and the reconciliation worker complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · B4.6 control room/analytics/config/bookkeeping and B3 invoice/share remain
+**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 (matching, LP liquidity, exposure, app matching states, Phase A/B/C ops admin portal, read-only bookkeeping) complete · market depth, analytics, CSV export and the reconciliation worker complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · B4.6 config center/settlement/support and B3 invoice/share remain
 
 ---
 
@@ -229,15 +229,17 @@ connected.
 - [x] B4.3 Two-leg payout saga and compensation
 - [x] B4.4 Corridor exposure and liquidity providers
 - [x] B4.5 App matching states
-- [x] B4.6 CrossPay ops admin / control room (Phase A + local-account Phase B)
+- [x] B4.6 CrossPay ops admin / control room (Phase A + Phases B/C and read-only bookkeeping)
 
 **B4.4**: per-corridor exposure view, min/max bounds, allowlisted pre-funded
 liquidity providers with standing orders, prefund/return journals, LP matching
-and exact capacity release on failure. **B4.6 Phase A/B**: separate `admin-web`
-portal, named admins, Argon2id, TOTP, server-side sessions, CSRF, RBAC, org
-pages, audit and safe ops actions. Control room SSE, analytics charts,
-configuration center, bookkeeping and reconciliation are planned in
-`docs/ADMIN_PANEL_PLAN.md`; current portal details in
+and exact capacity release on failure. **B4.6 Phase A/B/C**: separate
+`admin-web` portal, named admins, Argon2id, TOTP, server-side sessions, CSRF,
+RBAC, org pages, audit and safe ops actions; trigger-fed append-only activity
+outbox with an SSE control room, windowed analytics and funnel/revenue/provider
+views; read-only debit-positive trial balance and journal browser. The
+configuration center, settlement/reconciliation and support cases remain
+planned in `docs/ADMIN_PANEL_PLAN.md`; current portal details in
 `docs/ADMIN_WEB_IMPLEMENTATION.md`.
 
 **Built**: `docs/B4_MATCHING_IMPLEMENTATION.md`. Matching is off by
@@ -515,11 +517,10 @@ Completed:
 - Verified snapshots of both projects.
 
 Next, in order:
-1. **B4.6 Phase C/D** — control-room SSE/event outbox, analytics charts/exports,
-   configuration center (services, fees, spreads, tiers, provider settings,
-   flags), approvals/versioning.
-2. **B4.6 Phase E/F/G** — bookkeeping, trial balance, settlement/reconciliation,
-   support cases and compliance.
+1. **B4.6 Phase D** — configuration center (services, fees, spreads, tiers,
+   provider settings, flags), approvals/versioning, analytics charts.
+2. **B4.6 Phase E/F/G** — settlement/reconciliation, support cases, compliance
+   and PII reveal (read-only bookkeeping is built).
 3. **Bank payouts and KYC/name-check adapters** — mobile-money payout, refunds,
    callbacks, matching and the reconciliation worker are built; bank rails need
    an approved partner account contract.

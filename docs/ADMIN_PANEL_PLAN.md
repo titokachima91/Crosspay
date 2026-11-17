@@ -73,9 +73,9 @@ customer's full PII without a permissioned, audited reveal.
 |---|---|---|
 | A. Ops read + narrow controls | Overview, queue, matches, payouts, refunds, corridors, LP orders; env admin key; audit writes | Built |
 | B. Admin identity and RBAC | Admin users, passwords + TOTP, sessions, roles, CSRF, IP allowlist, audit log UI | Built for local accounts; SSO/IP allowlist are deployment follow-ups |
-| C. Control room and analytics | Real-time redacted activity feed, SLOs, funnel/corridor/provider/liquidity/support analytics, saved views, exports | Ops can answer “what is happening now?” without SQL |
+| C. Control room and analytics | Real-time redacted activity feed, SLOs, funnel/corridor/provider/liquidity/support analytics, saved views, exports | Built for feed/windows/funnel/revenue; saved views and charts remain |
 | D. Configuration center | Services, fees, spreads, tiers/limits, provider settings, feature flags, maintenance, staged rollout/rollback | Every change is versioned and approved |
-| E. Bookkeeping | Chart approval, journal browser, trial balance, revenue/cost reports, operating-cash transfers | Finance signs the chart and recognition rules |
+| E. Bookkeeping | Chart approval, journal browser, trial balance, revenue/cost reports, operating-cash transfers | Read-only journal browser/trial balance built; chart approval and reports remain |
 | F. Settlement and reconciliation | Provider statements, bank/PSP statement import or API, matching, exceptions, daily close | One clean end-to-end settlement cycle |
 | G. Support and compliance | Customer-safe support workspace, cases/notes, KYC queue, sanctions hits, PII reveal workflow | Compliance sign-off |
 | H. Sandbox mirror removal | Remove testing-only `CROSSPAY` book and docs | E and F pass in production/sandbox |
@@ -988,7 +988,8 @@ Cutover checklist:
 
 ## 13. B4.6 built so far
 
-**Phase A and local-account Phase B are built:**
+**Phase A, local-account Phase B and the Phase C feed/analytics plus read-only
+bookkeeping are built:**
 
 - separate `admin-web` process with server-rendered pages;
 - named `admin_users`, Argon2id passwords, TOTP, encrypted secrets, recovery
@@ -996,24 +997,30 @@ Cutover checklist:
 - server-side sessions, HttpOnly/SameSite cookies, CSRF, origin checks, security
   headers, session revocation;
 - roles `viewer`, `ops`, `finance`, `compliance`, `superadmin`;
-- overview, control-room polling snapshot/live feed, analytics tables, corridors,
-  liquidity providers/orders, trade search/detail, audit, admin-user management;
+- overview, live SSE control room with snapshot fallback, windowed analytics
+  (`24h`/`7d`/`30d`/`all`), funnel, fee/spread revenue, provider performance,
+  corridors, liquidity providers/orders, trade search/detail, audit,
+  admin-user management;
+- read-only bookkeeping: debit-positive trial balance per currency, journal
+  browser/detail, reversal and FX-partner links, `ledger:read` permission;
+- trigger-fed append-only `admin_activity_events` outbox and
+  `pg_notify('admin_activity')`, so every process feeds the control room;
 - ops actions: re-check, match, disburse/resume, payout retry, refund, refund
   retry;
 - append-only `admin_audit_log` with the acting admin id;
 - CLI bootstrap (`npm run admin:create`) with terminal QR and recovery codes;
-- tests for auth, replay, CSRF, RBAC, pages, TOTP enrolment, last-superadmin
-  guard and audit.
+- tests for auth, replay, CSRF, RBAC, pages, stream delivery, analytics,
+  bookkeeping, TOTP enrolment, last-superadmin guard and audit.
 
 **Not built yet:**
 
 - SSO; local accounts + TOTP only.
 - Recovery-code login flow.
-- SSE/event outbox for the control room (currently 5-second polling).
-- Analytics charts/exports and saved views.
+- `LISTEN/NOTIFY` transport (polling + SSE is live); analytics charts, saved
+  views and scheduled exports.
 - Configuration center for fees/services/tiers/provider settings/feature flags.
-- Bookkeeping, settlement/reconciliation, support cases, compliance/PII reveal,
-  approvals, SPA, IP allowlist deployment.
+- Settlement/reconciliation, support cases, compliance/PII reveal, approvals,
+  SPA, IP allowlist deployment.
 
 See `docs/ADMIN_WEB_IMPLEMENTATION.md` for setup and current limitations.
 

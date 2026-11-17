@@ -1,0 +1,54 @@
+<%- include('partials/header', { title: 'Journal ' + journal.postingKey, user, csrf, active: 'bookkeeping', notice, error, can }) %>
+<div class="panel">
+  <div class="panel-head">
+    <h2 class="mono"><%= journal.postingKey %></h2>
+    <span class="pill <%= journal.balanced ? 'ok' : 'bad' %>"><%= journal.balanced ? 'balanced' : 'out of balance' %></span>
+    <span class="pill"><%= journal.kind %></span>
+    <a class="button small" href="/bookkeeping">Back</a>
+  </div>
+  <div class="detail-grid">
+    <div class="detail"><div class="k">Currency</div><div class="v"><%= journal.currency %></div></div>
+    <div class="detail"><div class="k">Debit</div><div class="v"><%= journal.debitMinor.toLocaleString('en-US') %></div></div>
+    <div class="detail"><div class="k">Credit</div><div class="v"><%= journal.creditMinor.toLocaleString('en-US') %></div></div>
+    <div class="detail"><div class="k">Posted</div><div class="v"><%= journal.createdAt.replace('T',' ').slice(0,19) %></div></div>
+    <div class="detail"><div class="k">Occurred</div><div class="v"><%= journal.occurredAt.replace('T',' ').slice(0,19) %></div></div>
+    <div class="detail"><div class="k">Trade</div><div class="v"><% if (journal.tradeId) { %><a class="mono" href="/trades/<%= journal.tradeId %>"><%= journal.reference || journal.tradeId %></a> <span class="tag"><%= journal.tradeStatus || '' %></span><% } else { %>—<% } %></div></div>
+    <div class="detail"><div class="k">Payout / refund</div><div class="v mono"><%= journal.payoutId || journal.refundId || '—' %></div></div>
+    <div class="detail"><div class="k">FX group</div><div class="v mono"><%= journal.fxGroupId || '—' %></div></div>
+  </div>
+
+  <% if (journal.reversesTransactionId) { %>
+    <div class="notice">This journal reverses <a class="mono" href="/bookkeeping/journals/<%= journal.reversesTransactionId %>"><%= journal.reversesTransactionId %></a>.</div>
+  <% } %>
+  <% if (journal.reversalIds.length > 0) { %>
+    <div class="notice">Reversed by <% for (const id of journal.reversalIds) { %><a class="mono" href="/bookkeeping/journals/<%= id %>"><%= id %></a> <% } %>.</div>
+  <% } %>
+  <% if (journal.fxPartners.length > 0) { %>
+    <div class="notice">Linked FX journal(s):
+      <% for (const partner of journal.fxPartners) { %>
+        <a class="mono" href="/bookkeeping/journals/<%= partner.id %>"><%= partner.currency %> · <%= partner.kind %></a>
+      <% } %>
+      <span class="tag">The two single-currency journals are linked by fx_group_id; their minor units are never added together.</span>
+    </div>
+  <% } %>
+
+  <h3>Lines</h3>
+  <table>
+    <thead><tr><th>Account</th><th>Type</th><th>Side</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+      <% for (const line of journal.lines) { %>
+      <tr>
+        <td><span class="mono"><%= line.code %></span> <%= line.name %></td>
+        <td><span class="pill"><%= line.type %></span></td>
+        <td><span class="pill <%= line.side === 'Dr' ? 'info' : 'warn' %>"><%= line.side %></span></td>
+        <td class="num"><%= line.amountMinor.toLocaleString('en-US') %></td>
+      </tr>
+      <% } %>
+    </tbody>
+    <tfoot>
+      <tr><th colspan="3">Total</th><th class="num"><%= journal.debitMinor.toLocaleString('en-US') %> Dr / <%= journal.creditMinor.toLocaleString('en-US') %> Cr</th></tr>
+    </tfoot>
+  </table>
+  <p class="tag">Amounts are minor units in <%= journal.currency %>. A journal is never posted across currencies; FX uses two linked journals.</p>
+</div>
+<%- include('partials/footer') %>

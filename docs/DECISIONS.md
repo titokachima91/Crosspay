@@ -174,3 +174,27 @@ B4.6 admin web portal
   named admins.
 - Ops actions never mark a payment paid or edit a ledger; they call the same
   domain services as the API and write named-admin audit.
+
+B4.6 control room, analytics and bookkeeping
+- `admin_activity_events` is an append-only outbox written by database triggers,
+  not by application code, so the API, worker and future tools feed one stream.
+  The admin portal never has to be trusted to report its own activity.
+- Activity payloads are non-PII: reference, source, status, currency and minor
+  amount. Recipient names and account numbers stay in their encrypted columns.
+- The control room uses SSE with a shared 2-second poller, 10-second overlap and
+  id deduplication. `pg_notify` is installed, but `LISTEN/NOTIFY` is a later
+  transport change, not a requirement for correctness.
+- Analytics counts completed trades for corridor volume, uses ledger `3000`
+  (fee) and `3100` (spread) for revenue, and shows `6000`/`6100` as separate
+  costs. Cross-currency totals are never computed.
+- Bookkeeping is read-only: debit-positive trial balance per currency, journal
+  browser/detail, reversal and FX-partner links. There is no journal editor,
+  “mark as paid” or SQL console.
+- An FX pair is two single-currency journals linked by `fx_group_id`; the UI
+  links them but never adds their minor units together.
+- Statement import/matching is not connected, so the bookkeeping page never
+  labels a balance “matched” against a bank/PSP account.
+- `execution_ms` is clamped at zero: a clock step during a long migration must
+  not fail a deployment through a non-negative check constraint.
+- The build replaces `dist/admin-web/views` and `public` on every run; copying
+  into an existing directory nested `public/public` on the second build.

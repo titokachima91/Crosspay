@@ -45,7 +45,21 @@ import {
   loadOverview,
   loadTradeDetail,
   searchTrades,
+  type AnalyticsWindow,
 } from './data.js';
+import {
+  ActivityStream,
+  loadActivityAfter,
+  loadActivityMaxId,
+  loadRecentActivity,
+  type ActivityEvent,
+} from './activity.js';
+import {
+  JOURNAL_KINDS,
+  loadJournal,
+  loadJournals,
+  loadTrialBalance,
+} from './bookkeeping.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -104,6 +118,7 @@ function can(session: AdminSession) {
     refund: hasPermission(roles, 'refund:write'),
     audit: hasPermission(roles, 'audit:read'),
     users: hasPermission(roles, 'admin:users'),
+    ledger: hasPermission(roles, 'ledger:read'),
   };
 }
 
@@ -116,7 +131,7 @@ function view(
   return reply.view(template, {
     user: session ? session.user : null,
     csrf: session ? session.csrfToken : '',
-    can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false },
+    can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false },
     notice: null,
     error: null,
     ...data,
@@ -201,10 +216,19 @@ function normalizeReason(value: string): string {
   return /^[a-z][a-z0-9_]{1,62}$/.test(normalized) ? normalized : 'support_request';
 }
 
+function analyticsWindow(query: unknown): AnalyticsWindow {
+  const value =
+    typeof query === 'object' && query && 'window' in query
+      ? String((query as { window?: string }).window)
+      : '';
+  return value === '24h' || value === '30d' || value === 'all' ? value : '7d';
+}
+
 export function registerAdminWebRoutes(
   app: FastifyInstance,
   ctx: AppContext,
   config: AdminWebConfig,
+  activity: ActivityStream,
 ): void {
   app.decorateRequest('adminSession', null);
 
@@ -259,7 +283,7 @@ export function registerAdminWebRoutes(
       {
         user: session ? session.user : null,
         csrf: session ? session.csrfToken : '',
-        can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false },
+        can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false },
         active: '',
         notice: null,
         error: statusCode >= 500 ? 'Unexpected error. Check the service logs.' : failure.message,
@@ -492,42 +516,176 @@ export function registerAdminWebRoutes(
   app.get('/control-room/data', async (request, reply) => {
     const session = request.adminSession as AdminSession;
     requirePermission(session.user.roles, 'view');
-    const [overview, feed] = await Promise.all([
+    const [overview, events, auditRows] = await Promise.all([
       loadOverview(ctx.pool),
-      ctx.pool.query(
-        `SELECT 'admin' AS source, action AS event, created_at AS at,
-                actor_label AS actor, resource_type, resource_id,
-                NULL::text AS reference, '/audit'::text AS href,
-                action || ' ' || resource_type AS summary
-         FROM admin_audit_log
-         UNION ALL
-         SELECT 'trade', te.status, te.at, te.actor, 'trade', t.id::text,
-                t.reference, '/trades/' || t.id,
-                te.status || ' ' || t.reference
-         FROM trade_events te JOIN trades t ON t.id = te.trade_id
-         UNION ALL
-         SELECT 'payout', p.status, p.requested_at, 'provider', 'payout', p.id::text,
-                t.reference, '/trades/' || t.id,
-                'payout ' || p.status || ' ' || p.currency_code || ' ' || p.amount_minor::text
-         FROM payouts p JOIN trades t ON t.id = p.trade_id
-         UNION ALL
-         SELECT 'refund', r.status, r.requested_at, 'provider', 'refund', r.id::text,
-                t.reference, '/trades/' || t.id,
-                'refund ' || r.status || ' ' || r.currency_code || ' ' || r.amount_minor::text
-         FROM refunds r JOIN trades t ON t.id = r.trade_id
-         ORDER BY at DESC
-         LIMIT 60`,
-      ),
+      loadRecentActivity(ctx.pool, 60),
+      loadAudit(ctx.pool),
     ]);
-    const auditRows = await loadAudit(ctx.pool);
-    return reply.send({ overview, feed: feed.rows, audit: auditRows.slice(0, 20) });
+    const updatedAt = new Date().toISOString();
+    return reply.send({ overview, events, audit: auditRows.slice(0, 20), updatedAt });
+  });
+
+  app.get('/control-room/stream', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'view');
+
+    const headerId = Number(request.headers['last-event-id'] ?? 0);
+    const queryId = Number(
+      typeof request.query === 'object' && request.query && 'after' in request.query
+        ? (request.query as { after?: string }).after
+        : 0,
+    );
+    const requested = Number.isFinite(headerId) && headerId > 0 ? headerId : queryId;
+    const hasCursor = Number.isFinite(requested) && requested > 0;
+    // Without a resume cursor a fresh EventSource must not replay the whole
+    // outbox. Start at the current end; the page already has a snapshot.
+    let lastSent = hasCursor
+      ? Math.floor(requested)
+      : await loadActivityMaxId(ctx.pool);
+
+    reply.hijack();
+    const raw = reply.raw;
+    raw.writeHead(200, {
+      'content-type': 'text/event-stream; charset=utf-8',
+      'cache-control': 'no-store, no-transform',
+      connection: 'keep-alive',
+      'x-accel-buffering': 'no',
+      'x-content-type-options': 'nosniff',
+      'x-robots-tag': 'noindex, nofollow',
+    });
+    raw.write('retry: 3000\n\n');
+
+    let closed = false;
+    const pending: ActivityEvent[] = [];
+    let live = false;
+
+    const write = (event: ActivityEvent): void => {
+      if (closed) return;
+      try {
+        raw.write(
+          `id: ${event.id}\nevent: activity\ndata: ${JSON.stringify(event)}\n\n`,
+        );
+      } catch {
+        cleanup();
+      }
+    };
+
+    const unsubscribe = activity.subscribe((event) => {
+      if (!live) {
+        pending.push(event);
+        return;
+      }
+      // A late commit can have a lower id. Send it; the browser deduplicates by
+      // id, and a lower Last-Event-ID only causes safe re-delivery.
+      write(event);
+      lastSent = Math.max(lastSent, event.id);
+    });
+
+    let heartbeat: NodeJS.Timeout | null = setInterval(() => {
+      if (!closed) raw.write(': ping\n\n');
+    }, 15_000);
+    heartbeat.unref?.();
+
+    let lifetime: NodeJS.Timeout | null = setTimeout(() => {
+      if (closed) return;
+      raw.write('event: close\ndata: reconnect\n\n');
+      cleanup();
+    }, 10 * 60_000);
+    lifetime.unref?.();
+
+    const cleanup = (): void => {
+      if (closed) return;
+      closed = true;
+      if (heartbeat) clearInterval(heartbeat);
+      heartbeat = null;
+      if (lifetime) clearTimeout(lifetime);
+      lifetime = null;
+      unsubscribe();
+      try {
+        raw.end();
+      } catch {
+        // The socket may already be gone.
+      }
+    };
+    raw.on('close', cleanup);
+    request.raw.on('close', cleanup);
+
+    try {
+      let cursor = lastSent;
+      for (let batch = 0; batch < 10 && !closed; batch += 1) {
+        const events = await loadActivityAfter(ctx.pool, cursor, 500);
+        if (events.length === 0) break;
+        for (const event of events) {
+          if (closed) return;
+          if (event.id <= lastSent) continue;
+          write(event);
+          lastSent = event.id;
+        }
+        cursor = events[events.length - 1]?.id ?? cursor;
+        if (events.length < 500) break;
+      }
+      for (const event of pending.sort((left, right) => left.id - right.id)) {
+        if (closed) return;
+        if (event.id <= lastSent) continue;
+        write(event);
+        lastSent = event.id;
+      }
+      pending.length = 0;
+      live = true;
+    } catch (error) {
+      request.log.error({ err: error }, 'control room stream failed');
+      if (!closed) {
+        raw.write(
+          `event: error\ndata: ${JSON.stringify({ message: 'Live stream unavailable; retrying' })}\n\n`,
+        );
+      }
+      cleanup();
+    }
   });
 
   app.get('/analytics', async (request, reply) => {
     const session = request.adminSession as AdminSession;
     requirePermission(session.user.roles, 'view');
-    const data = await loadAnalytics(ctx.pool);
+    const window = analyticsWindow(request.query);
+    const data = await loadAnalytics(ctx.pool, window);
     return view(reply, 'analytics', session, { title: 'Analytics', active: 'analytics', data });
+  });
+
+  app.get('/bookkeeping', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'ledger:read');
+    const query = (request.query ?? {}) as Record<string, string | undefined>;
+    const currency = (query['currency'] ?? '').toUpperCase().slice(0, 3);
+    const kind = JOURNAL_KINDS.includes((query['kind'] ?? '') as (typeof JOURNAL_KINDS)[number])
+      ? String(query['kind'])
+      : '';
+    const reference = (query['reference'] ?? '').slice(0, 40);
+    const [trialBalance, journals] = await Promise.all([
+      loadTrialBalance(ctx.pool),
+      loadJournals(ctx.pool, { currency, kind, reference }),
+    ]);
+    return view(reply, 'bookkeeping', session, {
+      title: 'Bookkeeping',
+      active: 'bookkeeping',
+      trialBalance,
+      journals,
+      kinds: JOURNAL_KINDS,
+      filters: { currency, kind, reference },
+    });
+  });
+
+  app.get('/bookkeeping/journals/:id', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'ledger:read');
+    const id = (request.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw errorWith(404, 'JOURNAL_NOT_FOUND', 'Journal not found');
+    const journal = await loadJournal(ctx.pool, id);
+    if (!journal) throw errorWith(404, 'JOURNAL_NOT_FOUND', 'Journal not found');
+    return view(reply, 'journal-detail', session, {
+      title: 'Journal',
+      active: 'bookkeeping',
+      journal,
+    });
   });
 
   app.get('/corridors', async (request, reply) => {

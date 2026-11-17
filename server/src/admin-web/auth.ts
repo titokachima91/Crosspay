@@ -16,7 +16,8 @@ export type AdminPermission =
   | 'liquidity:write'
   | 'refund:write'
   | 'admin:users'
-  | 'audit:read';
+  | 'audit:read'
+  | 'ledger:read';
 
 const PERMISSIONS: Record<AdminPermission, AdminRole[]> = {
   view: ['viewer', 'ops', 'finance', 'compliance', 'superadmin'],
@@ -26,6 +27,7 @@ const PERMISSIONS: Record<AdminPermission, AdminRole[]> = {
   'refund:write': ['ops', 'finance', 'superadmin'],
   'admin:users': ['superadmin'],
   'audit:read': ['compliance', 'superadmin'],
+  'ledger:read': ['finance', 'compliance', 'superadmin'],
 };
 
 export interface AdminSession {

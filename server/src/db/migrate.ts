@@ -86,7 +86,8 @@ export async function runMigrations(
         await client.query(
           `INSERT INTO schema_migrations (name, checksum, execution_ms)
            VALUES ($1, $2, $3)`,
-          [name, digest, Date.now() - startedAt],
+          // A clock step during a long migration must not fail the deploy.
+          [name, digest, Math.max(0, Date.now() - startedAt)],
         );
         await client.query('COMMIT');
         report.applied.push(name);

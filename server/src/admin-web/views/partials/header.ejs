@@ -18,6 +18,7 @@
     <a href="/corridors" class="<%= active === 'corridors' ? 'active' : '' %>">Corridors</a>
     <a href="/liquidity" class="<%= active === 'liquidity' ? 'active' : '' %>">Liquidity</a>
     <a href="/trades" class="<%= active === 'trades' ? 'active' : '' %>">Trades</a>
+    <% if (typeof can !== 'undefined' && can.ledger) { %><a href="/bookkeeping" class="<%= active === 'bookkeeping' ? 'active' : '' %>">Bookkeeping</a><% } %>
     <% if (typeof can !== 'undefined' && can.audit) { %><a href="/audit" class="<%= active === 'audit' ? 'active' : '' %>">Audit</a><% } %>
     <% if (typeof can !== 'undefined' && can.users) { %><a href="/admin-users" class="<%= active === 'users' ? 'active' : '' %>">Admin users</a><% } %>
   </nav>

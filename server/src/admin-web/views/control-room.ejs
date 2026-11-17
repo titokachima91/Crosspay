@@ -9,15 +9,40 @@
 
 <div class="grid two">
   <div class="panel">
-    <div class="panel-head"><h2>Live activity</h2><span class="tag" id="feed-updated">connecting…</span></div>
-    <div class="feed" id="control-feed" data-endpoint="/control-room/data"><div class="empty">Loading…</div></div>
+    <div class="panel-head">
+      <h2>Live activity</h2>
+      <span class="pill" id="feed-status">connecting…</span>
+      <button class="small" type="button" id="feed-pause">Pause</button>
+    </div>
+    <div class="row" style="margin-bottom:10px">
+      <div class="shrink" style="flex:1 1 180px">
+        <label for="feed-filter">Source</label>
+        <select id="feed-filter">
+          <option value="all">Everything</option>
+          <option value="trade">Trades</option>
+          <option value="match">Matches</option>
+          <option value="payout">Payouts</option>
+          <option value="refund">Refunds</option>
+          <option value="liquidity">Liquidity</option>
+          <option value="admin">Admin actions</option>
+        </select>
+      </div>
+      <div class="shrink"><span class="tag" id="feed-updated">loading…</span></div>
+    </div>
+    <div class="feed" id="control-feed" data-endpoint="/control-room/data">
+      <div class="empty">Loading…</div>
+    </div>
   </div>
+
   <div class="panel">
-    <div class="panel-head"><h2>Alerts</h2></div>
+    <div class="panel-head"><h2>Alerts</h2><span class="pill warn" id="alert-count">—</span></div>
     <div id="control-alerts"><div class="empty">Loading…</div></div>
     <div class="divider"></div>
     <div class="panel-head"><h2>Live corridors</h2></div>
     <div id="control-corridors"><div class="empty">Loading…</div></div>
+    <div class="divider"></div>
+    <div class="panel-head"><h2>Queue health</h2></div>
+    <div id="control-health"><div class="empty">Loading…</div></div>
   </div>
 </div>
 

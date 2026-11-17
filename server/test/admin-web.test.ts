@@ -11,6 +11,10 @@ import { DisabledPaymentProvider } from '../src/providers/payments.js';
 import type { AppContext } from '../src/http/context.js';
 import { buildAdminWebServer } from '../src/admin-web/app.js';
 import type { AdminWebConfig } from '../src/admin-web/config.js';
+import { ActivityStream } from '../src/admin-web/activity.js';
+import { withTransaction } from '../src/db/pool.js';
+import { postJournal } from '../src/ledger.js';
+import { ledgerAccountId } from '../src/trades.js';
 import {
   createAdminUser,
   generateTotpSecret,
@@ -238,11 +242,11 @@ describe('admin portal identity and pages', () => {
     assert.equal(data.statusCode, 200, data.body);
     const body = data.json() as {
       overview: { counts: { queue: number } };
-      feed: unknown[];
+      events: unknown[];
       audit: unknown[];
     };
     assert.equal(typeof body.overview.counts.queue, 'number');
-    assert.ok(Array.isArray(body.feed));
+    assert.ok(Array.isArray(body.events));
     assert.ok(Array.isArray(body.audit));
 
     const user = await createUser(db.pool, {
@@ -252,7 +256,7 @@ describe('admin portal identity and pages', () => {
       limitCurrency: 'TZS',
     });
     const quote = await createQuote(db.pool, user);
-    await insertTrade(db.pool, {
+    const tradeId = await insertTrade(db.pool, {
       userId: user,
       quote,
       status: 'escrowed',
@@ -260,6 +264,11 @@ describe('admin portal identity and pages', () => {
       sendAmountMinor: 1_000_000n,
       receiveAmountMinor: 54_054n,
     });
+    await db.pool.query(
+      `INSERT INTO trade_events (trade_id, status, actor, note_code)
+       VALUES ($1, 'escrowed', 'server', 'test_funded')`,
+      [tradeId],
+    );
     const search = await app.inject({
       method: 'GET',
       url: '/trades?q=CP-PORTAL001',
@@ -267,6 +276,177 @@ describe('admin portal identity and pages', () => {
     });
     assert.equal(search.statusCode, 200, search.body);
     assert.match(search.body, /CP-PORTAL001/);
+
+    const after = await app.inject({
+      method: 'GET',
+      url: '/control-room/data',
+      headers: { cookie: `cp_admin_session=${session}` },
+    });
+    assert.equal(after.statusCode, 200, after.body);
+    const activity = after.json() as {
+      events: Array<{ source: string; tradeId: string | null; summary: string }>;
+    };
+    const funded = activity.events.find(
+      (event) => event.source === 'trade' && event.tradeId === tradeId,
+    );
+    assert.ok(funded, 'triggered trade activity is visible to the control room');
+    assert.match(funded.summary, /CP-PORTAL001/);
+
+    const analytics = await app.inject({
+      method: 'GET',
+      url: '/analytics?window=24h',
+      headers: { cookie: `cp_admin_session=${session}` },
+    });
+    assert.equal(analytics.statusCode, 200, analytics.body);
+    assert.match(analytics.body, /Fee and spread revenue/);
+    assert.match(analytics.body, /Funnel by send currency/);
+    assert.match(analytics.body, /Last 24 hours/);
+
+    const control = await app.inject({
+      method: 'GET',
+      url: '/control-room',
+      headers: { cookie: `cp_admin_session=${session}` },
+    });
+    assert.equal(control.statusCode, 200, control.body);
+    assert.match(control.body, /Live activity/);
+    assert.match(control.body, /control-feed/);
+
+    const journal = await withTransaction(db.pool, async (client) => {
+      const cash = await ledgerAccountId(client, { code: '1000', currency: 'TZS' });
+      const payable = await ledgerAccountId(client, { code: '2000', currency: 'TZS' });
+      return postJournal(client, {
+        postingKey: `test:portal:opening:${Date.now()}`,
+        kind: 'opening_balance',
+        currencyCode: 'TZS',
+        lines: [
+          { accountId: cash, amountMinor: 250_000n },
+          { accountId: payable, amountMinor: -250_000n },
+        ],
+      });
+    });
+    const bookkeeping = await app.inject({
+      method: 'GET',
+      url: '/bookkeeping',
+      headers: { cookie: `cp_admin_session=${session}` },
+    });
+    assert.equal(bookkeeping.statusCode, 200, bookkeeping.body);
+    assert.match(bookkeeping.body, /Trial balance/);
+    assert.match(bookkeeping.body, /balanced/);
+
+    const journalPage = await app.inject({
+      method: 'GET',
+      url: `/bookkeeping/journals/${journal.transactionId}`,
+      headers: { cookie: `cp_admin_session=${session}` },
+    });
+    assert.equal(journalPage.statusCode, 200, journalPage.body);
+    assert.match(journalPage.body, /opening_balance/);
+    assert.match(journalPage.body, /250,000/);
+  });
+
+  it('streams newly committed activity to subscribers', async () => {
+    const stream = new ActivityStream(db.pool, 100, 5_000);
+    const received: Array<{ source: string; summary: string }> = [];
+    const unsubscribe = stream.subscribe((event) => received.push(event));
+    try {
+      const user = await createUser(db.pool, {
+        phone: '+255755980002',
+        displayName: 'Stream Customer',
+        kycStatus: 'verified',
+        limitCurrency: 'TZS',
+      });
+      const quote = await createQuote(db.pool, user);
+      const tradeId = await insertTrade(db.pool, {
+        userId: user,
+        quote,
+        status: 'escrowed',
+        reference: 'CP-STREAM001',
+      });
+      await db.pool.query(
+        `INSERT INTO trade_events (trade_id, status, actor, note_code)
+         VALUES ($1, 'escrowed', 'server', 'stream_test')`,
+        [tradeId],
+      );
+      const deadline = Date.now() + 5_000;
+      const hasStreamEvent = () =>
+        received.some(
+          (event) => event.source === 'trade' && event.summary.includes('CP-STREAM001'),
+        );
+      while (!hasStreamEvent() && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      assert.ok(hasStreamEvent(), 'the stream must deliver the new event');
+    } finally {
+      unsubscribe();
+      stream.stop();
+    }
+  });
+
+  it('resumes the SSE stream after the supplied cursor', async () => {
+    const { session } = await login();
+    const user = await createUser(db.pool, {
+      phone: '+255755980003',
+      displayName: 'SSE Customer',
+      kycStatus: 'verified',
+      limitCurrency: 'TZS',
+    });
+    const quote = await createQuote(db.pool, user);
+    const tradeId = await insertTrade(db.pool, {
+      userId: user,
+      quote,
+      status: 'escrowed',
+      reference: 'CP-SSERESUME',
+    });
+    await db.pool.query(
+      `INSERT INTO trade_events (trade_id, status, actor, note_code)
+       VALUES ($1, 'escrowed', 'server', 'sse_one')`,
+      [tradeId],
+    );
+    await db.pool.query(
+      `INSERT INTO trade_events (trade_id, status, actor, note_code)
+       VALUES ($1, 'matching', 'server', 'sse_two')`,
+      [tradeId],
+    );
+    const events = await db.pool.query<{ id: string }>(
+      `SELECT id FROM admin_activity_events
+       WHERE trade_id = $1 AND payload->>'noteCode' IN ('sse_one', 'sse_two')
+       ORDER BY id`,
+      [tradeId],
+    );
+    assert.equal(events.rows.length, 2);
+    const [first, second] = events.rows.map((row) => Number(row.id));
+
+    const address = await app.listen({ port: 0, host: '127.0.0.1' });
+    const controller = new AbortController();
+    try {
+      const response = await fetch(`${address}/control-room/stream?after=${first}`, {
+        headers: { cookie: `cp_admin_session=${session}` },
+        signal: controller.signal,
+      });
+      assert.equal(response.status, 200);
+      assert.match(response.headers.get('content-type') ?? '', /text\/event-stream/);
+
+      const reader = response.body?.getReader();
+      assert.ok(reader, 'stream must have a body');
+      const decoder = new TextDecoder();
+      let received = '';
+      const deadline = Date.now() + 5_000;
+      while (!received.includes(`id: ${second}`) && Date.now() < deadline) {
+        const chunk = await Promise.race([
+          reader.read(),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 500)),
+        ]);
+        if (chunk === null) continue;
+        if (chunk.done) break;
+        received += decoder.decode(chunk.value, { stream: true });
+      }
+      assert.match(received, new RegExp(`id: ${second}\\nevent: activity`));
+      assert.ok(
+        !received.includes(`id: ${first}\n`),
+        'a resume cursor must not replay earlier activity',
+      );
+    } finally {
+      controller.abort();
+    }
   });
 
   it('creates a named admin and refuses to suspend the last superadmin', async () => {

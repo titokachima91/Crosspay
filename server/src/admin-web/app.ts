@@ -8,6 +8,7 @@ import ejs from 'ejs';
 import type { AppContext } from '../http/context.js';
 import type { AdminWebConfig } from './config.js';
 import { registerAdminWebRoutes } from './routes.js';
+import { ActivityStream } from './activity.js';
 
 export async function buildAdminWebServer(
   ctx: AppContext,
@@ -49,6 +50,10 @@ export async function buildAdminWebServer(
     return payload;
   });
 
-  registerAdminWebRoutes(app, ctx, config);
+  const activity = new ActivityStream(ctx.pool);
+  registerAdminWebRoutes(app, ctx, config, activity);
+  app.addHook('onClose', async () => {
+    activity.stop();
+  });
   return app;
 }

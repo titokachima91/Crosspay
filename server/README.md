@@ -11,7 +11,8 @@ Node.js + TypeScript service for CrossPay.
   2026-11-16.
 - **B2.4** — payouts, refunds and signed provider callbacks. Built 2026-11-16.
 - **B4** — P2P matching, LP standing orders, exposure controls, Phase A ops
-  admin and the named-admin web portal. Built 2026-11-16.
+  admin and the named-admin web portal with live control room, windowed
+  analytics and read-only bookkeeping. Built 2026-11-17.
 
 The Flutter app remains the only client contract. `docs/api_contract.md` is the
 contract of record. The B1 plan is `docs/B1_DATABASE_PLAN.md`; the build evidence
@@ -141,9 +142,9 @@ applies every migration and the seed, then exercises the schema, quote
 lifecycle, trade timeline, idempotency race, ledger balance rules, append-only
 guards, encryption, OTP limits, refresh rotation, the HTTP bootstrap,
 collections, payouts, refunds, signed callbacks, P2P matching, LP liquidity,
-admin policy controls, admin portal auth/RBAC, market depth, analytics, CSV
-export and the reconciliation worker.
-**100 tests pass.** No Docker or local PostgreSQL installation is required.
+admin policy controls, admin portal auth/RBAC/live control room/bookkeeping,
+market depth, analytics, CSV export and the reconciliation worker.
+**102 tests pass.** No Docker or local PostgreSQL installation is required.
 
 Live provider smokes (with the sandbox running):
 
@@ -170,7 +171,9 @@ npm run build && npm run admin:start
 ```
 
 The portal is documented in `docs/ADMIN_WEB_IMPLEMENTATION.md`. It uses named
-admin users, Argon2id, TOTP, HttpOnly sessions, CSRF and RBAC. Put it behind a
+admin users, Argon2id, TOTP, HttpOnly sessions, CSRF and RBAC. The control room
+streams a trigger-fed activity outbox over SSE, analytics has time windows, and
+bookkeeping is a read-only trial balance/journal browser. Put it behind a
 zero-trust proxy or VPN and a separate `admin.` hostname in production.
 
 `npm run verify` is for a real database. It checks migration state, the five
