@@ -1,0 +1,69 @@
+<%- include('partials/header', { title: 'KYC review', user, csrf, active: 'kyc', notice, error, can }) %>
+<div class="panel">
+  <div class="panel-head">
+    <h2>KYC · …<%= detail.verification.idLast4 %></h2>
+    <span class="pill <%= detail.verification.status === 'verified' ? 'ok' : detail.verification.status === 'rejected' ? 'bad' : 'warn' %>"><%= detail.verification.status %></span>
+    <a class="button small" href="/compliance/kyc">Back</a>
+  </div>
+  <div class="detail-grid">
+    <div class="detail"><div class="k">Customer</div><div class="v"><%= detail.verification.customerName || 'Unnamed customer' %><div class="tag">…<%= detail.verification.phoneLast4 %></div></div></div>
+    <div class="detail"><div class="k">Account</div><div class="v"><%= detail.verification.accountType %><% if (detail.verification.hubName) { %><div class="tag"><%= detail.verification.hubName %></div><% } %></div></div>
+    <div class="detail"><div class="k">Legal name</div><div class="v"><%= detail.verification.legalName %></div></div>
+    <div class="detail"><div class="k">Identity</div><div class="v"><%= detail.verification.idType %> · …<%= detail.verification.idLast4 %></div></div>
+    <div class="detail"><div class="k">Submitted</div><div class="v"><%= detail.verification.submittedAt.replace('T', ' ').slice(0, 16) %></div></div>
+    <div class="detail"><div class="k">Decided</div><div class="v"><%= detail.verification.reviewedAt ? detail.verification.reviewedAt.replace('T', ' ').slice(0, 16) : '—' %><div class="tag"><%= detail.verification.reviewedBy || '' %></div></div></div>
+  </div>
+  <% if (detail.verification.rejectionCode) { %><div class="notice error">Rejection code: <span class="mono"><%= detail.verification.rejectionCode %></span></div><% } %>
+  <% if (detail.verification.reviewNote) { %><div class="notice">Review note: <%= detail.verification.reviewNote %></div><% } %>
+  <p class="tag">Full identity numbers are encrypted and are deliberately not decrypted by this screen. This is a metadata review, not a document or sanctions-provider result.</p>
+  <% if (can.support) { %><a class="button small" href="/support/customers/<%= detail.verification.userId %>">Customer 360</a><% } %>
+</div>
+
+<% if (detail.verification.status === 'pending' && can.kycReview) { %>
+<div class="grid two" style="margin-top:16px">
+  <div class="panel">
+    <div class="panel-head"><h2>Approve</h2></div>
+    <form method="post" action="/compliance/kyc/<%= detail.verification.id %>/approve" data-confirm="Approve this KYC verification and mark the customer verified?">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <label for="approve-note">Review note (optional)</label>
+      <input id="approve-note" name="note" maxlength="300" placeholder="What was checked">
+      <p class="tag">Approval changes the customer from pending to verified. Daily limits still come from the tier/currency table.</p>
+      <button class="primary">Approve KYC</button>
+    </form>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>Reject</h2></div>
+    <form method="post" action="/compliance/kyc/<%= detail.verification.id %>/reject" data-confirm="Reject this KYC verification?">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <label for="rejectionCode">Rejection code</label>
+      <select id="rejectionCode" name="rejectionCode" required>
+        <% for (const code of rejectionCodes) { %><option value="<%= code %>"><%= code %></option><% } %>
+      </select>
+      <label for="reject-note">Review note</label>
+      <input id="reject-note" name="note" required minlength="5" maxlength="300" placeholder="Why the submission is rejected">
+      <p class="tag">The customer can submit a new KYC application after a rejection. This row stays append-only.</p>
+      <button class="danger">Reject KYC</button>
+    </form>
+  </div>
+</div>
+<% } %>
+
+<div class="panel" style="margin-top:16px">
+  <div class="panel-head"><h2>Verification history</h2></div>
+  <table>
+    <thead><tr><th>Submitted</th><th>Identity</th><th>Status</th><th>Decided</th><th>Reviewer</th><th>Rejection</th></tr></thead>
+    <tbody>
+      <% for (const item of detail.history) { %>
+      <tr>
+        <td><%= item.submittedAt.replace('T', ' ').slice(0, 16) %></td>
+        <td><%= item.idType %> · …<%= item.idLast4 %></td>
+        <td><a href="/compliance/kyc/<%= item.id %>"><span class="pill <%= item.status === 'verified' ? 'ok' : item.status === 'rejected' ? 'bad' : 'warn' %>"><%= item.status %></span></a></td>
+        <td><%= item.reviewedAt ? item.reviewedAt.replace('T', ' ').slice(0, 16) : '—' %></td>
+        <td><%= item.reviewedBy || '—' %></td>
+        <td class="mono"><%= item.rejectionCode || '—' %></td>
+      </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('partials/footer') %>

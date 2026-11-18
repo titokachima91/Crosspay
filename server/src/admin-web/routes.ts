@@ -73,6 +73,12 @@ import {
   updateServiceControls,
 } from './config-center.js';
 import {
+  KYC_REJECTION_CODES,
+  reviewKyc,
+  loadKycQueue,
+  loadKycVerification,
+} from './compliance.js';
+import {
   closeStatement,
   importStatement,
   loadReconciliationCenter,
@@ -181,6 +187,8 @@ function can(session: AdminSession) {
     reconciliationImport: hasPermission(roles, 'reconciliation:import'),
     reconciliationResolve: hasPermission(roles, 'reconciliation:resolve'),
     reconciliationClose: hasPermission(roles, 'reconciliation:close'),
+    kyc: hasPermission(roles, 'kyc:read'),
+    kycReview: hasPermission(roles, 'kyc:review'),
   };
 }
 
@@ -193,7 +201,7 @@ function view(
   return reply.view(template, {
     user: session ? session.user : null,
     csrf: session ? session.csrfToken : '',
-    can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false, support: false, supportWrite: false, pii: false, configRead: false, configPropose: false, configApprove: false, configControl: false, reconciliation: false, reconciliationImport: false, reconciliationResolve: false, reconciliationClose: false },
+    can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false, support: false, supportWrite: false, pii: false, configRead: false, configPropose: false, configApprove: false, configControl: false, reconciliation: false, reconciliationImport: false, reconciliationResolve: false, reconciliationClose: false, kyc: false, kycReview: false },
     notice: null,
     error: null,
     ...data,
@@ -345,7 +353,7 @@ export function registerAdminWebRoutes(
       {
         user: session ? session.user : null,
         csrf: session ? session.csrfToken : '',
-        can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false, support: false, supportWrite: false, pii: false, configRead: false, configPropose: false, configApprove: false, configControl: false, reconciliation: false, reconciliationImport: false, reconciliationResolve: false, reconciliationClose: false },
+        can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false, support: false, supportWrite: false, pii: false, configRead: false, configPropose: false, configApprove: false, configControl: false, reconciliation: false, reconciliationImport: false, reconciliationResolve: false, reconciliationClose: false, kyc: false, kycReview: false },
         active: '',
         notice: null,
         error: statusCode >= 500 ? 'Unexpected error. Check the service logs.' : failure.message,
@@ -1766,6 +1774,83 @@ export function registerAdminWebRoutes(
       after: result,
     });
     return redirect(reply, `/reconciliation/statements/${id}`, 'Statement closed');
+  });
+
+  app.get('/compliance/kyc', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'kyc:read');
+    const status = queryValue(request, 'status') || 'pending';
+    const data = await loadKycQueue(ctx.pool, status);
+    return view(reply, 'kyc-queue', session, {
+      title: 'KYC review',
+      active: 'kyc',
+      data,
+      status,
+      notice: queryValue(request, 'ok') || null,
+      error: queryValue(request, 'error') || null,
+    });
+  });
+
+  app.get('/compliance/kyc/:id', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'kyc:read');
+    const id = uuidParam(request, 'KYC_NOT_FOUND', 'KYC verification not found');
+    const detail = await loadKycVerification(ctx.pool, id);
+    if (!detail) throw errorWith(404, 'KYC_NOT_FOUND', 'KYC verification not found');
+    return view(reply, 'kyc-detail', session, {
+      title: `KYC · …${detail.verification.idLast4}`,
+      active: 'kyc',
+      detail,
+      rejectionCodes: KYC_REJECTION_CODES,
+      notice: queryValue(request, 'ok') || null,
+      error: queryValue(request, 'error') || null,
+    });
+  });
+
+  app.post('/compliance/kyc/:id/approve', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'kyc:review');
+    const id = uuidParam(request, 'KYC_NOT_FOUND', 'KYC verification not found');
+    const note = formValue(request.body, 'note');
+    const result = await reviewKyc(ctx, {
+      id,
+      adminId: session.user.id,
+      decision: 'approve',
+      note,
+    });
+    await audit(ctx, request, session, {
+      action: 'kyc.approve',
+      resourceType: 'kyc_verification',
+      resourceId: id,
+      reason: note || null,
+      before: result.before,
+      after: result.after,
+    });
+    return redirect(reply, `/compliance/kyc/${id}`, 'KYC approved');
+  });
+
+  app.post('/compliance/kyc/:id/reject', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'kyc:review');
+    const id = uuidParam(request, 'KYC_NOT_FOUND', 'KYC verification not found');
+    const note = formValue(request.body, 'note');
+    const rejectionCode = formValue(request.body, 'rejectionCode');
+    const result = await reviewKyc(ctx, {
+      id,
+      adminId: session.user.id,
+      decision: 'reject',
+      rejectionCode,
+      note,
+    });
+    await audit(ctx, request, session, {
+      action: 'kyc.reject',
+      resourceType: 'kyc_verification',
+      resourceId: id,
+      reason: note,
+      before: result.before,
+      after: result.after,
+    });
+    return redirect(reply, `/compliance/kyc/${id}`, 'KYC rejected');
   });
 
   app.get('/audit', async (request, reply) => {

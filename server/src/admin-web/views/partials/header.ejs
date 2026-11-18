@@ -20,6 +20,7 @@
     <a href="/liquidity" class="<%= active === 'liquidity' ? 'active' : '' %>">Liquidity</a>
     <a href="/trades" class="<%= active === 'trades' ? 'active' : '' %>">Trades</a>
     <% if (typeof can !== 'undefined' && can.support) { %><a href="/support" class="<%= active === 'support' ? 'active' : '' %>">Support</a><% } %>
+    <% if (typeof can !== 'undefined' && can.kyc) { %><a href="/compliance/kyc" class="<%= active === 'kyc' ? 'active' : '' %>">KYC</a><% } %>
     <% if (typeof can !== 'undefined' && can.ledger) { %><a href="/bookkeeping" class="<%= active === 'bookkeeping' ? 'active' : '' %>">Bookkeeping</a><% } %>
     <% if (typeof can !== 'undefined' && can.reconciliation) { %><a href="/reconciliation" class="<%= active === 'reconciliation' ? 'active' : '' %>">Reconciliation</a><% } %>
     <% if (typeof can !== 'undefined' && can.audit) { %><a href="/audit" class="<%= active === 'audit' ? 'active' : '' %>">Audit</a><% } %>

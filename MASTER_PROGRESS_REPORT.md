@@ -4,7 +4,7 @@
 **Project**: CrossPay
 **Package**: crosspay_app
 **Environment**: macOS Monterey | Flutter 3.24.5 | Dart 3.5.4 | Node 24 | PostgreSQL 17 for the API | SQLite for the sandbox
-**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 (matching, LP liquidity, exposure, app matching states, Phase A/B/C ops admin portal, read-only bookkeeping, configuration v1, reconciliation v1, manual support workspace) complete · market depth, analytics, CSV export and the reconciliation worker complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · B4.6 live statement feeds/configuration remainder and B3 invoice/share remain
+**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 (matching, LP liquidity, exposure, app matching states, Phase A/B/C ops admin portal, read-only bookkeeping, configuration v1, reconciliation v1, KYC review, manual support workspace) complete · market depth, analytics, CSV export and the reconciliation worker complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · B4.6 live statement feeds/config remainder/sanctions and B3 invoice/share remain
 
 ---
 
@@ -229,7 +229,7 @@ connected.
 - [x] B4.3 Two-leg payout saga and compensation
 - [x] B4.4 Corridor exposure and liquidity providers
 - [x] B4.5 App matching states
-- [x] B4.6 CrossPay ops admin / control room (Phase A + Phases B/C/D v1/F v1, read-only bookkeeping and manual support workspace)
+- [x] B4.6 CrossPay ops admin / control room (Phase A + Phases B/C/D v1/F v1/G, read-only bookkeeping and manual support workspace)
 
 **B4.4**: per-corridor exposure view, min/max bounds, allowlisted pre-funded
 liquidity providers with standing orders, prefund/return journals, LP matching
@@ -243,9 +243,11 @@ quote/trade pauses and read-only provider fee observation; manual provider/bank
 statement import with exact matching, provider missing-in-statement detection,
 typed exceptions and final daily close; manual support cases with append-only
 notes, customer 360, canned replies, audited PII reveal and provider-gated SMS
-replies. Live statement feeds, configuration remainder, compliance queues and
-bank-side reconciliation remain planned in `docs/ADMIN_PANEL_PLAN.md`; current
-portal details in `docs/ADMIN_WEB_IMPLEMENTATION.md`.
+replies; manual KYC metadata review with masked identity, immutable decisions
+and customer status update. Live statement feeds, configuration remainder,
+sanctions/name-check queues and bank-side reconciliation remain planned in
+`docs/ADMIN_PANEL_PLAN.md`; current portal details in
+`docs/ADMIN_WEB_IMPLEMENTATION.md`.
 
 **Built**: `docs/B4_MATCHING_IMPLEMENTATION.md`. Matching is off by
 `P2P_ENABLED=false` and per-corridor rows in `p2p_corridors`; no corridor is
@@ -527,14 +529,16 @@ Next, in order:
    reconciliation, analytics charts.
 2. **B4.6 reconciliation remainder** — live provider/bank feeds, file upload,
    bank-side missing-in-statement detection, fee-line matching,
-   correction/re-open and bank balance matching; then compliance queues.
-3. **Bank payouts and KYC/name-check adapters** — mobile-money payout, refunds,
+   correction/re-open and bank balance matching.
+3. **B4.6 compliance remainder** — sanctions/watchlist and name-check provider
+   queues, document capture; approvals beyond configuration.
+4. **Bank payouts and KYC/name-check adapters** — mobile-money payout, refunds,
    callbacks, matching and the reconciliation worker are built; bank rails need
    an approved partner account contract.
-4. **F5.3 remainder** — biometrics and app-side refresh-token handling.
-5. Replace the sandbox pricing/collection/payout adapters with approved real
+5. **F5.3 remainder** — biometrics and app-side refresh-token handling.
+6. Replace the sandbox pricing/collection/payout adapters with approved real
    providers when contracts exist.
-6. Remove the sandbox testing-only `CROSSPAY` mirror after the admin books and
+7. Remove the sandbox testing-only `CROSSPAY` mirror after the admin books and
    reconciliation pass.
 
 Git: branch `fix/theme-system` is local. B2.3/B2.4/B4 and the named-admin portal

@@ -77,7 +77,7 @@ customer's full PII without a permissioned, audited reveal.
 | D. Configuration center | Services, fees, spreads, tiers/limits, provider settings, feature flags, maintenance, staged rollout/rollback | Versioned approval for support contacts/tier limits and emergency quote/trade pauses built; fee editor, provider secrets, flags/banners and effective dates remain |
 | E. Bookkeeping | Chart approval, journal browser, trial balance, revenue/cost reports, operating-cash transfers | Read-only journal browser/trial balance built; chart approval and reports remain |
 | F. Settlement and reconciliation | Provider statements, bank/PSP statement import or API, matching, exceptions, daily close | Manual CSV import, exact reference/journal matching, provider missing-in-statement detection, exceptions and final close built; live feeds, bank balance matching and bank-side missing detection remain |
-| G. Support and compliance | Customer-safe support workspace, cases/notes, KYC queue, sanctions hits, PII reveal workflow | Manual cases/notes/SMS/PII reveal built; KYC and sanctions queues remain |
+| G. Support and compliance | Customer-safe support workspace, cases/notes, KYC queue, sanctions hits, PII reveal workflow | Manual cases/notes/SMS/PII reveal and manual KYC metadata review built; sanctions and name-check provider queues remain |
 | H. Sandbox mirror removal | Remove testing-only `CROSSPAY` book and docs | E and F pass in production/sandbox |
 
 The B4.6 work in this phase is **A and B (local accounts) only**. It is
@@ -1016,6 +1016,9 @@ manual support workspace are built:**
   missing-in-statement detection, typed exceptions, required resolution notes,
   blocked close while exceptions are open, and a final per-statement daily
   close;
+- compliance KYC queue: pending/verified/rejected list, masked customer phone,
+  identity last4 only, approve/reject with code and note, customer status update,
+  immutable decisions and redacted compliance activity;
 - trigger-fed append-only `admin_activity_events` outbox and
   `pg_notify('admin_activity')`, so every process feeds the control room;
 - ops actions: re-check, match, disburse/resume, payout retry, refund, refund
@@ -1039,9 +1042,10 @@ manual support workspace are built:**
 - Reconciliation remainder: live provider/bank feeds, file upload, automatic
   bank-side missing-in-statement detection, fee-line matching, correction/re-open
   and bank balance matching.
-- KYC/sanctions compliance queues, approvals beyond configuration, SPA, IP
-  allowlist deployment. Support has no customer-facing chat, email or WhatsApp
-  channel yet.
+- KYC/sanctions remainder: document images/OCR, name-check provider, sanctions
+  watchlists and compliance case linkage; approvals beyond configuration, SPA,
+  IP allowlist deployment. Support has no customer-facing chat, email or
+  WhatsApp channel yet.
 
 See `docs/ADMIN_WEB_IMPLEMENTATION.md` for setup and current limitations.
 

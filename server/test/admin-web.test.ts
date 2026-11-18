@@ -222,6 +222,34 @@ async function paidPayoutWithJournal(
   return { tradeId, payoutId, postingKey };
 }
 
+async function pendingKyc(
+  phone: string,
+  legalName: string,
+  idNumber: string,
+): Promise<{ userId: string; kycId: string }> {
+  const userId = await createUser(db.pool, {
+    phone,
+    displayName: legalName,
+    kycStatus: 'pending',
+    limitCurrency: 'TZS',
+  });
+  const inserted = await db.pool.query<{ id: string }>(
+    `INSERT INTO kyc_verifications
+       (user_id, account_type, legal_name, id_type, id_number_encrypted,
+        id_number_hash, id_last4, status)
+     VALUES ($1, 'personal', $2, 'national_id', $3, $4, $5, 'pending')
+     RETURNING id`,
+    [
+      userId,
+      legalName,
+      ctx.crypto.encrypt(idNumber),
+      ctx.crypto.hashSensitive(idNumber),
+      idNumber.slice(-4),
+    ],
+  );
+  return { userId, kycId: inserted.rows[0]!.id };
+}
+
 describe('admin portal identity and pages', () => {
   it('redirects anonymous users to login and serves the login page', async () => {
     const root = await app.inject({ method: 'GET', url: '/' });
@@ -1500,6 +1528,151 @@ describe('admin portal identity and pages', () => {
       { cookie: `cp_admin_session=${financeLogin.session}` },
     );
     assert.equal(closed.statusCode, 303, closed.body);
+  });
+
+  it('lets compliance approve a pending KYC without exposing the full identity number', async () => {
+    const compliance = await createRoleUser('compliance-kyc@crosspay.test', 'compliance');
+    const ops = await createRoleUser('ops-kyc@crosspay.test', 'ops');
+    const complianceLogin = await login(compliance.email, PASSWORD, compliance.secret);
+    const opsLogin = await login(ops.email, PASSWORD, ops.secret);
+    const kyc = await pendingKyc('+255755982001', 'Amina Kyc', '1122334455');
+
+    const opsDenied = await app.inject({
+      method: 'GET',
+      url: '/compliance/kyc',
+      headers: { cookie: `cp_admin_session=${opsLogin.session}` },
+    });
+    assert.equal(opsDenied.statusCode, 403, opsDenied.body);
+
+    const queue = await app.inject({
+      method: 'GET',
+      url: '/compliance/kyc',
+      headers: { cookie: `cp_admin_session=${complianceLogin.session}` },
+    });
+    assert.equal(queue.statusCode, 200, queue.body);
+    assert.match(queue.body, /Amina Kyc/);
+    assert.match(queue.body, /…4455/);
+
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/compliance/kyc/${kyc.kycId}`,
+      headers: { cookie: `cp_admin_session=${complianceLogin.session}` },
+    });
+    assert.equal(detail.statusCode, 200, detail.body);
+    assert.match(detail.body, /…4455/);
+    assert.ok(
+      !detail.body.includes('1122334455'.slice(0, 6)),
+      'the full identity number is never rendered',
+    );
+
+    const approved = await postForm(
+      `/compliance/kyc/${kyc.kycId}/approve`,
+      { _csrf: complianceLogin.csrf, note: 'Metadata matches the submitted profile' },
+      { cookie: `cp_admin_session=${complianceLogin.session}` },
+    );
+    assert.equal(approved.statusCode, 303, approved.body);
+
+    const stored = await db.pool.query<{
+      status: string;
+      verified_at: Date | null;
+      reviewed_by_admin_id: string;
+      review_note: string;
+    }>(
+      `SELECT status, verified_at, reviewed_by_admin_id, review_note
+       FROM kyc_verifications WHERE id = $1`,
+      [kyc.kycId],
+    );
+    assert.equal(stored.rows[0]?.status, 'verified');
+    assert.ok(stored.rows[0]?.verified_at);
+    assert.ok(stored.rows[0]?.reviewed_by_admin_id);
+    assert.match(stored.rows[0]?.review_note ?? '', /Metadata matches/);
+    const user = await db.pool.query<{ kyc_status: string }>(
+      `SELECT kyc_status FROM users WHERE id = $1`,
+      [kyc.userId],
+    );
+    assert.equal(user.rows[0]?.kyc_status, 'verified');
+
+    const repeat = await postForm(
+      `/compliance/kyc/${kyc.kycId}/approve`,
+      { _csrf: complianceLogin.csrf },
+      { cookie: `cp_admin_session=${complianceLogin.session}` },
+    );
+    assert.equal(repeat.statusCode, 409, repeat.body);
+
+    const audit = await db.pool.query<{ action: string }>(
+      `SELECT action FROM admin_audit_log
+       WHERE action = 'kyc.approve' AND resource_id = $1`,
+      [kyc.kycId],
+    );
+    assert.equal(audit.rows.length, 1);
+    const activity = await db.pool.query<{ event_type: string; payload: Record<string, unknown> }>(
+      `SELECT event_type, payload FROM admin_activity_events
+       WHERE source = 'compliance' ORDER BY id DESC LIMIT 1`,
+    );
+    assert.equal(activity.rows[0]?.event_type, 'kyc.verified');
+    assert.equal(activity.rows[0]?.payload['status'], 'verified');
+    assert.ok(!JSON.stringify(activity.rows[0]).includes('Amina Kyc'));
+  });
+
+  it('requires a code and note to reject KYC and keeps the decision immutable', async () => {
+    const compliance = await createRoleUser('compliance-kyc-reject@crosspay.test', 'compliance');
+    const complianceLogin = await login(compliance.email, PASSWORD, compliance.secret);
+    const kyc = await pendingKyc('+255755982002', 'Rejected Kyc', '9988776655');
+
+    const missingNote = await postForm(
+      `/compliance/kyc/${kyc.kycId}/reject`,
+      { _csrf: complianceLogin.csrf, rejectionCode: 'ID_UNREADABLE' },
+      { cookie: `cp_admin_session=${complianceLogin.session}` },
+    );
+    assert.equal(missingNote.statusCode, 422, missingNote.body);
+
+    const rejected = await postForm(
+      `/compliance/kyc/${kyc.kycId}/reject`,
+      {
+        _csrf: complianceLogin.csrf,
+        rejectionCode: 'ID_UNREADABLE',
+        note: 'The submitted identity number could not be read',
+      },
+      { cookie: `cp_admin_session=${complianceLogin.session}` },
+    );
+    assert.equal(rejected.statusCode, 303, rejected.body);
+
+    const stored = await db.pool.query<{
+      status: string;
+      rejection_code: string;
+      verified_at: Date | null;
+      reviewed_at: Date | null;
+    }>(
+      `SELECT status, rejection_code, verified_at, reviewed_at
+       FROM kyc_verifications WHERE id = $1`,
+      [kyc.kycId],
+    );
+    assert.equal(stored.rows[0]?.status, 'rejected');
+    assert.equal(stored.rows[0]?.rejection_code, 'ID_UNREADABLE');
+    assert.equal(stored.rows[0]?.verified_at, null);
+    assert.ok(stored.rows[0]?.reviewed_at);
+    const user = await db.pool.query<{ kyc_status: string }>(
+      `SELECT kyc_status FROM users WHERE id = $1`,
+      [kyc.userId],
+    );
+    assert.equal(user.rows[0]?.kyc_status, 'rejected');
+
+    const queue = await app.inject({
+      method: 'GET',
+      url: '/compliance/kyc?status=rejected',
+      headers: { cookie: `cp_admin_session=${complianceLogin.session}` },
+    });
+    assert.equal(queue.statusCode, 200, queue.body);
+    assert.match(queue.body, /Rejected Kyc/);
+    assert.match(queue.body, /ID_UNREADABLE/);
+
+    const activity = await db.pool.query<{ event_type: string; payload: Record<string, unknown> }>(
+      `SELECT event_type, payload FROM admin_activity_events
+       WHERE source = 'compliance' AND event_type = 'kyc.rejected'
+       ORDER BY id DESC LIMIT 1`,
+    );
+    assert.equal(activity.rows[0]?.payload['rejectionCode'], 'ID_UNREADABLE');
+    assert.ok(!JSON.stringify(activity.rows[0]).includes('could not be read'));
   });
 
   it('creates a named admin and refuses to suspend the last superadmin', async () => {

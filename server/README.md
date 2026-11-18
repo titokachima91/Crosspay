@@ -12,8 +12,8 @@ Node.js + TypeScript service for CrossPay.
 - **B2.4** — payouts, refunds and signed provider callbacks. Built 2026-11-16.
 - **B4** — P2P matching, LP standing orders, exposure controls, Phase A ops
   admin and the named-admin web portal with live control room, windowed
-  analytics, read-only bookkeeping, configuration v1, reconciliation v1 and a
-  manual support workspace. Built 2026-11-18.
+  analytics, read-only bookkeeping, configuration v1, reconciliation v1, KYC
+  review and a manual support workspace. Built 2026-11-19.
 
 The Flutter app remains the only client contract. `docs/api_contract.md` is the
 contract of record. The B1 plan is `docs/B1_DATABASE_PLAN.md`; the build evidence
@@ -147,8 +147,9 @@ admin policy controls, admin portal auth/RBAC/live control room/bookkeeping,
 support cases with audited PII reveal and SMS gating, versioned configuration
 with two-person approval, emergency quote/trade pauses, manual statement
 matching with provider missing-in-statement detection, exceptions and daily
-close, market depth, analytics, CSV export and the reconciliation worker.
-**112 tests pass.** No Docker or local PostgreSQL installation is required.
+close, KYC metadata review with masked identity, market depth, analytics, CSV
+export and the reconciliation worker.
+**114 tests pass.** No Docker or local PostgreSQL installation is required.
 
 Live provider smokes (with the sandbox running):
 
@@ -180,9 +181,9 @@ streams a trigger-fed activity outbox over SSE, analytics has time windows,
 bookkeeping is a read-only trial balance/journal browser, support has
 append-only cases with audited PII reveal and provider-gated SMS replies,
 configuration has versioned two-person changes plus superadmin emergency pauses,
-and reconciliation has manual statement matching, exceptions and final daily
-close. Put it behind a zero-trust proxy or VPN and a separate `admin.` hostname
-in production.
+reconciliation has manual statement matching, exceptions and final daily close,
+and compliance has a KYC metadata review queue with masked identity. Put it
+behind a zero-trust proxy or VPN and a separate `admin.` hostname in production.
 
 `npm run verify` is for a real database. It checks migration state, the five
 `/config` lists, payout-rail kinds, seeded rows and ledger balance.
@@ -266,6 +267,6 @@ in production.
    reconciliation.
 3. Connect approved bank payout rails and name-check/KYC adapters.
 4. Add invoice/share handlers; analytics, CSV export, support cases,
-   bookkeeping, configuration v1 and reconciliation v1 are live.
+   bookkeeping, configuration v1, reconciliation v1 and KYC review are live.
 5. Replace the sandbox adapter with approved real providers when contracts
    exist.

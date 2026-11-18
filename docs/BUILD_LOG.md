@@ -836,4 +836,29 @@ correction/re-open, configuration remainder and compliance queues.
 
 ---
 
+## 2026-11-19 - Compliance KYC review queue
+
+- Migration `0018`: KYC review fields (`reviewed_by_admin_id`, `reviewed_at`,
+  `review_note`), immutable decided rows, append-only history and the
+  `compliance` activity source.
+- `/compliance/kyc` queue for pending/verified/rejected submissions, oldest
+  pending first. Customer phone is masked; identity is shown as type + last4.
+  The full encrypted identity number is never decrypted or rendered.
+- Approval changes the verification to verified and the customer to
+  `kyc_status='verified'` in one transaction. Rejection requires a rejection code
+  and a 5-300 character note, and sets both rows to rejected. Only pending can be
+  decided. Rejected customers can submit a new application.
+- Reviewer, decision time and note are stored; audit and control-room activity
+  carry status/account/ID type/rejection code only, never legal name or identity.
+- Permissions: `kyc:read`/`kyc:review` for compliance and superadmin. Ops,
+  finance and viewer cannot read the queue.
+- Verification: Node **114/114**, 20 suites, typecheck clean; Flutter analyzer
+  clean after restoring the generated package config that had been removed for
+  snapshot disk space.
+
+Next: reconciliation remainder, configuration remainder and sanctions/name-check
+queues.
+
+---
+
 ## Report End - No fluff. Just facts.

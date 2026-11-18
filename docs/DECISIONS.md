@@ -270,3 +270,20 @@ Reconciliation v1
   exception types, never line descriptions, account data or resolution notes.
 - Compliance can read reconciliation evidence; only finance/superadmin can
   import, resolve or close.
+
+KYC review
+- The KYC queue is a manual metadata review over the existing
+  `kyc_verifications` table. No document image, OCR, name-check provider or
+  sanctions result is stored, so the screen says that plainly.
+- The full identity number is never decrypted or rendered. Compliance sees the
+  legal name, ID type and last four digits, plus customer phone last4.
+- Only a pending verification can be decided. Approval sets the verification and
+  the customer to verified in one transaction; rejection requires a code and a
+  note and sets both to rejected. Decided rows are immutable.
+- Reviewer identity, decision time and note are stored on the row and in audit.
+  Control-room activity carries status, account/ID type and rejection code, never
+  legal name or identity number.
+- KYC approval does not change daily limits. Limits remain versioned tier/currency
+  configuration and must exist before trading.
+- Sanctions/watchlist screening and document capture are follow-ups, not implied
+  by this queue.

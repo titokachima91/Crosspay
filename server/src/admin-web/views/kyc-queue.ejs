@@ -1,0 +1,43 @@
+<%- include('partials/header', { title: 'KYC review', user, csrf, active: 'kyc', notice, error, can }) %>
+<div class="kpis">
+  <div class="kpi"><div class="label">Pending</div><div class="value"><%= data.counts.pending %></div><div class="hint">oldest first</div></div>
+  <div class="kpi"><div class="label">Verified</div><div class="value"><%= data.counts.verified %></div><div class="hint">approved</div></div>
+  <div class="kpi"><div class="label">Rejected</div><div class="value"><%= data.counts.rejected %></div><div class="hint">customer may resubmit</div></div>
+</div>
+
+<div class="notice">
+  Manual metadata review only. No document image or provider result is stored in this repository, and the full identity
+  number is never decrypted here. Compliance sees legal name, ID type and last four digits; approving changes the customer
+  account from pending to verified in the same transaction.
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>Queue</h2>
+    <a class="button small <%= status === 'pending' ? 'primary' : '' %>" href="/compliance/kyc?status=pending">Pending</a>
+    <a class="button small <%= status === 'verified' ? 'primary' : '' %>" href="/compliance/kyc?status=verified">Verified</a>
+    <a class="button small <%= status === 'rejected' ? 'primary' : '' %>" href="/compliance/kyc?status=rejected">Rejected</a>
+  </div>
+  <% if (data.items.length === 0) { %>
+    <div class="empty">No <%= status %> KYC verifications.</div>
+  <% } else { %>
+  <table>
+    <thead><tr><th>Submitted</th><th>Customer</th><th>Legal name</th><th>Account</th><th>Identity</th><th>Status</th><th>Reviewer</th><th></th></tr></thead>
+    <tbody>
+      <% for (const item of data.items) { %>
+      <tr>
+        <td><%= item.submittedAt.replace('T', ' ').slice(0, 16) %></td>
+        <td><%= item.customerName || 'Unnamed customer' %><div class="tag">…<%= item.phoneLast4 %></div></td>
+        <td><%= item.legalName %></td>
+        <td><%= item.accountType %><% if (item.hubId) { %><div class="tag"><%= item.hubId %></div><% } %></td>
+        <td><%= item.idType %><div class="tag">…<%= item.idLast4 %></div></td>
+        <td><span class="pill <%= item.status === 'verified' ? 'ok' : item.status === 'rejected' ? 'bad' : 'warn' %>"><%= item.status %></span><% if (item.rejectionCode) { %><div class="tag"><%= item.rejectionCode %></div><% } %></td>
+        <td><%= item.reviewedBy || '—' %><% if (item.reviewedAt) { %><div class="tag"><%= item.reviewedAt.replace('T', ' ').slice(0, 16) %></div><% } %></td>
+        <td><a class="button small" href="/compliance/kyc/<%= item.id %>">Open</a></td>
+      </tr>
+      <% } %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+<%- include('partials/footer') %>

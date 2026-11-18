@@ -28,7 +28,9 @@ export type AdminPermission =
   | 'reconciliation:read'
   | 'reconciliation:import'
   | 'reconciliation:resolve'
-  | 'reconciliation:close';
+  | 'reconciliation:close'
+  | 'kyc:read'
+  | 'kyc:review';
 
 const PERMISSIONS: Record<AdminPermission, AdminRole[]> = {
   view: ['viewer', 'ops', 'finance', 'compliance', 'superadmin'],
@@ -50,6 +52,8 @@ const PERMISSIONS: Record<AdminPermission, AdminRole[]> = {
   'reconciliation:import': ['finance', 'superadmin'],
   'reconciliation:resolve': ['finance', 'superadmin'],
   'reconciliation:close': ['finance', 'superadmin'],
+  'kyc:read': ['compliance', 'superadmin'],
+  'kyc:review': ['compliance', 'superadmin'],
 };
 
 export interface AdminSession {

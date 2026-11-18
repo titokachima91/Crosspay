@@ -5,16 +5,19 @@ windowed analytics and read-only bookkeeping built 2026-11-17. Manual support
 workspace with audited PII reveal built 2026-11-17. Phase D configuration center
 (versioned proposals, two-person approval, emergency service controls) built
 2026-11-18. Phase F reconciliation v1 (manual statements, exact matching,
-exceptions, daily close) built 2026-11-18. Named local admins, TOTP, sessions,
-CSRF, RBAC, ops pages and audit are live. SSO, live statement feeds and
-deployment-level IP allowlist remain.
+exceptions, daily close) built 2026-11-18. Compliance KYC review queue built
+2026-11-19. Named local admins, TOTP, sessions, CSRF, RBAC, ops pages and audit
+are live. SSO, live statement feeds, sanctions screening and deployment-level IP
+allowlist remain.
 **Code**: `server/src/admin-web/`, `server/scripts/create-admin.ts`
 **Tests**: `server/test/admin-web.test.ts`
 **Migrations**: `server/db/migrations/0012_admin_identity.sql`,
 `server/db/migrations/0013_admin_activity.sql`,
 `server/db/migrations/0014_support_workspace.sql`,
 `server/db/migrations/0015_configuration_center.sql`,
-`server/db/migrations/0016_settlement_reconciliation.sql`
+`server/db/migrations/0016_settlement_reconciliation.sql`,
+`server/db/migrations/0017_reconciliation_missing_lines.sql`,
+`server/db/migrations/0018_kyc_review.sql`
 **Plan**: `docs/ADMIN_PANEL_PLAN.md`
 
 ---
@@ -120,7 +123,7 @@ No customer JWT is accepted by the portal.
 | `viewer` | read-only overview, control room, analytics, trades; no support cases or configuration |
 | `ops` | viewer + match/disburse/recheck/payout retry, corridor policy, support cases/notes/SMS, configuration proposals |
 | `finance` | viewer + LP providers/orders + refunds + bookkeeping, configuration proposals/approvals, reconciliation import/resolve/close; no support cases |
-| `compliance` | viewer + audit + bookkeeping + reconciliation read + support cases + customer PII reveal; no configuration |
+| `compliance` | viewer + audit + bookkeeping + reconciliation read + KYC review + support cases + customer PII reveal; no configuration |
 | `superadmin` | everything, including admin-user management, PII reveal, config approval and emergency service controls |
 
 The role map is in `src/admin-web/auth.ts`. Named users can have multiple roles.
@@ -141,6 +144,8 @@ The last active superadmin cannot be suspended or demoted.
 | `/bookkeeping/journals/:id` | Journal lines, balance check, reversal links and linked FX partner journals |
 | `/reconciliation` | statement summary, manual CSV import, provider/bank statement list and open-exception count |
 | `/reconciliation/statements/:id` | statement lines, exact matches, exceptions, resolve and daily close |
+| `/compliance/kyc` | KYC queue by status with masked customer identity and identity last4 |
+| `/compliance/kyc/:id` | KYC metadata, verification history, approve/reject with reason |
 | `/corridors` | enable/cap/min/max/deadline/estimate/spread forms |
 | `/liquidity` | providers, prefunded orders, create/cancel |
 | `/trades` | search by reference, phone, beneficiary last 4 |
@@ -181,7 +186,8 @@ future support tool.
 | `support` | case insert/status/priority/assignee, message insert/delivery, PII reveal |
 | `config` | config change proposed/decided, emergency service controls updated |
 | `reconciliation` | statement imported/closed, exception resolved |
-| `admin` | `admin_audit_log` inserts (support/config/reconciliation resources are de-duplicated) |
+| `compliance` | KYC approved/rejected |
+| `admin` | `admin_audit_log` inserts (support/config/reconciliation/KYC resources are de-duplicated) |
 
 The payload carries references, statuses, currencies and minor amounts only.
 Recipient names, phone numbers, account numbers, case subjects and message
@@ -383,7 +389,31 @@ ledger editor and not a bank feed.
 
 ---
 
-## 12. Current limitations
+## 12. KYC review
+
+Migration `0018` adds a manual compliance queue over the existing
+`kyc_verifications` table.
+
+- `/compliance/kyc` lists pending, verified or rejected submissions. Pending is
+  oldest-first. Customer phone is masked to the last four digits.
+- The reviewer sees legal name, account type/hub, ID type and last four digits.
+  The full identity number stays encrypted and is **never decrypted** by this
+  screen. There is no document image or name-check provider result in the
+  repository.
+- Approval changes the verification to `verified` and the customer to
+  `kyc_status='verified'` in one transaction. Rejection requires a rejection
+  code and a 5-300 character note, and changes both rows to `rejected`.
+- Only a pending verification can be decided; the decided row is immutable.
+  The customer can submit a new KYC application after a rejection.
+- Reviewer, decision time and note are stored on the row and in admin audit.
+  Control-room activity carries status, account/ID type and rejection code,
+  never the legal name or identity number.
+- Daily limits are not changed by KYC approval. They still come from the
+  versioned tier/currency limit.
+
+---
+
+## 13. Current limitations
 
 - No SSO yet; local accounts + TOTP only.
 - No recovery-code **login** flow; a superadmin resets TOTP by resetting the
@@ -407,15 +437,16 @@ ledger editor and not a bank feed.
   only outbound channel and requires a configured provider.
 - A process crash between writing a pending SMS row and calling/updating the
   gateway leaves the row `pending`; there is no retry worker for that state yet.
-- Compliance case queues (KYC reviews, sanctions hits) are not built; they will
-  link to the same case model.
+- KYC review is manual metadata only: no document images, OCR, name-check
+  provider, sanctions screening or watchlist data. Sanctions queues are not
+  built. Approval cannot bypass the pending state.
 - IP allowlist/VPN/zero-trust is deployment configuration, not application code.
 - The env-key `/api/v1/admin/*` remains a break-glass surface until it is
   retired or restricted.
 
 ---
 
-## 13. Tests
+## 14. Tests
 
 `server/test/admin-web.test.ts` covers:
 
@@ -442,6 +473,9 @@ ledger editor and not a bank feed.
   exceptions, bank posting-key matching, mixed-currency rejection,
   missing-in-statement detection, blocked close, exception resolution, final
   close, duplicate-file rejection and reconciliation activity without notes;
+- KYC queue RBAC, masked identity, no full identity number in HTML, approval
+  updating the customer, repeat-decision rejection, rejection code/note
+  validation and redacted compliance activity;
 - PII reveal denied without `pii:reveal`, allowed with a reason for compliance,
   recorded in `support_pii_reveals`/audit/activity without the values;
 - SMS reply refused when no provider is configured, recorded as `sent` when the
@@ -450,11 +484,11 @@ ledger editor and not a bank feed.
 - first-login TOTP enrolment and recovery-code display;
 - audit rows with the acting admin id.
 
-Suite after this phase: **112/112**, 20 suites, typecheck clean.
+Suite after this phase: **114/114**, 20 suites, typecheck clean.
 
 ---
 
-## 14. Deployment
+## 15. Deployment
 
 - Run `admin-web` as its own container/process with the same image as the API
   but `node dist/admin-web/server.js`.
