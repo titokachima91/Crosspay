@@ -240,12 +240,12 @@ outbox with an SSE control room, windowed analytics and funnel/revenue/provider
 views; read-only debit-positive trial balance and journal browser; versioned
 support-contact/tier-limit proposals with two-person approval, emergency
 quote/trade pauses and read-only provider fee observation; manual provider/bank
-statement import with exact matching, typed exceptions and final daily close;
-manual support cases with append-only notes, customer 360, canned replies,
-audited PII reveal and provider-gated SMS replies. Live statement feeds,
-configuration remainder, compliance queues and bank balance matching remain
-planned in `docs/ADMIN_PANEL_PLAN.md`; current portal details in
-`docs/ADMIN_WEB_IMPLEMENTATION.md`.
+statement import with exact matching, provider missing-in-statement detection,
+typed exceptions and final daily close; manual support cases with append-only
+notes, customer 360, canned replies, audited PII reveal and provider-gated SMS
+replies. Live statement feeds, configuration remainder, compliance queues and
+bank-side reconciliation remain planned in `docs/ADMIN_PANEL_PLAN.md`; current
+portal details in `docs/ADMIN_WEB_IMPLEMENTATION.md`.
 
 **Built**: `docs/B4_MATCHING_IMPLEMENTATION.md`. Matching is off by
 `P2P_ENABLED=false` and per-corridor rows in `p2p_corridors`; no corridor is
@@ -526,8 +526,8 @@ Next, in order:
    app banners, effective-date scheduling, fee editor after provider
    reconciliation, analytics charts.
 2. **B4.6 reconciliation remainder** — live provider/bank feeds, file upload,
-   missing-in-statement detection, fee-line matching, correction/re-open and
-   bank balance matching; then compliance queues.
+   bank-side missing-in-statement detection, fee-line matching,
+   correction/re-open and bank balance matching; then compliance queues.
 3. **Bank payouts and KYC/name-check adapters** — mobile-money payout, refunds,
    callbacks, matching and the reconciliation worker are built; bank rails need
    an approved partner account contract.

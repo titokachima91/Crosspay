@@ -1711,12 +1711,13 @@ export function registerAdminWebRoutes(
         lineCount: imported.lineCount,
         matchedCount: imported.matchedCount,
         exceptionCount: imported.exceptionCount,
+        missingCount: imported.missingCount,
       },
     });
     return redirect(
       reply,
       `/reconciliation/statements/${imported.id}`,
-      `Imported ${imported.lineCount} lines · ${imported.matchedCount} matched · ${imported.exceptionCount} exceptions`,
+      `Imported ${imported.lineCount} lines · ${imported.matchedCount} matched · ${imported.exceptionCount} exceptions · ${imported.missingCount} missing`,
     );
   });
 

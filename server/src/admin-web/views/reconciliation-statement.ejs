@@ -15,6 +15,7 @@
     <div class="detail"><div class="k">Lines</div><div class="v"><%= detail.statement.lineCount %></div></div>
     <div class="detail"><div class="k">Matched</div><div class="v"><%= detail.statement.matchedCount %></div></div>
     <div class="detail"><div class="k">Exceptions</div><div class="v"><%= detail.statement.exceptionCount %> · <%= detail.statement.openExceptions %> open</div></div>
+    <div class="detail"><div class="k">Missing from statement</div><div class="v"><%= detail.statement.missingCount %></div></div>
     <div class="detail"><div class="k">Imported by</div><div class="v"><%= detail.statement.importedBy || '—' %><div class="tag"><%= detail.statement.createdAt.replace('T', ' ').slice(0, 16) %></div></div></div>
   </div>
   <% if (detail.statement.status === 'closed') { %>
@@ -34,6 +35,38 @@
   <% } else { %>
     <p class="tag">Your role can read this evidence but not close it.</p>
   <% } %>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <div class="panel-head"><h2>Missing from the statement</h2><span class="tag">internal provider rows not present in this export</span></div>
+  <% if (detail.missing.length === 0) { %>
+    <div class="empty">No internal provider rows were missing for this period and currency.</div>
+  <% } else { %>
+  <table>
+    <thead><tr><th>Internal</th><th>Reference</th><th class="num">Amount</th><th>Status</th><th>Evidence / resolution</th></tr></thead>
+    <tbody>
+      <% for (const item of detail.missing) { %>
+      <tr>
+        <td><span class="mono"><%= item.internalTable %></span><div class="tag mono"><%= item.internalId %></div></td>
+        <td class="mono"><%= item.reference %></td>
+        <td class="num"><%= fmtMinor(item.amountMinor) %> <%= item.currency %></td>
+        <td><span class="pill <%= item.status === 'resolved' ? 'ok' : 'bad' %>"><%= item.status %></span><div class="tag"><%= item.kind %></div></td>
+        <td>
+          <% if (item.note) { %><div class="tag"><%= item.note %><% if (item.resolvedBy) { %> · <%= item.resolvedBy %><% } %></div><% } %>
+          <% if (item.status === 'open' && can.reconciliationResolve) { %>
+          <form method="post" action="/reconciliation/exceptions/<%= item.id %>/resolve">
+            <input type="hidden" name="_csrf" value="<%= csrf %>">
+            <input name="note" required minlength="5" maxlength="300" placeholder="What was investigated" style="min-width:180px">
+            <button class="small">Resolve</button>
+          </form>
+          <% } %>
+        </td>
+      </tr>
+      <% } %>
+    </tbody>
+  </table>
+  <% } %>
+  <p class="tag">This check is provider-source only. Bank lines are matched only when they carry a CrossPay posting key.</p>
 </div>
 
 <div class="panel" style="margin-top:16px">

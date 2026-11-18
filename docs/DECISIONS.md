@@ -262,9 +262,10 @@ Reconciliation v1
   journal.
 - A statement closes only when every exception is resolved, and a close note is
   required. Closing is final; corrections require a new statement import.
-- Closing does not assert a bank balance matched. The page states that the
-  statement-to-ledger direction is the only v1 check; internal rows missing from
-  a statement are not auto-detected yet.
+- Closing does not assert a bank balance matched. Provider statements check both
+  directions, including provider rows absent from the statement; bank-side
+  missing detection is not built because bank lines have no provider reference
+  in v1.
 - Reconciliation activity carries statement counts, source/currency and
   exception types, never line descriptions, account data or resolution notes.
 - Compliance can read reconciliation evidence; only finance/superadmin can

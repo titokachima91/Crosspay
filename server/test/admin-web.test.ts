@@ -1206,6 +1206,19 @@ describe('admin portal identity and pages', () => {
     const opsLogin = await login(ops.email, PASSWORD, ops.secret);
     await paidPayoutWithJournal('+255755981001', 'CP-RECONA', 'RECON-PAY-1', '50000');
     await paidPayoutWithJournal('+255755981002', 'CP-RECONB', 'RECON-PAY-2', '70000');
+    const missingPayout = await paidPayoutWithJournal(
+      '+255755981004',
+      'CP-RECOND',
+      'RECON-PAY-MISSING',
+      '31000',
+    );
+    await db.pool.query(
+      `UPDATE payouts
+       SET requested_at = '2026-11-18T10:00:00Z',
+           completed_at = '2026-11-18T10:07:00Z'
+       WHERE id = $1`,
+      [missingPayout.payoutId],
+    );
 
     const csv = [
       'occurred_at,reference,kind,amount_minor,currency,posting_key,description',
@@ -1237,9 +1250,10 @@ describe('admin portal identity and pages', () => {
       line_count: number;
       matched_count: number;
       exception_count: number;
+      missing_count: number;
       status: string;
     }>(
-      `SELECT line_count, matched_count, exception_count, status
+      `SELECT line_count, matched_count, exception_count, missing_count, status
        FROM settlement_statements WHERE id = $1`,
       [statementId],
     );
@@ -1247,6 +1261,7 @@ describe('admin portal identity and pages', () => {
       line_count: 4,
       matched_count: 1,
       exception_count: 3,
+      missing_count: 1,
       status: 'imported',
     });
 
@@ -1280,6 +1295,8 @@ describe('admin portal identity and pages', () => {
     assert.equal(detail.statusCode, 200, detail.body);
     assert.match(detail.body, /RECON-PAY-1/);
     assert.match(detail.body, /unmatched_reference/);
+    assert.match(detail.body, /RECON-PAY-MISSING/);
+    assert.match(detail.body, /Missing from the statement/);
 
     const blocked = await postForm(
       `/reconciliation/statements/${statementId}/close`,
@@ -1294,8 +1311,7 @@ describe('admin portal identity and pages', () => {
        WHERE statement_id = $1 AND status = 'open' ORDER BY created_at`,
       [statementId],
     );
-    assert.equal(exceptions.rows.length, 3);
-    for (const [index, exception] of exceptions.rows.entries()) {
+    assert.equal(exceptions.rows.length, 4);    for (const [index, exception] of exceptions.rows.entries()) {
       const resolved = await postForm(
         `/reconciliation/exceptions/${exception.id}/resolve`,
         { _csrf: financeLogin.csrf, note: `Investigated with provider ${index + 1}` },
@@ -1348,6 +1364,7 @@ describe('admin portal identity and pages', () => {
         'exception.resolved',
         'exception.resolved',
         'exception.resolved',
+        'exception.resolved',
         'statement.closed',
       ],
     );
@@ -1361,7 +1378,7 @@ describe('admin portal identity and pages', () => {
     assert.deepEqual(
       audit.rows.map((row) => [row.action, row.count]),
       [
-        ['reconciliation.exception.resolve', 3],
+        ['reconciliation.exception.resolve', 4],
         ['reconciliation.statement.close', 1],
         ['reconciliation.statement.import', 1],
       ],

@@ -146,8 +146,8 @@ collections, payouts, refunds, signed callbacks, P2P matching, LP liquidity,
 admin policy controls, admin portal auth/RBAC/live control room/bookkeeping,
 support cases with audited PII reveal and SMS gating, versioned configuration
 with two-person approval, emergency quote/trade pauses, manual statement
-matching with exceptions and daily close, market depth, analytics, CSV export
-and the reconciliation worker.
+matching with provider missing-in-statement detection, exceptions and daily
+close, market depth, analytics, CSV export and the reconciliation worker.
 **112 tests pass.** No Docker or local PostgreSQL installation is required.
 
 Live provider smokes (with the sandbox running):
@@ -259,7 +259,7 @@ in production.
 
 ## Next step
 
-1. Finish reconciliation: live provider/bank feeds, file upload,
+1. Finish reconciliation: live provider/bank feeds, file upload, bank-side
    missing-in-statement detection, fee-line matching and correction/re-open.
 2. Finish the configuration center: provider settings, feature flags, app
    banners, effective-date scheduling and the fee editor after provider

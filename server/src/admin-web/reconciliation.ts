@@ -25,6 +25,7 @@ export const EXCEPTION_KINDS = [
   'duplicate_reference',
   'unmatched_journal',
   'unsupported_line',
+  'missing_in_statement',
 ] as const;
 export type ExceptionKind = (typeof EXCEPTION_KINDS)[number];
 
@@ -414,6 +415,111 @@ export interface ImportedStatement {
   lineCount: number;
   matchedCount: number;
   exceptionCount: number;
+  missingCount: number;
+}
+
+interface MissingInternalRow {
+  table: 'payment_attempt' | 'payout' | 'refund';
+  id: string;
+  reference: string;
+  amountMinor: string;
+  currency: string;
+}
+
+async function findMissingInternalRows(
+  client: PoolClient,
+  input: {
+    provider: string | null;
+    currency: string;
+    periodStart: Date;
+    periodEnd: Date;
+    lines: ParsedLine[];
+  },
+): Promise<MissingInternalRow[]> {
+  if (!input.provider) return [];
+  const references = {
+    collection: new Set<string>(),
+    payout: new Set<string>(),
+    refund: new Set<string>(),
+  };
+  for (const line of input.lines) {
+    if (!line.reference) continue;
+    if (line.kind === 'collection') references.collection.add(line.reference);
+    if (line.kind === 'payout') references.payout.add(line.reference);
+    if (line.kind === 'refund') references.refund.add(line.reference);
+  }
+
+  const missing: MissingInternalRow[] = [];
+  const attempts = await client.query<{
+    id: string;
+    reference: string;
+    amount_minor: string;
+  }>(
+    `SELECT id, external_reference AS reference, amount_minor::text
+     FROM payment_attempts
+     WHERE provider = $1 AND currency_code = $2 AND status = 'confirmed'
+       AND external_reference IS NOT NULL
+       AND created_at >= $3 AND created_at <= $4`,
+    [input.provider, input.currency, input.periodStart, input.periodEnd],
+  );
+  for (const row of attempts.rows) {
+    if (references.collection.has(row.reference)) continue;
+    missing.push({
+      table: 'payment_attempt',
+      id: row.id,
+      reference: row.reference,
+      amountMinor: row.amount_minor,
+      currency: input.currency,
+    });
+  }
+
+  const payouts = await client.query<{
+    id: string;
+    reference: string;
+    amount_minor: string;
+  }>(
+    `SELECT id, provider_reference AS reference, amount_minor::text
+     FROM payouts
+     WHERE provider = $1 AND currency_code = $2 AND status = 'paid'
+       AND provider_reference IS NOT NULL
+       AND completed_at >= $3 AND completed_at <= $4`,
+    [input.provider, input.currency, input.periodStart, input.periodEnd],
+  );
+  for (const row of payouts.rows) {
+    if (references.payout.has(row.reference)) continue;
+    missing.push({
+      table: 'payout',
+      id: row.id,
+      reference: row.reference,
+      amountMinor: row.amount_minor,
+      currency: input.currency,
+    });
+  }
+
+  const refunds = await client.query<{
+    id: string;
+    reference: string;
+    amount_minor: string;
+  }>(
+    `SELECT id, provider_reference AS reference, amount_minor::text
+     FROM refunds
+     WHERE provider = $1 AND currency_code = $2 AND status = 'paid'
+       AND provider_reference IS NOT NULL
+       AND completed_at >= $3 AND completed_at <= $4`,
+    [input.provider, input.currency, input.periodStart, input.periodEnd],
+  );
+  for (const row of refunds.rows) {
+    if (references.refund.has(row.reference)) continue;
+    missing.push({
+      table: 'refund',
+      id: row.id,
+      reference: row.reference,
+      amountMinor: row.amount_minor,
+      currency: input.currency,
+    });
+  }
+
+  return missing;
 }
 
 export async function importStatement(
@@ -470,12 +576,19 @@ export async function importStatement(
 
       const matchedCount = matches.filter((match) => match.status === 'matched').length;
       const exceptionCount = matches.length - matchedCount;
+      const missing = await findMissingInternalRows(client, {
+        provider,
+        currency,
+        periodStart: parsed.periodStart,
+        periodEnd: parsed.periodEnd,
+        lines: parsed.lines,
+      });
       const statement = await client.query<{ id: string }>(
         `INSERT INTO settlement_statements
            (source_kind, source_label, provider, currency_code, period_start, period_end,
             file_name, file_sha256, line_count, matched_count, exception_count,
-            imported_by_admin_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            missing_count, imported_by_admin_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          RETURNING id`,
         [
           sourceKind,
@@ -489,6 +602,7 @@ export async function importStatement(
           parsed.lines.length,
           matchedCount,
           exceptionCount,
+          missing.length,
           input.adminId,
         ],
       );
@@ -537,11 +651,29 @@ export async function importStatement(
         }
       }
 
+      for (const row of missing) {
+        await client.query(
+          `INSERT INTO reconciliation_exceptions
+             (statement_id, line_id, internal_table, internal_id, kind, reference,
+              amount_minor, currency_code)
+           VALUES ($1, NULL, $2, $3, 'missing_in_statement', $4, $5::bigint, $6)`,
+          [
+            statementId,
+            row.table,
+            row.id,
+            row.reference,
+            row.amountMinor,
+            row.currency,
+          ],
+        );
+      }
+
       return {
         id: statementId,
         lineCount: parsed.lines.length,
         matchedCount,
         exceptionCount,
+        missingCount: missing.length,
       };
     });
   } catch (error) {
@@ -568,6 +700,7 @@ export interface StatementListItem {
   lineCount: number;
   matchedCount: number;
   exceptionCount: number;
+  missingCount: number;
   openExceptions: number;
   status: 'imported' | 'closed';
   importedBy: string | null;
@@ -589,6 +722,7 @@ export async function loadReconciliationCenter(pool: Pool) {
       line_count: number;
       matched_count: number;
       exception_count: number;
+      missing_count: number;
       open_exceptions: number;
       status: 'imported' | 'closed';
       imported_by: string | null;
@@ -598,6 +732,7 @@ export async function loadReconciliationCenter(pool: Pool) {
       `SELECT s.id, s.source_kind, s.source_label, s.provider, s.currency_code,
               s.period_start, s.period_end, s.file_name, s.line_count,
               s.matched_count, s.exception_count,
+              s.missing_count,
               (SELECT count(*)::int FROM reconciliation_exceptions e
                WHERE e.statement_id = s.id AND e.status = 'open') AS open_exceptions,
               s.status, importer.name AS imported_by, s.created_at, s.closed_at
@@ -611,12 +746,15 @@ export async function loadReconciliationCenter(pool: Pool) {
       closed_statements: number;
       open_exceptions: number;
       total_exceptions: number;
+      missing_total: number;
     }>(
       `SELECT
          (SELECT count(*)::int FROM settlement_statements WHERE status = 'imported') AS open_statements,
          (SELECT count(*)::int FROM settlement_statements WHERE status = 'closed') AS closed_statements,
          (SELECT count(*)::int FROM reconciliation_exceptions WHERE status = 'open') AS open_exceptions,
-         (SELECT count(*)::int FROM reconciliation_exceptions) AS total_exceptions`,
+         (SELECT count(*)::int FROM reconciliation_exceptions) AS total_exceptions,
+         (SELECT count(*)::int FROM reconciliation_exceptions
+          WHERE kind = 'missing_in_statement') AS missing_total`,
     ),
   ]);
 
@@ -633,6 +771,7 @@ export async function loadReconciliationCenter(pool: Pool) {
       lineCount: row.line_count,
       matchedCount: row.matched_count,
       exceptionCount: row.exception_count,
+      missingCount: row.missing_count,
       openExceptions: row.open_exceptions,
       status: row.status,
       importedBy: row.imported_by,
@@ -644,6 +783,7 @@ export async function loadReconciliationCenter(pool: Pool) {
       closedStatements: Number(summary.rows[0]?.closed_statements ?? 0),
       openExceptions: Number(summary.rows[0]?.open_exceptions ?? 0),
       totalExceptions: Number(summary.rows[0]?.total_exceptions ?? 0),
+      missingTotal: Number(summary.rows[0]?.missing_total ?? 0),
     },
     currencies: (
       await pool.query<{ code: string; name: string }>(
@@ -691,6 +831,7 @@ export async function loadStatement(pool: Pool, id: string) {
     line_count: number;
     matched_count: number;
     exception_count: number;
+    missing_count: number;
     open_exceptions: number;
     status: 'imported' | 'closed';
     imported_by: string | null;
@@ -701,6 +842,7 @@ export async function loadStatement(pool: Pool, id: string) {
     `SELECT s.id, s.source_kind, s.source_label, s.provider, s.currency_code,
             s.period_start, s.period_end, s.file_name, s.line_count,
             s.matched_count, s.exception_count,
+            s.missing_count,
             (SELECT count(*)::int FROM reconciliation_exceptions e
              WHERE e.statement_id = s.id AND e.status = 'open') AS open_exceptions,
             s.status, importer.name AS imported_by, closer.name AS closed_by,
@@ -752,6 +894,30 @@ export async function loadStatement(pool: Pool, id: string) {
     [id],
   );
 
+  const missing = await pool.query<{
+    id: string;
+    kind: ExceptionKind;
+    internal_table: string;
+    internal_id: string;
+    reference: string;
+    amount_minor: string;
+    currency_code: string;
+    status: 'open' | 'resolved';
+    note: string | null;
+    resolved_at: Date | null;
+    resolved_by: string | null;
+    created_at: Date;
+  }>(
+    `SELECT e.id, e.kind, e.internal_table, e.internal_id, e.reference,
+            e.amount_minor::text, e.currency_code, e.status, e.note,
+            e.resolved_at, resolver.name AS resolved_by, e.created_at
+     FROM reconciliation_exceptions e
+     LEFT JOIN admin_users resolver ON resolver.id = e.resolved_by_admin_id
+     WHERE e.statement_id = $1 AND e.kind = 'missing_in_statement'
+     ORDER BY e.created_at, e.id`,
+    [id],
+  );
+
   return {
     statement: {
       id: header.id,
@@ -765,6 +931,7 @@ export async function loadStatement(pool: Pool, id: string) {
       lineCount: header.line_count,
       matchedCount: header.matched_count,
       exceptionCount: header.exception_count,
+      missingCount: header.missing_count,
       openExceptions: header.open_exceptions,
       status: header.status,
       importedBy: header.imported_by,
@@ -800,6 +967,20 @@ export async function loadStatement(pool: Pool, id: string) {
           }
         : null,
     })) satisfies StatementLineView[],
+    missing: missing.rows.map((row) => ({
+      id: row.id,
+      kind: row.kind,
+      internalTable: row.internal_table,
+      internalId: row.internal_id,
+      reference: row.reference,
+      amountMinor: row.amount_minor,
+      currency: row.currency_code,
+      status: row.status,
+      note: row.note,
+      resolvedAt: row.resolved_at ? new Date(row.resolved_at).toISOString() : null,
+      resolvedBy: row.resolved_by,
+      createdAt: new Date(row.created_at).toISOString(),
+    })),
   };
 }
 

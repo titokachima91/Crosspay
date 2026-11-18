@@ -6,12 +6,14 @@
   <div class="kpi"><div class="label">Closed statements</div><div class="value"><%= data.summary.closedStatements %></div><div class="hint">evidence retained</div></div>
   <div class="kpi"><div class="label">Open exceptions</div><div class="value"><%= data.summary.openExceptions %></div><div class="hint">block daily close</div></div>
   <div class="kpi"><div class="label">All exceptions</div><div class="value"><%= data.summary.totalExceptions %></div><div class="hint">open and resolved</div></div>
+  <div class="kpi"><div class="label">Missing from statements</div><div class="value"><%= data.summary.missingTotal %></div><div class="hint">internal rows not on the export</div></div>
 </div>
 
 <div class="notice">
   Manual evidence only. Matching is exact provider reference, amount and currency, or an explicit CrossPay
-  <span class="mono">posting_key</span> for bank lines. An exception cannot be written off; resolving it records a note.
-  This page does not claim a bank balance was matched and does not yet auto-detect internal rows missing from a statement.
+  <span class="mono">posting_key</span> for bank lines. Provider imports also detect internal confirmed/paid rows in the
+  period that the statement omitted. An exception cannot be written off; resolving it records a note. This page does not
+  claim a bank balance was matched.
 </div>
 
 <div class="grid two">
@@ -70,7 +72,7 @@
     <div class="empty">No statements imported yet. Paste a provider or bank CSV above.</div>
   <% } else { %>
   <table>
-    <thead><tr><th>Source</th><th>Currency</th><th>Period</th><th class="num">Lines</th><th class="num">Matched</th><th class="num">Exceptions</th><th>Status</th><th>Imported by</th><th></th></tr></thead>
+    <thead><tr><th>Source</th><th>Currency</th><th>Period</th><th class="num">Lines</th><th class="num">Matched</th><th class="num">Exceptions</th><th class="num">Missing</th><th>Status</th><th>Imported by</th><th></th></tr></thead>
     <tbody>
       <% for (const statement of data.statements) { %>
       <tr>
@@ -80,6 +82,7 @@
         <td class="num"><%= statement.lineCount %></td>
         <td class="num"><%= statement.matchedCount %></td>
         <td class="num"><%= statement.exceptionCount %><% if (statement.openExceptions > 0) { %><div class="tag"><%= statement.openExceptions %> open</div><% } %></td>
+        <td class="num"><%= statement.missingCount %></td>
         <td><span class="pill <%= statement.status === 'closed' ? 'ok' : statement.openExceptions > 0 ? 'warn' : 'info' %>"><%= statement.status %></span></td>
         <td><%= statement.importedBy || '—' %><div class="tag"><%= statement.createdAt.replace('T', ' ').slice(0, 16) %></div></td>
         <td><a class="button small" href="/reconciliation/statements/<%= statement.id %>">Open</a></td>

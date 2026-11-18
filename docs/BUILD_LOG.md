@@ -817,4 +817,23 @@ correction flow), configuration remainder and compliance queues.
 
 ---
 
+## 2026-11-18 - B4.6 reconciliation v1.1 missing-in-statement detection
+
+- Migration `0017`: statements carry `missing_count`; reconciliation exceptions
+  may reference an internal provider row instead of a statement line and add
+  the `missing_in_statement` kind.
+- Provider imports now check both directions: statement line → internal record →
+  journal, and confirmed collections / paid payouts / paid refunds in the same
+  period and currency whose provider reference is absent from the statement.
+- Missing items are separate from statement line counts, visible on the
+  statement detail, and block close until resolved. Bank-side missing detection
+  remains out of scope because a bank line has no provider reference in v1.
+- Activity and audit include missing counts without line details or notes.
+- Verification: Node **112/112**, 20 suites, typecheck clean.
+
+Next: live statement feeds/file upload, bank-side missing detection,
+correction/re-open, configuration remainder and compliance queues.
+
+---
+
 ## Report End - No fluff. Just facts.

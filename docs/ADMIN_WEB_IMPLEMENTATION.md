@@ -349,9 +349,14 @@ ledger editor and not a bank feed.
 - `fee`/`transfer`/`adjustment`, and every bank line: require an explicit
   CrossPay `posting_key`. The journal must be in the same currency and its debit
   total must equal the line amount.
+- Provider imports also look for internal confirmed collections and paid
+  payouts/refunds in the same period/currency whose reference is absent from the
+  statement. Those become `missing_in_statement` exceptions against the internal
+  row; they are separate from the statement line count.
 - Errors become typed exceptions: `unmatched_reference`, `amount_mismatch`,
   `currency_mismatch`, `status_mismatch`, `missing_journal`,
-  `duplicate_reference`, `unmatched_journal`, `unsupported_line`.
+  `duplicate_reference`, `unmatched_journal`, `unsupported_line`,
+  `missing_in_statement`.
 - Nothing is auto-corrected and no line is marked matched without both the
   provider evidence and a journal.
 
@@ -369,8 +374,9 @@ ledger editor and not a bank feed.
 **Not connected in v1**
 
 - No live provider API, bank feed or file upload; CSV is pasted manually.
-- The check is statement → provider record → journal only. Internal provider
-  rows missing from the statement are not auto-detected yet.
+- Provider statements check both directions: statement → internal record →
+  journal, and internal record missing from the statement. Bank statements only
+  check the posting-key direction; bank-side missing detection is not built.
 - No automatic fee-line matching without a posting key, no manual journal
   posting, no correction/re-open flow and no statement-level CSV export.
 - Closing does not assert a bank balance matched.
@@ -391,10 +397,11 @@ ledger editor and not a bank feed.
   are not editable yet.
 - The app does not render the maintenance banner or pause state yet; it only
   receives the optional `/config.service` block.
-- Reconciliation is manual and one-directional: no provider API, bank feed, file
-  upload, automatic missing-in-statement detection, fee-line matching without a
-  posting key or correction/re-open flow. Closing does not assert a bank balance
-  matched.
+- Reconciliation is manual. Provider statements check both directions; bank
+  statements only check lines with a posting key, and bank-side missing
+  detection is not built. No provider API, bank feed, file upload, automatic
+  fee matching without a posting key or correction/re-open flow. Closing does
+  not assert a bank balance matched.
 - Support is a manual case workspace: no customer-facing chat, no email/WhatsApp
   outbound, no attachments, no CSAT survey and no automated replies. SMS is the
   only outbound channel and requires a configured provider.
@@ -432,9 +439,9 @@ ledger editor and not a bank feed.
 - emergency service controls, `SERVICE_PAUSED` enforcement on quote and trade
   initiation, and the optional `/config.service` block;
 - reconciliation import, exact payout matching, unmatched/amount/duplicate
-  exceptions, bank posting-key matching, mixed-currency rejection, blocked
-  close, exception resolution, final close, duplicate-file rejection and
-  reconciliation activity without notes;
+  exceptions, bank posting-key matching, mixed-currency rejection,
+  missing-in-statement detection, blocked close, exception resolution, final
+  close, duplicate-file rejection and reconciliation activity without notes;
 - PII reveal denied without `pii:reveal`, allowed with a reason for compliance,
   recorded in `support_pii_reveals`/audit/activity without the values;
 - SMS reply refused when no provider is configured, recorded as `sent` when the
