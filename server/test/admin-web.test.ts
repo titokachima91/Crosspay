@@ -17,6 +17,7 @@ import { ActivityStream } from '../src/admin-web/activity.js';
 import { withTransaction } from '../src/db/pool.js';
 import { postJournal } from '../src/ledger.js';
 import { ledgerAccountId } from '../src/trades.js';
+import { loadAppConfig } from '../src/repositories/config-repository.js';
 import {
   createAdminUser,
   generateTotpSecret,
@@ -824,6 +825,343 @@ describe('admin portal identity and pages', () => {
     );
     assert.equal(failedRow.rows[0]?.delivery_status, 'failed');
     assert.equal(failedRow.rows[0]?.error_code, 'SMS_DELIVERY_FAILED');
+  });
+
+  it('proposes, approves and rolls back support contacts through two admins', async () => {
+    const ops = await createRoleUser('ops-config@crosspay.test', 'ops');
+    const finance = await createRoleUser('finance-config@crosspay.test', 'finance');
+    const opsLogin = await login(ops.email, PASSWORD, ops.secret);
+    const financeLogin = await login(finance.email, PASSWORD, finance.secret);
+
+    const proposed = await postForm(
+      '/config/changes',
+      {
+        _csrf: opsLogin.csrf,
+        kind: 'support_contacts',
+        supportEmail: 'help@crosspay.test',
+        supportPhone: '+255700000000',
+        supportWhatsapp: '',
+        supportHours: 'Mon-Fri 08:00-18:00',
+        reason: 'Publish the approved support desk details',
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(proposed.statusCode, 303, proposed.body);
+    const changeId = /\/config\/changes\/([0-9a-f-]{36})/.exec(
+      String(proposed.headers.location ?? ''),
+    )?.[1];
+    assert.ok(changeId);
+
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/config/changes/${changeId}`,
+      headers: { cookie: `cp_admin_session=${opsLogin.session}` },
+    });
+    assert.equal(detail.statusCode, 200, detail.body);
+    assert.match(detail.body, /help@crosspay\.test/);
+    assert.match(detail.body, /pending/);
+    assert.match(detail.body, /different finance or superadmin must approve/);
+
+    const opsCannotApprove = await postForm(
+      `/config/changes/${changeId}/approve`,
+      { _csrf: opsLogin.csrf },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(opsCannotApprove.statusCode, 403, opsCannotApprove.body);
+
+    const approved = await postForm(
+      `/config/changes/${changeId}/approve`,
+      { _csrf: financeLogin.csrf, note: 'Approved for publication' },
+      { cookie: `cp_admin_session=${financeLogin.session}` },
+    );
+    assert.equal(approved.statusCode, 303, approved.body);
+    const applied = await db.pool.query<{
+      email: string;
+      hours: string;
+      status: string;
+      config_version: number;
+    }>(
+      `SELECT s.email, s.hours, c.status, c.config_version
+       FROM support_settings s CROSS JOIN admin_config_changes c
+       WHERE s.id = 1 AND c.id = $1`,
+      [changeId],
+    );
+    assert.equal(applied.rows[0]?.email, 'help@crosspay.test');
+    assert.equal(applied.rows[0]?.hours, 'Mon-Fri 08:00-18:00');
+    assert.equal(applied.rows[0]?.status, 'approved');
+    assert.ok(Number(applied.rows[0]?.config_version) >= 2);
+
+    const activities = await db.pool.query<{ event_type: string; payload: Record<string, unknown> }>(
+      `SELECT event_type, payload FROM admin_activity_events
+       WHERE source = 'config' AND payload->>'configKey' = 'support_contacts'
+       ORDER BY id`,
+    );
+    assert.deepEqual(
+      activities.rows.map((row) => row.event_type),
+      ['config.proposed', 'config.approved'],
+    );
+    assert.ok(!JSON.stringify(activities.rows).includes('help@crosspay.test'));
+
+    const audit = await db.pool.query<{ action: string }>(
+      `SELECT action FROM admin_audit_log
+       WHERE resource_id = $1 ORDER BY created_at`,
+      [changeId],
+    );
+    assert.deepEqual(
+      audit.rows.map((row) => row.action),
+      ['config.change.propose', 'config.change.approve'],
+    );
+
+    const configPage = await app.inject({
+      method: 'GET',
+      url: '/config',
+      headers: { cookie: `cp_admin_session=${opsLogin.session}` },
+    });
+    assert.equal(configPage.statusCode, 200, configPage.body);
+    assert.match(configPage.body, /help@crosspay\.test/);
+    assert.match(configPage.body, /Service controls/);
+
+    const rollback = await postForm(
+      `/config/changes/${changeId}/rollback`,
+      { _csrf: opsLogin.csrf, reason: 'Restore the previous support contacts' },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(rollback.statusCode, 303, rollback.body);
+    const rollbackId = /\/config\/changes\/([0-9a-f-]{36})/.exec(
+      String(rollback.headers.location ?? ''),
+    )?.[1];
+    assert.ok(rollbackId);
+    const rollbackRow = await db.pool.query<{ status: string; before: unknown; after: unknown }>(
+      `SELECT status, before, after FROM admin_config_changes WHERE id = $1`,
+      [rollbackId],
+    );
+    assert.equal(rollbackRow.rows[0]?.status, 'pending');
+    assert.equal((rollbackRow.rows[0]?.before as { email: string }).email, 'help@crosspay.test');
+    assert.equal((rollbackRow.rows[0]?.after as { email: string | null }).email, null);
+
+    const rollbackApproved = await postForm(
+      `/config/changes/${rollbackId}/approve`,
+      { _csrf: financeLogin.csrf },
+      { cookie: `cp_admin_session=${financeLogin.session}` },
+    );
+    assert.equal(rollbackApproved.statusCode, 303, rollbackApproved.body);
+    const contactsAfter = await db.pool.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM support_settings`,
+    );
+    assert.equal(contactsAfter.rows[0]?.count, 0);
+  });
+
+  it('requires two-person approval for tier limits and one pending change per setting', async () => {
+    const ops = await createRoleUser('ops-config-limit@crosspay.test', 'ops');
+    const finance = await createRoleUser('finance-config-limit@crosspay.test', 'finance');
+    const opsLogin = await login(ops.email, PASSWORD, ops.secret);
+    const financeLogin = await login(finance.email, PASSWORD, finance.secret);
+    const superLogin = await login();
+
+    const proposed = await postForm(
+      '/config/changes',
+      {
+        _csrf: financeLogin.csrf,
+        kind: 'tier_limit',
+        tierCode: 'starter',
+        currency: 'TZS',
+        dailyLimitMinor: '42000000',
+        reason: 'Approved risk limit for the starter tier',
+      },
+      { cookie: `cp_admin_session=${financeLogin.session}` },
+    );
+    assert.equal(proposed.statusCode, 303, proposed.body);
+    const changeId = /\/config\/changes\/([0-9a-f-]{36})/.exec(
+      String(proposed.headers.location ?? ''),
+    )?.[1];
+    assert.ok(changeId);
+
+    const selfApproval = await postForm(
+      `/config/changes/${changeId}/approve`,
+      { _csrf: financeLogin.csrf },
+      { cookie: `cp_admin_session=${financeLogin.session}` },
+    );
+    assert.equal(selfApproval.statusCode, 403, selfApproval.body);
+    assert.match(selfApproval.body, /cannot approve their own/);
+
+    const conflict = await postForm(
+      '/config/changes',
+      {
+        _csrf: opsLogin.csrf,
+        kind: 'tier_limit',
+        tierCode: 'starter',
+        currency: 'TZS',
+        dailyLimitMinor: '50000000',
+        reason: 'A competing proposal for the same limit',
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(conflict.statusCode, 409, conflict.body);
+
+    const approved = await postForm(
+      `/config/changes/${changeId}/approve`,
+      { _csrf: superLogin.csrf },
+      { cookie: `cp_admin_session=${superLogin.session}` },
+    );
+    assert.equal(approved.statusCode, 303, approved.body);
+    const limit = await db.pool.query<{ daily_limit_minor: string }>(
+      `SELECT daily_limit_minor::text FROM tier_limits
+       WHERE tier_code = 'starter' AND currency_code = 'TZS'`,
+    );
+    assert.equal(limit.rows[0]?.daily_limit_minor, '42000000');
+
+    const removal = await postForm(
+      '/config/changes',
+      {
+        _csrf: opsLogin.csrf,
+        kind: 'tier_limit',
+        tierCode: 'starter',
+        currency: 'TZS',
+        dailyLimitMinor: '',
+        reason: 'Remove the limit until risk approves a new one',
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(removal.statusCode, 303, removal.body);
+    const removalId = /\/config\/changes\/([0-9a-f-]{36})/.exec(
+      String(removal.headers.location ?? ''),
+    )?.[1];
+    assert.ok(removalId);
+    const removalApproved = await postForm(
+      `/config/changes/${removalId}/approve`,
+      { _csrf: superLogin.csrf },
+      { cookie: `cp_admin_session=${superLogin.session}` },
+    );
+    assert.equal(removalApproved.statusCode, 303, removalApproved.body);
+    const afterRemoval = await db.pool.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM tier_limits
+       WHERE tier_code = 'starter' AND currency_code = 'TZS'`,
+    );
+    assert.equal(afterRemoval.rows[0]?.count, 0);
+
+    const rejectedProposal = await postForm(
+      '/config/changes',
+      {
+        _csrf: opsLogin.csrf,
+        kind: 'tier_limit',
+        tierCode: 'starter',
+        currency: 'KES',
+        dailyLimitMinor: '1000000',
+        reason: 'Proposal that risk will reject for this test',
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(rejectedProposal.statusCode, 303, rejectedProposal.body);
+    const rejectedId = /\/config\/changes\/([0-9a-f-]{36})/.exec(
+      String(rejectedProposal.headers.location ?? ''),
+    )?.[1];
+    assert.ok(rejectedId);
+    const rejected = await postForm(
+      `/config/changes/${rejectedId}/reject`,
+      { _csrf: superLogin.csrf, note: 'Not approved' },
+      { cookie: `cp_admin_session=${superLogin.session}` },
+    );
+    assert.equal(rejected.statusCode, 303, rejected.body);
+    const rejectedRow = await db.pool.query<{ status: string; decided_by_admin_id: string }>(
+      `SELECT status, decided_by_admin_id FROM admin_config_changes WHERE id = $1`,
+      [rejectedId],
+    );
+    assert.equal(rejectedRow.rows[0]?.status, 'rejected');
+    assert.ok(rejectedRow.rows[0]?.decided_by_admin_id);
+
+    const cancellable = await postForm(
+      '/config/changes',
+      {
+        _csrf: opsLogin.csrf,
+        kind: 'tier_limit',
+        tierCode: 'starter',
+        currency: 'KES',
+        dailyLimitMinor: '2000000',
+        reason: 'Proposal the proposer will cancel',
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(cancellable.statusCode, 303, cancellable.body);
+    const cancellableId = /\/config\/changes\/([0-9a-f-]{36})/.exec(
+      String(cancellable.headers.location ?? ''),
+    )?.[1];
+    assert.ok(cancellableId);
+    const cancelled = await postForm(
+      `/config/changes/${cancellableId}/cancel`,
+      { _csrf: opsLogin.csrf, note: 'No longer needed' },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(cancelled.statusCode, 303, cancelled.body);
+    const cancelledRow = await db.pool.query<{ status: string }>(
+      `SELECT status FROM admin_config_changes WHERE id = $1`,
+      [cancellableId],
+    );
+    assert.equal(cancelledRow.rows[0]?.status, 'cancelled');
+  });
+
+  it('applies emergency service controls and publishes them in /config', async () => {
+    const superLogin = await login();
+    const ops = await createRoleUser('ops-config-control@crosspay.test', 'ops');
+    const opsLogin = await login(ops.email, PASSWORD, ops.secret);
+
+    const denied = await postForm(
+      '/config/service-controls',
+      { _csrf: opsLogin.csrf, quotesPaused: 'true' },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(denied.statusCode, 403, denied.body);
+
+    const applied = await postForm(
+      '/config/service-controls',
+      {
+        _csrf: superLogin.csrf,
+        quotesPaused: 'true',
+        tradesPaused: 'true',
+        message: 'Scheduled maintenance while we reconcile provider fees',
+      },
+      { cookie: `cp_admin_session=${superLogin.session}` },
+    );
+    assert.equal(applied.statusCode, 303, applied.body);
+
+    const config = await loadAppConfig(db.pool);
+    assert.deepEqual(config.service, {
+      quotesPaused: true,
+      tradesPaused: true,
+      message: 'Scheduled maintenance while we reconcile provider fees',
+    });
+
+    const page = await app.inject({
+      method: 'GET',
+      url: '/config',
+      headers: { cookie: `cp_admin_session=${superLogin.session}` },
+    });
+    assert.equal(page.statusCode, 200, page.body);
+    assert.match(page.body, /quotes paused/);
+    assert.match(page.body, /trades paused/);
+
+    const audit = await db.pool.query<{ action: string }>(
+      `SELECT action FROM admin_audit_log
+       WHERE action = 'config.service_controls' ORDER BY created_at DESC LIMIT 1`,
+    );
+    assert.equal(audit.rows[0]?.action, 'config.service_controls');
+
+    const activity = await db.pool.query<{ summary: string; payload: Record<string, unknown> }>(
+      `SELECT summary, payload FROM admin_activity_events
+       WHERE source = 'config' AND event_type = 'service.controls'
+       ORDER BY id DESC LIMIT 1`,
+    );
+    assert.match(activity.rows[0]?.summary ?? '', /quotes paused/);
+    assert.equal(activity.rows[0]?.payload['quotesPaused'], true);
+    assert.equal(activity.rows[0]?.payload['hasMessage'], true);
+    assert.ok(!JSON.stringify(activity.rows[0]?.payload).includes('Scheduled maintenance'));
+
+    const cleared = await postForm(
+      '/config/service-controls',
+      { _csrf: superLogin.csrf },
+      { cookie: `cp_admin_session=${superLogin.session}` },
+    );
+    assert.equal(cleared.statusCode, 303, cleared.body);
+    assert.equal((await loadAppConfig(db.pool)).service, undefined);
   });
 
   it('creates a named admin and refuses to suspend the last superadmin', async () => {

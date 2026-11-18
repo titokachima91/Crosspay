@@ -16,6 +16,7 @@ import {
   PricingUnavailableError,
 } from '../../providers/pricing.js';
 import { createQuote, QuotePricingInvalidError } from '../../quotes.js';
+import { assertQuotesOpen } from '../../services/service-controls.js';
 import { assertWithinDailyLimit } from '../../services/limits.js';
 
 const currency = z
@@ -132,6 +133,7 @@ export function registerPricingRoutes(app: FastifyInstance, ctx: AppContext): vo
 
   app.post('/trade/quote', async (request) => {
     const userId = requireUserId(request);
+    await assertQuotesOpen(ctx.pool);
     const input = parseQuery(request.body);
     const user = await loadUser(ctx, userId);
 

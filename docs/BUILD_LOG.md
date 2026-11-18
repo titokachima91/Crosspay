@@ -756,4 +756,35 @@ remaining compliance queues.
 
 ---
 
+## 2026-11-18 - B4.6 Phase D configuration v1
+
+- Migration `0015`: `admin_config_changes` (immutable proposals, one pending
+  change per setting, two-person decision), `service_controls` (emergency
+  quote/trade pauses) and the `config` activity source.
+- Support contacts (`support_settings`) and tier daily limits (`tier_limits`)
+  now use propose/approve. A different finance/superadmin must approve; the
+  proposer cannot approve their own change. Approval applies the value and
+  publishes the next `config_versions` row in the same transaction.
+- Rollback is a new proposal built from the immutable `before` snapshot; it is
+  never a silent write. Rejection/cancellation never applies the value.
+- Emergency service controls are superadmin-only and immediate; every change is
+  audited and emitted to the control room. `POST /trade/quote` and
+  `POST /trade/initiate` return `503 SERVICE_PAUSED` while paused. Rates,
+  estimates, payouts, refunds and existing matches continue.
+- `GET /config` includes an optional `service` block while paused or when a
+  maintenance message exists. The app banner UI is not connected yet.
+- Fees remain provider-owned. The config page shows declared 150/250 bps against
+  provider-observed fee bps from the last seven days and labels mismatches. No
+  fee editor was added, because it would create a second source of truth for a
+  quote the customer already accepted.
+- Added `/config` and `/config/changes/:id` pages, config permissions, config
+  audit and trigger-fed config activity without payload values.
+- Verification: Node **110/110**, 20 suites, typecheck clean.
+
+Next: configuration remainder (provider settings/flags/banners/effective dates,
+fee editor after provider reconciliation), Phase F settlement/reconciliation
+and compliance queues.
+
+---
+
 ## Report End - No fluff. Just facts.

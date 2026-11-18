@@ -310,6 +310,32 @@ describe('B2.3 trade initiation', () => {
     assert.equal((detail.json() as { reference: string }).reference, body.trade.reference);
   });
 
+  it('refuses a new trade while new trades are paused and leaves the quote usable', async () => {
+    const quote = await freshQuote();
+    await db.pool.query(
+      `UPDATE service_controls
+       SET trades_paused = true, message = 'New transfers paused for reconciliation'
+       WHERE id = 1`,
+    );
+    try {
+      const response = await initiate(quote.quoteId, { key: 'initiate-paused' });
+      assert.equal(response.statusCode, 503, response.body);
+      const body = response.json() as { error: { code: string; message: string } };
+      assert.equal(body.error.code, 'SERVICE_PAUSED');
+      assert.equal(body.error.message, 'New transfers paused for reconciliation');
+
+      const stored = await db.pool.query<{ status: string }>(
+        `SELECT status FROM quotes WHERE id = $1`,
+        [quote.quoteId],
+      );
+      assert.equal(stored.rows[0]?.status, 'active');
+    } finally {
+      await db.pool.query(
+        `UPDATE service_controls SET trades_paused = false, message = null WHERE id = 1`,
+      );
+    }
+  });
+
   it('replays the original result for the same key without a second collection', async () => {
     const quote = await freshQuote();
     const created = await initiate(quote.quoteId, { key: 'initiate-replay' });

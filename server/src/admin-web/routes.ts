@@ -61,6 +61,18 @@ import {
   loadTrialBalance,
 } from './bookkeeping.js';
 import {
+  DECLARED_FEE_BPS,
+  decideConfigChange,
+  loadConfigCenter,
+  loadConfigChange,
+  normalizeDailyLimit,
+  normalizeSupportContacts,
+  proposeRollback,
+  proposeSupportContacts,
+  proposeTierLimit,
+  updateServiceControls,
+} from './config-center.js';
+import {
   SUPPORT_CATEGORIES,
   SUPPORT_OPENED_VIA,
   SUPPORT_PRIORITIES,
@@ -113,6 +125,12 @@ function queryValue(request: FastifyRequest, key: string): string {
   return typeof value === 'string' ? value : '';
 }
 
+function uuidParam(request: FastifyRequest, code: string, message: string): string {
+  const id = (request.params as { id?: string }).id ?? '';
+  if (!/^[0-9a-f-]{36}$/i.test(id)) throw errorWith(404, code, message);
+  return id;
+}
+
 function jsonBody(body: unknown): Record<string, unknown> {
   return body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
 }
@@ -148,6 +166,10 @@ function can(session: AdminSession) {
     support: hasPermission(roles, 'support:read'),
     supportWrite: hasPermission(roles, 'support:write'),
     pii: hasPermission(roles, 'pii:reveal'),
+    configRead: hasPermission(roles, 'config:read'),
+    configPropose: hasPermission(roles, 'config:propose'),
+    configApprove: hasPermission(roles, 'config:approve'),
+    configControl: hasPermission(roles, 'config:control'),
   };
 }
 
@@ -160,7 +182,7 @@ function view(
   return reply.view(template, {
     user: session ? session.user : null,
     csrf: session ? session.csrfToken : '',
-    can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false, support: false, supportWrite: false, pii: false },
+    can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false, support: false, supportWrite: false, pii: false, configRead: false, configPropose: false, configApprove: false, configControl: false },
     notice: null,
     error: null,
     ...data,
@@ -312,7 +334,7 @@ export function registerAdminWebRoutes(
       {
         user: session ? session.user : null,
         csrf: session ? session.csrfToken : '',
-        can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false, support: false, supportWrite: false, pii: false },
+        can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false, support: false, supportWrite: false, pii: false, configRead: false, configPropose: false, configApprove: false, configControl: false },
         active: '',
         notice: null,
         error: statusCode >= 500 ? 'Unexpected error. Check the service logs.' : failure.message,
@@ -1137,6 +1159,198 @@ export function registerAdminWebRoutes(
       after: result,
     });
     return redirect(reply, `/trades/${row.trade_id}`, `Refund ${result.refund.status}`);
+  });
+
+  app.get('/config', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'config:read');
+    const data = await loadConfigCenter(ctx.pool);
+    return view(reply, 'config-center', session, {
+      title: 'Configuration',
+      active: 'config',
+      data,
+      declaredFees: DECLARED_FEE_BPS,
+      notice: queryValue(request, 'ok') || null,
+      error: queryValue(request, 'error') || null,
+    });
+  });
+
+  app.get('/config/changes/:id', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'config:read');
+    const id = (request.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) {
+      throw errorWith(404, 'CONFIG_CHANGE_NOT_FOUND', 'Config change not found');
+    }
+    const change = await loadConfigChange(ctx.pool, id);
+    if (!change) {
+      throw errorWith(404, 'CONFIG_CHANGE_NOT_FOUND', 'Config change not found');
+    }
+    return view(reply, 'config-change', session, {
+      title: change.configKey,
+      active: 'config',
+      change,
+      canApprove: can(session).configApprove && change.proposedById !== session.user.id,
+      canCancel:
+        change.status === 'pending' &&
+        (change.proposedById === session.user.id || can(session).configControl),
+      canRollback: change.status === 'approved' && can(session).configPropose,
+      notice: queryValue(request, 'ok') || null,
+      error: queryValue(request, 'error') || null,
+    });
+  });
+
+  app.post('/config/changes', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'config:propose');
+    const kind = formValue(request.body, 'kind');
+    const why = formValue(request.body, 'reason');
+    let created: { id: string };
+    if (kind === 'support_contacts') {
+      const contacts = normalizeSupportContacts({
+        email: formValue(request.body, 'supportEmail'),
+        phone: formValue(request.body, 'supportPhone'),
+        whatsapp: formValue(request.body, 'supportWhatsapp'),
+        hours: formValue(request.body, 'supportHours'),
+      });
+      created = await proposeSupportContacts(ctx, {
+        contacts,
+        reason: why,
+        adminId: session.user.id,
+      });
+    } else if (kind === 'tier_limit') {
+      created = await proposeTierLimit(ctx, {
+        tierCode: formValue(request.body, 'tierCode'),
+        currency: formValue(request.body, 'currency'),
+        dailyLimitMinor: normalizeDailyLimit(formValue(request.body, 'dailyLimitMinor')),
+        reason: why,
+        adminId: session.user.id,
+      });
+    } else {
+      throw errorWith(422, 'CONFIG_KIND_INVALID', 'Choose a configuration setting');
+    }
+    await audit(ctx, request, session, {
+      action: 'config.change.propose',
+      resourceType: 'config_change',
+      resourceId: created.id,
+      reason: why,
+      after: { kind },
+    });
+    return redirect(reply, `/config/changes/${created.id}`, 'Change proposed for approval');
+  });
+
+  app.post('/config/changes/:id/approve', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'config:approve');
+    const id = uuidParam(request, 'CONFIG_CHANGE_NOT_FOUND', 'Config change not found');
+    const note = formValue(request.body, 'note');
+    const result = await decideConfigChange(ctx, {
+      changeId: id,
+      adminId: session.user.id,
+      decision: 'approved',
+      note,
+    });
+    await audit(ctx, request, session, {
+      action: 'config.change.approve',
+      resourceType: 'config_change',
+      resourceId: id,
+      reason: note || null,
+      before: result.before,
+      after: result.after,
+    });
+    return redirect(
+      reply,
+      `/config/changes/${id}`,
+      `Approved and applied${result.configVersion ? ` as version ${result.configVersion}` : ''}`,
+    );
+  });
+
+  app.post('/config/changes/:id/reject', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'config:approve');
+    const id = uuidParam(request, 'CONFIG_CHANGE_NOT_FOUND', 'Config change not found');
+    const note = formValue(request.body, 'note');
+    const result = await decideConfigChange(ctx, {
+      changeId: id,
+      adminId: session.user.id,
+      decision: 'rejected',
+      note,
+    });
+    await audit(ctx, request, session, {
+      action: 'config.change.reject',
+      resourceType: 'config_change',
+      resourceId: id,
+      reason: note || null,
+      before: result.before,
+      after: result.after,
+    });
+    return redirect(reply, `/config/changes/${id}`, 'Change rejected');
+  });
+
+  app.post('/config/changes/:id/cancel', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'config:propose');
+    const id = uuidParam(request, 'CONFIG_CHANGE_NOT_FOUND', 'Config change not found');
+    const result = await decideConfigChange(ctx, {
+      changeId: id,
+      adminId: session.user.id,
+      decision: 'cancelled',
+      note: formValue(request.body, 'note'),
+      allowCancelAny: can(session).configControl,
+    });
+    await audit(ctx, request, session, {
+      action: 'config.change.cancel',
+      resourceType: 'config_change',
+      resourceId: id,
+      before: result.before,
+      after: result.after,
+    });
+    return redirect(reply, `/config/changes/${id}`, 'Change cancelled');
+  });
+
+  app.post('/config/changes/:id/rollback', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'config:propose');
+    const id = uuidParam(request, 'CONFIG_CHANGE_NOT_FOUND', 'Config change not found');
+    const why = formValue(request.body, 'reason');
+    const created = await proposeRollback(ctx, {
+      changeId: id,
+      reason: why,
+      adminId: session.user.id,
+    });
+    await audit(ctx, request, session, {
+      action: 'config.change.rollback',
+      resourceType: 'config_change',
+      resourceId: id,
+      reason: why,
+      after: { proposedChangeId: created.id },
+    });
+    return redirect(reply, `/config/changes/${created.id}`, 'Rollback proposed for approval');
+  });
+
+  app.post('/config/service-controls', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'config:control');
+    const result = await updateServiceControls(ctx, {
+      quotesPaused: formChecked(request.body, 'quotesPaused'),
+      tradesPaused: formChecked(request.body, 'tradesPaused'),
+      message: formValue(request.body, 'message'),
+      adminId: session.user.id,
+    });
+    await audit(ctx, request, session, {
+      action: 'config.service_controls',
+      resourceType: 'service_control',
+      resourceId: '1',
+      before: result.before,
+      after: result.after,
+    });
+    return redirect(
+      reply,
+      '/config',
+      result.after.quotesPaused || result.after.tradesPaused
+        ? 'Service controls applied. New requests are paused.'
+        : 'Service controls cleared. New requests are open.',
+    );
   });
 
   app.get('/support', async (request, reply) => {

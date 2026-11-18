@@ -2,14 +2,16 @@
 
 **Status**: Phase A/B portal built 2026-11-16. Phase C live control room,
 windowed analytics and read-only bookkeeping built 2026-11-17. Manual support
-workspace with audited PII reveal built 2026-11-17. Named local admins, TOTP,
-sessions, CSRF, RBAC, ops pages and audit are live. SSO, settlement import and
-deployment-level IP allowlist remain.
+workspace with audited PII reveal built 2026-11-17. Phase D configuration center
+(versioned proposals, two-person approval, emergency service controls) built
+2026-11-18. Named local admins, TOTP, sessions, CSRF, RBAC, ops pages and audit
+are live. SSO, settlement import and deployment-level IP allowlist remain.
 **Code**: `server/src/admin-web/`, `server/scripts/create-admin.ts`
 **Tests**: `server/test/admin-web.test.ts`
 **Migrations**: `server/db/migrations/0012_admin_identity.sql`,
 `server/db/migrations/0013_admin_activity.sql`,
-`server/db/migrations/0014_support_workspace.sql`
+`server/db/migrations/0014_support_workspace.sql`,
+`server/db/migrations/0015_configuration_center.sql`
 **Plan**: `docs/ADMIN_PANEL_PLAN.md`
 
 ---
@@ -112,11 +114,11 @@ No customer JWT is accepted by the portal.
 
 | Role | Access |
 |---|---|
-| `viewer` | read-only overview, control room, analytics, trades; no support cases |
-| `ops` | viewer + match/disburse/recheck/payout retry, corridor policy, support cases and notes/SMS replies |
-| `finance` | viewer + LP providers/orders + refunds + bookkeeping; no support cases |
-| `compliance` | viewer + audit + bookkeeping + support cases + customer PII reveal |
-| `superadmin` | everything, including admin-user management and PII reveal |
+| `viewer` | read-only overview, control room, analytics, trades; no support cases or configuration |
+| `ops` | viewer + match/disburse/recheck/payout retry, corridor policy, support cases/notes/SMS, configuration proposals |
+| `finance` | viewer + LP providers/orders + refunds + bookkeeping, configuration proposals and approvals; no support cases |
+| `compliance` | viewer + audit + bookkeeping + support cases + customer PII reveal; no configuration |
+| `superadmin` | everything, including admin-user management, PII reveal, config approval and emergency service controls |
 
 The role map is in `src/admin-web/auth.ts`. Named users can have multiple roles.
 The last active superadmin cannot be suspended or demoted.
@@ -130,6 +132,8 @@ The last active superadmin cannot be suspended or demoted.
 | `/` | KPIs, alerts, corridors, queue, matches, payouts/refunds, LP orders, oldest-work ages |
 | `/control-room` | Live SSE feed with source filter/pause plus 5-second snapshot fallback, alerts, corridors, queue health, recent admin actions |
 | `/analytics` | `24h`/`7d`/`30d`/`all` windows: status/corridor, funnel, fee and spread revenue, provider success, refund reasons, payouts, refunds, LP |
+| `/config` | emergency service controls, pending/decided config changes, support contacts, tier daily limits, provider-observed fee bps, version history |
+| `/config/changes/:id` | immutable before/after diff, approve/reject/cancel, propose rollback |
 | `/bookkeeping` | Debit-positive trial balance per currency and filterable journal browser (finance/compliance/superadmin) |
 | `/bookkeeping/journals/:id` | Journal lines, balance check, reversal links and linked FX partner journals |
 | `/corridors` | enable/cap/min/max/deadline/estimate/spread forms |
@@ -170,7 +174,8 @@ future support tool.
 | `refund` | `refunds` insert/status changes |
 | `liquidity` | `liquidity_orders` insert/status changes |
 | `support` | case insert/status/priority/assignee, message insert/delivery, PII reveal |
-| `admin` | `admin_audit_log` inserts (support resources are de-duplicated) |
+| `config` | config change proposed/decided, emergency service controls updated |
+| `admin` | `admin_audit_log` inserts (support/config resources are de-duplicated) |
 
 The payload carries references, statuses, currencies and minor amounts only.
 Recipient names, phone numbers, account numbers, case subjects and message
@@ -222,7 +227,62 @@ and never labels a ledger balance “matched” against a real account.
 
 ---
 
-## 9. Support workspace
+## 9. Configuration center
+
+Migration `0015` adds versioned configuration and emergency service controls.
+Nothing here edits source code or writes a journal directly.
+
+**Versioned proposals**
+
+- Support contacts (`support_settings`) and tier daily limits (`tier_limits`)
+  use a proposal → approval workflow in `admin_config_changes`.
+- A proposal stores immutable `before`/`after` JSON, the proposer, a reason and
+  a `CS-…`-style audit trail. The database guard rejects rewriting the payload
+  after creation.
+- Only one pending change per setting is allowed. A competing proposal gets
+  `409 CONFIG_CHANGE_CONFLICT`.
+- `config:propose` is available to ops, finance and superadmin.
+  `config:approve` is finance/superadmin. The proposer cannot approve their own
+  change; a different named admin must do it.
+- Approval applies the value and publishes the next `config_versions` row in the
+  same transaction. Rejection or cancellation never applies the value.
+- “Rollback” creates a new pending proposal using the previous value; it is not
+  a silent write. It still needs a second admin.
+- Support contacts can be removed by submitting an empty block. Tier limits can
+  be removed with a blank limit; a missing limit blocks trades rather than
+  inventing a limit.
+- Tier limits are enforced only when the account's limit currency matches the
+  trade currency. There is no FX conversion of limits.
+
+**Emergency service controls**
+
+- `service_controls` holds `quotesPaused`, `tradesPaused` and a short message.
+- Only a superadmin can change it, and it applies immediately: an incident must
+  not wait for a second approver. Every change is audited and emitted to the
+  control room.
+- `POST /trade/quote` returns `503 SERVICE_PAUSED` while quotes are paused.
+  `POST /trade/initiate` returns the same while trades are paused.
+- Rates, estimates, existing payouts, refunds and matches keep running. This is
+  a drain switch, not a full stop.
+- `GET /config` includes an optional `service` block while a pause or message is
+  active. The Flutter app ignores unknown blocks today; the app banner UI is not
+  connected yet.
+
+**Fees stay provider-owned**
+
+- Quote `feeBps`, `feeMinor` and `totalDebitMinor` come from the pricing
+  provider and are persisted in the quote snapshot. The admin does not override
+  them, because a second fee source could disagree with the quote the customer
+  already accepted.
+- The configuration page shows the declared policy (P2P 150 bps, bank 250 bps)
+  against provider-observed fee bps from the last seven days. A mismatch is
+  labelled, not silently “corrected”.
+- A fee editor is intentionally deferred until the provider fee contract is
+  reconciled and the quote path reads one versioned source.
+
+---
+
+## 10. Support workspace
 
 Migration `0014` adds manual case management. It is not an in-app chat and does
 not pretend to be one: the Flutter support screen can only copy request details
@@ -256,7 +316,7 @@ today.
 
 ---
 
-## 10. Current limitations
+## 11. Current limitations
 
 - No SSO yet; local accounts + TOTP only.
 - No recovery-code **login** flow; a superadmin resets TOTP by resetting the
@@ -264,7 +324,12 @@ today.
 - The control room transport is 2-second polling + SSE, not database
   `LISTEN/NOTIFY` consumption. The notify trigger is ready for that change.
 - Analytics is server-rendered tables; charts and saved views are later.
-- Configuration center (fees/services/tiers/flags) is Phase D.
+- Configuration center v1 covers support contacts, tier daily limits and
+  emergency quote/trade pauses. Fee bps, provider secrets/endpoints, feature
+  flags, app banners, effective-date scheduling and per-corridor fee overrides
+  are not editable yet.
+- The app does not render the maintenance banner or pause state yet; it only
+  receives the optional `/config.service` block.
 - Settlement/reconciliation is a later phase. Bookkeeping is ledger-only until a
   statement source exists.
 - Support is a manual case workspace: no customer-facing chat, no email/WhatsApp
@@ -280,7 +345,7 @@ today.
 
 ---
 
-## 11. Tests
+## 12. Tests
 
 `server/test/admin-web.test.ts` covers:
 
@@ -298,6 +363,11 @@ today.
 - support case creation, masked phone, append-only notes, state/assignee update,
   viewer denial, canned reply create/deactivate and control-room activity that
   excludes message bodies;
+- configuration proposals for support contacts and tier limits, two-person
+  approval, self-approval denial, one-pending-change conflict, rollback,
+  published config versions and config activity without payload values;
+- emergency service controls, `SERVICE_PAUSED` enforcement on quote and trade
+  initiation, and the optional `/config.service` block;
 - PII reveal denied without `pii:reveal`, allowed with a reason for compliance,
   recorded in `support_pii_reveals`/audit/activity without the values;
 - SMS reply refused when no provider is configured, recorded as `sent` when the
@@ -306,11 +376,11 @@ today.
 - first-login TOTP enrolment and recovery-code display;
 - audit rows with the acting admin id.
 
-Suite after this phase: **105/105**, 20 suites, typecheck clean.
+Suite after this phase: **110/110**, 20 suites, typecheck clean.
 
 ---
 
-## 12. Deployment
+## 13. Deployment
 
 - Run `admin-web` as its own container/process with the same image as the API
   but `node dist/admin-web/server.js`.
@@ -322,10 +392,10 @@ Suite after this phase: **105/105**, 20 suites, typecheck clean.
 - Keep `ADMIN_API_KEY` unset in normal production if the portal is the only admin
   surface; use it only as a documented break-glass path.
 - Monitor 5xx, login failures, TOTP failures, audit insert failures, session
-  table growth, `admin_activity_events` growth and `support_case_messages` rows
-  stuck in `pending` (a gateway or process failure). The activity outbox is
-  append-only, so retention needs an explicit partitioned-table/export decision
-  rather than an ad-hoc delete.
+  table growth, `admin_activity_events` growth, support rows stuck in `pending`
+  and alert on `service_controls` pauses that outlive an incident. The activity
+  outbox is append-only, so retention needs an explicit partitioned-table/export
+  decision rather than an ad-hoc delete.
 - The control room SSE holds one connection per browser. The shared poller keeps
   database load flat, but put the portal behind a proxy that does not buffer
   `text/event-stream`.

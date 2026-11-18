@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
+import { loadServiceControls } from '../services/service-controls.js';
 
 type Queryable = Pool | PoolClient;
 
@@ -50,6 +51,12 @@ export interface AppConfigPayload {
   countries: ConfigCountry[];
   carriers: ConfigCarrier[];
   support?: ConfigSupport;
+  /** Present only while a service control or maintenance message is active. */
+  service?: {
+    quotesPaused: boolean;
+    tradesPaused: boolean;
+    message?: string;
+  };
 }
 
 async function rows(db: Queryable, text: string): Promise<Record<string, unknown>[]> {
@@ -64,49 +71,51 @@ async function rows(db: Queryable, text: string): Promise<Record<string, unknown
  * configured.
  */
 export async function loadAppConfig(db: Queryable): Promise<AppConfigPayload> {
-  const [currencies, hubs, payoutRails, countries, carriers, support] = await Promise.all([
-    rows(
-      db,
-      `SELECT code, name, country_code, decimals
-       FROM currencies
-       WHERE active
-       ORDER BY sort_order, code`,
-    ),
-    rows(
-      db,
-      `SELECT id, name, country_code
-       FROM hubs
-       WHERE active
-       ORDER BY sort_order, id`,
-    ),
-    rows(
-      db,
-      `SELECT id, name, country_code, kind
-       FROM payout_rails
-       WHERE active
-       ORDER BY sort_order, id`,
-    ),
-    rows(
-      db,
-      `SELECT code, name, dial_code, national_number_length
-       FROM countries
-       WHERE active
-       ORDER BY sort_order, code`,
-    ),
-    rows(
-      db,
-      `SELECT id, name, country_code, prefix_pattern
-       FROM carriers
-       WHERE active
-       ORDER BY country_code, sort_order, id`,
-    ),
-    rows(
-      db,
-      `SELECT email, phone, whatsapp, hours
-       FROM support_settings
-       WHERE id = 1`,
-    ),
-  ]);
+  const [currencies, hubs, payoutRails, countries, carriers, support, controls] =
+    await Promise.all([
+      rows(
+        db,
+        `SELECT code, name, country_code, decimals
+         FROM currencies
+         WHERE active
+         ORDER BY sort_order, code`,
+      ),
+      rows(
+        db,
+        `SELECT id, name, country_code
+         FROM hubs
+         WHERE active
+         ORDER BY sort_order, id`,
+      ),
+      rows(
+        db,
+        `SELECT id, name, country_code, kind
+         FROM payout_rails
+         WHERE active
+         ORDER BY sort_order, id`,
+      ),
+      rows(
+        db,
+        `SELECT code, name, dial_code, national_number_length
+         FROM countries
+         WHERE active
+         ORDER BY sort_order, code`,
+      ),
+      rows(
+        db,
+        `SELECT id, name, country_code, prefix_pattern
+         FROM carriers
+         WHERE active
+         ORDER BY country_code, sort_order, id`,
+      ),
+      rows(
+        db,
+        `SELECT email, phone, whatsapp, hours
+         FROM support_settings
+         WHERE id = 1`,
+      ),
+      loadServiceControls(db),
+    ]);
 
   const payload: AppConfigPayload = {
     currencies: currencies.map((row) => ({
@@ -148,6 +157,14 @@ export async function loadAppConfig(db: Queryable): Promise<AppConfigPayload> {
       if (value !== null && value !== undefined) supportPayload[key] = String(value);
     }
     if (Object.keys(supportPayload).length > 0) payload.support = supportPayload;
+  }
+
+  if (controls.quotesPaused || controls.tradesPaused || controls.message) {
+    payload.service = {
+      quotesPaused: controls.quotesPaused,
+      tradesPaused: controls.tradesPaused,
+      ...(controls.message ? { message: controls.message } : {}),
+    };
   }
 
   return payload;

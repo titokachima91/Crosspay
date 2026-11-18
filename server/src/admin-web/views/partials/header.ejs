@@ -15,6 +15,7 @@
     <a href="/" class="<%= active === 'overview' ? 'active' : '' %>">Overview</a>
     <a href="/control-room" class="<%= active === 'control' ? 'active' : '' %>">Control room</a>
     <a href="/analytics" class="<%= active === 'analytics' ? 'active' : '' %>">Analytics</a>
+    <% if (typeof can !== 'undefined' && can.configRead) { %><a href="/config" class="<%= active === 'config' ? 'active' : '' %>">Configuration</a><% } %>
     <a href="/corridors" class="<%= active === 'corridors' ? 'active' : '' %>">Corridors</a>
     <a href="/liquidity" class="<%= active === 'liquidity' ? 'active' : '' %>">Liquidity</a>
     <a href="/trades" class="<%= active === 'trades' ? 'active' : '' %>">Trades</a>

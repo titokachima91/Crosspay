@@ -1,0 +1,81 @@
+<%- include('partials/header', { title: change.configKey, user, csrf, active: 'config', notice, error, can }) %>
+<div class="panel">
+  <div class="panel-head">
+    <h2 class="mono"><%= change.configKey %></h2>
+    <span class="pill <%= change.status === 'approved' ? 'ok' : change.status === 'pending' ? 'warn' : 'bad' %>"><%= change.status %></span>
+    <% if (change.configVersion) { %><span class="pill">version <%= change.configVersion %></span><% } %>
+    <a class="button small" href="/config">Back</a>
+  </div>
+  <div class="detail-grid">
+    <div class="detail"><div class="k">Proposed by</div><div class="v"><%= change.proposedByName || change.proposedByEmail || '—' %><div class="tag"><%= change.createdAt.replace('T', ' ').slice(0, 16) %></div></div></div>
+    <div class="detail"><div class="k">Decided by</div><div class="v"><%= change.decidedByName || change.decidedByEmail || '—' %><div class="tag"><%= change.decidedAt ? change.decidedAt.replace('T', ' ').slice(0, 16) : '' %></div></div></div>
+    <div class="detail"><div class="k">Applied</div><div class="v"><%= change.appliedAt ? change.appliedAt.replace('T', ' ').slice(0, 16) : '—' %></div></div>
+    <div class="detail"><div class="k">Config version</div><div class="v"><%= change.configVersion || '—' %></div></div>
+  </div>
+  <h3>Reason</h3>
+  <p><%= change.reason %></p>
+  <% if (change.decisionNote) { %><h3>Decision note</h3><p><%= change.decisionNote %></p><% } %>
+
+  <div class="grid two" style="margin-top:16px">
+    <div>
+      <h3>Before</h3>
+      <pre class="code-block"><%= JSON.stringify(change.before, null, 2) %></pre>
+    </div>
+    <div>
+      <h3>After</h3>
+      <pre class="code-block"><%= JSON.stringify(change.after, null, 2) %></pre>
+    </div>
+  </div>
+</div>
+
+<% if (change.status === 'pending') { %>
+<div class="grid two" style="margin-top:16px">
+  <div class="panel">
+    <div class="panel-head"><h2>Approve</h2></div>
+    <% if (canApprove) { %>
+    <form method="post" action="/config/changes/<%= change.id %>/approve" data-confirm="Approve and apply this configuration change now?">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <label for="approve-note">Decision note (optional)</label>
+      <input id="approve-note" name="note" maxlength="300">
+      <p class="tag">Approval applies the value and publishes a new config version. A config change is not a money movement and cannot edit a journal.</p>
+      <button class="primary">Approve and apply</button>
+    </form>
+    <% } else if (change.proposedById === user.id) { %>
+      <p class="tag">You proposed this change. A different finance or superadmin must approve it.</p>
+    <% } else { %>
+      <p class="tag">Your role can read configuration but not approve it.</p>
+    <% } %>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>Reject or cancel</h2></div>
+    <% if (can.configApprove) { %>
+    <form method="post" action="/config/changes/<%= change.id %>/reject">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <label for="reject-note">Why reject?</label>
+      <input id="reject-note" name="note" maxlength="300" placeholder="Optional note">
+      <button class="danger">Reject</button>
+    </form>
+    <% } %>
+    <% if (canCancel) { %>
+    <form method="post" action="/config/changes/<%= change.id %>/cancel" style="margin-top:12px">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button>Cancel proposal</button>
+    </form>
+    <% } %>
+  </div>
+</div>
+<% } %>
+
+<% if (change.status === 'approved' && canRollback) { %>
+<div class="panel" style="margin-top:16px">
+  <div class="panel-head"><h2>Rollback</h2><span class="tag">creates a new proposal, not a silent write</span></div>
+  <form method="post" action="/config/changes/<%= change.id %>/rollback">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label for="rollback-reason">Reason for rollback</label>
+    <input id="rollback-reason" name="reason" required minlength="10" maxlength="300" placeholder="Why the previous value should be restored">
+    <p class="tag">The rollback becomes a new pending change. A different finance/superadmin must approve it.</p>
+    <button class="danger">Propose rollback</button>
+  </form>
+</div>
+<% } %>
+<%- include('partials/footer') %>

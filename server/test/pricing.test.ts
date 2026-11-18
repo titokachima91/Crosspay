@@ -287,6 +287,35 @@ describe('B2.2 pricing, estimate and quote', () => {
     assert.deepEqual(routes.rows.map((row) => row.route), ['bank', 'p2p']);
   });
 
+  it('pauses new quotes without blocking rates or existing quotes', async () => {
+    const before = await quoteCount();
+    await db.pool.query(
+      `UPDATE service_controls
+       SET quotes_paused = true, message = 'Quote window paused for maintenance'
+       WHERE id = 1`,
+    );
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/trade/quote',
+        headers: auth(verifiedToken),
+        payload: { sendCurrency: 'TZS', receiveCurrency: 'KES', sendAmountMinor: 1_000_000 },
+      });
+      assert.equal(response.statusCode, 503);
+      const body = response.json() as { error: { code: string; message: string } };
+      assert.equal(body.error.code, 'SERVICE_PAUSED');
+      assert.equal(body.error.message, 'Quote window paused for maintenance');
+      assert.equal(await quoteCount(), before);
+
+      const rates = await app.inject({ method: 'GET', url: '/api/v1/rates' });
+      assert.equal(rates.statusCode, 200);
+    } finally {
+      await db.pool.query(
+        `UPDATE service_controls SET quotes_paused = false, message = null WHERE id = 1`,
+      );
+    }
+  });
+
   it('rejects unverified, over-limit and unapproved corridors without storing a quote', async () => {
     const before = await quoteCount();
 

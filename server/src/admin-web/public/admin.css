@@ -139,7 +139,8 @@ label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px
 .thread-item.internal { border-left: 3px solid var(--warn); }
 .thread-item.customer { border-left: 3px solid var(--ok); }
 .thread-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
-.thread-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.55; }.detail { background: #0d1319; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.thread-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.55; }
+.code-block { background: #0b1117; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow: auto; font-size: 12px; line-height: 1.55; max-height: 360px; }.detail { background: #0d1319; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 .detail .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .07em; }
 .detail .v { font-weight: 600; margin-top: 2px; word-break: break-word; }
 details summary { cursor: pointer; color: var(--muted); }

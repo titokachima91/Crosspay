@@ -43,6 +43,7 @@ import {
 } from '../../trades.js';
 import { refundTrade } from '../../payments.js';
 import { tryMatchTrade } from '../../matching.js';
+import { assertTradesOpen } from '../../services/service-controls.js';
 
 const accountSchema = z
   .string()
@@ -169,6 +170,7 @@ function tradeError(
 export function registerTradeRoutes(app: FastifyInstance, ctx: AppContext): void {
   app.post('/trade/initiate', async (request, reply) => {
     const userId = requireUserId(request);
+    await assertTradesOpen(ctx.pool);
     const key = requireIdempotencyKey(request);
     const body = parseBody(initiateSchema, request.body);
     const normalizedAccount = normalizeAccount(body.recipient.account);

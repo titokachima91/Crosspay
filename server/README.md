@@ -12,8 +12,8 @@ Node.js + TypeScript service for CrossPay.
 - **B2.4** — payouts, refunds and signed provider callbacks. Built 2026-11-16.
 - **B4** — P2P matching, LP standing orders, exposure controls, Phase A ops
   admin and the named-admin web portal with live control room, windowed
-  analytics, read-only bookkeeping and a manual support workspace. Built
-  2026-11-17.
+  analytics, read-only bookkeeping, configuration v1 and a manual support
+  workspace. Built 2026-11-18.
 
 The Flutter app remains the only client contract. `docs/api_contract.md` is the
 contract of record. The B1 plan is `docs/B1_DATABASE_PLAN.md`; the build evidence
@@ -144,9 +144,10 @@ lifecycle, trade timeline, idempotency race, ledger balance rules, append-only
 guards, encryption, OTP limits, refresh rotation, the HTTP bootstrap,
 collections, payouts, refunds, signed callbacks, P2P matching, LP liquidity,
 admin policy controls, admin portal auth/RBAC/live control room/bookkeeping,
-support cases with audited PII reveal and SMS gating, market depth, analytics,
+support cases with audited PII reveal and SMS gating, versioned configuration
+with two-person approval, emergency quote/trade pauses, market depth, analytics,
 CSV export and the reconciliation worker.
-**105 tests pass.** No Docker or local PostgreSQL installation is required.
+**110 tests pass.** No Docker or local PostgreSQL installation is required.
 
 Live provider smokes (with the sandbox running):
 
@@ -175,9 +176,11 @@ npm run build && npm run admin:start
 The portal is documented in `docs/ADMIN_WEB_IMPLEMENTATION.md`. It uses named
 admin users, Argon2id, TOTP, HttpOnly sessions, CSRF and RBAC. The control room
 streams a trigger-fed activity outbox over SSE, analytics has time windows,
-bookkeeping is a read-only trial balance/journal browser, and support has
-append-only cases, audited PII reveal and provider-gated SMS replies. Put it
-behind a zero-trust proxy or VPN and a separate `admin.` hostname in production.
+bookkeeping is a read-only trial balance/journal browser, support has
+append-only cases with audited PII reveal and provider-gated SMS replies, and
+configuration has versioned two-person changes plus superadmin emergency pauses.
+Put it behind a zero-trust proxy or VPN and a separate `admin.` hostname in
+production.
 
 `npm run verify` is for a real database. It checks migration state, the five
 `/config` lists, payout-rail kinds, seeded rows and ledger balance.
@@ -254,10 +257,11 @@ behind a zero-trust proxy or VPN and a separate `admin.` hostname in production.
 
 ## Next step
 
-1. Build the configuration center and settlement/reconciliation phases in
-   `docs/ADMIN_PANEL_PLAN.md`.
+1. Finish the configuration center: provider settings, feature flags, app
+   banners, effective-date scheduling and the fee editor after provider
+   reconciliation.
 2. Connect approved bank payout rails and name-check/KYC adapters.
-3. Add invoice/share handlers; analytics, CSV export, support cases and
-   bookkeeping are live.
+3. Add invoice/share handlers; analytics, CSV export, support cases,
+   bookkeeping and configuration v1 are live.
 4. Replace the sandbox adapter with approved real providers when contracts
    exist.

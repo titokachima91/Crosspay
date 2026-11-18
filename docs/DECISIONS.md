@@ -224,3 +224,26 @@ Support workspace
 - Support does not mark payments paid, edit journals, promise refunds or bypass
   KYC. Money actions stay on the trade/refund screens under their own
   permission.
+
+Configuration center
+- Configuration changes are immutable proposals with `before`/`after`, a reason
+  and one pending change per setting. Approval applies the value and publishes
+  the next config version in one transaction; rejection/cancellation never
+  applies it.
+- Two named admins are required for support contacts and tier limits. The
+  proposer cannot approve their own change. Rollback is a new proposal, not a
+  silent write.
+- Emergency service controls are the deliberate exception: a superadmin can
+  pause new quotes/trades immediately because incidents cannot wait for a second
+  approver. They are audited, emitted to the control room and do not stop
+  existing payouts, refunds or matches.
+- A paused quote/trade returns `503 SERVICE_PAUSED` with the operator message.
+  Rates and estimates remain available so the app can still explain the market.
+- Tier limits are enforced in the account's limit currency only; there is no FX
+  conversion of limits. A missing limit means no approved limit, not “unlimited”.
+- Fees remain provider-owned. The admin observes provider `feeBps` and compares
+  it with the declared 150/250 policy but does not override it. A fee editor
+  would need one reconciled source in the quote path first.
+- The optional `/config.service` block is additive and ignored by the current
+  Flutter parser; the app maintenance banner is a follow-up, not a claim that the
+  UI is connected.

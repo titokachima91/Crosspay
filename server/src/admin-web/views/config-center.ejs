@@ -1,0 +1,181 @@
+<%- include('partials/header', { title: 'Configuration', user, csrf, active: 'config', notice, error, can }) %>
+<% const fmtMinor = (value) => { try { return BigInt(value).toLocaleString('en-US'); } catch { return String(value); } }; %>
+
+<div class="grid two">
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Service controls</h2>
+      <span class="pill <%= data.controls.quotesPaused ? 'bad' : 'ok' %>">quotes <%= data.controls.quotesPaused ? 'paused' : 'open' %></span>
+      <span class="pill <%= data.controls.tradesPaused ? 'bad' : 'ok' %>">trades <%= data.controls.tradesPaused ? 'paused' : 'open' %></span>
+    </div>
+    <% if (data.controls.message) { %><div class="notice error"><%= data.controls.message %></div><% } %>
+    <% if (can.configControl) { %>
+    <form method="post" action="/config/service-controls" data-confirm="Apply these emergency service controls immediately? Existing payouts, refunds and matches continue.">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="row">
+        <div class="shrink"><label><input type="checkbox" name="quotesPaused" value="true" <%= data.controls.quotesPaused ? 'checked' : '' %>> Pause new quotes</label></div>
+        <div class="shrink"><label><input type="checkbox" name="tradesPaused" value="true" <%= data.controls.tradesPaused ? 'checked' : '' %>> Pause new trades</label></div>
+      </div>
+      <label for="service-message">Message returned to the app</label>
+      <input id="service-message" name="message" maxlength="300" value="<%= data.controls.message || '' %>" placeholder="Short maintenance message">
+      <button class="danger">Apply controls</button>
+    </form>
+    <p class="tag">Emergency control only: applied immediately by a superadmin, audited, and shown in the control room. Existing payouts, refunds and matches keep running. The API advertises the state in <span class="mono">GET /config</span>; the app banner UI is not connected yet.</p>
+    <% } else { %>
+    <p class="tag">Only a superadmin can change emergency service controls. Current state is read-only here.</p>
+    <% } %>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Fees are provider-owned</h2><span class="pill">read-only</span></div>
+    <p class="tag">Quotes are priced by the pricing provider. The admin does not override <span class="mono">feeBps</span> here, because a second fee source could disagree with the quote the customer accepted.</p>
+    <table>
+      <thead><tr><th>Route</th><th>Declared policy</th><th>Observed providers</th><th>Status</th></tr></thead>
+      <tbody>
+        <% for (const route of ['p2p','bank']) { %>
+          <% const rows = data.observedFees.filter((fee) => fee.route === route); %>
+          <tr>
+            <td><strong><%= route %></strong></td>
+            <td><%= declaredFees[route] %> bps</td>
+            <td>
+              <% if (rows.length === 0) { %><span class="tag">No quotes in the last 7 days</span><% } else { %>
+                <table style="margin:0"><tbody>
+                <% for (const fee of rows) { %>
+                  <tr><td><%= fee.sendCurrency %> → <%= fee.receiveCurrency %></td><td class="num"><%= fee.minBps === fee.maxBps ? fee.minBps : fee.minBps + '–' + fee.maxBps %> bps</td><td class="num tag"><%= fee.quotes %> quotes</td></tr>
+                <% } %>
+                </tbody></table>
+              <% } %>
+            </td>
+            <td>
+              <% if (rows.length === 0) { %><span class="pill">unknown</span><% } else if (rows.every((fee) => fee.minBps === declaredFees[route] && fee.maxBps === declaredFees[route])) { %><span class="pill ok">matches</span><% } else { %><span class="pill warn">differs</span><% } %>
+            </td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+    <p class="tag">A fee policy becomes editable only after the provider contract is reconciled and the quote path reads one versioned source.</p>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <div class="panel-head"><h2>Waiting for approval</h2><span class="tag">one pending change per setting</span></div>
+  <% if (data.pending.length === 0) { %><div class="empty">No pending changes.</div><% } else { %>
+  <table>
+    <thead><tr><th>Setting</th><th>Proposed by</th><th>Reason</th><th>Created</th><th></th></tr></thead>
+    <tbody>
+      <% for (const change of data.pending) { %>
+      <tr>
+        <td class="mono"><a href="/config/changes/<%= change.id %>"><%= change.configKey %></a></td>
+        <td><%= change.proposedByName || change.proposedByEmail || '—' %></td>
+        <td><%= change.reason %></td>
+        <td><%= change.createdAt.replace('T', ' ').slice(0, 16) %></td>
+        <td><a class="button small" href="/config/changes/<%= change.id %>">Review</a></td>
+      </tr>
+      <% } %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+
+<div class="grid two" style="margin-top:16px">
+  <div class="panel">
+    <div class="panel-head"><h2>Support contacts</h2><span class="tag">app-visible</span></div>
+    <div class="detail-grid">
+      <div class="detail"><div class="k">Email</div><div class="v"><%= data.support.email || '—' %></div></div>
+      <div class="detail"><div class="k">Phone</div><div class="v"><%= data.support.phone || '—' %></div></div>
+      <div class="detail"><div class="k">WhatsApp</div><div class="v"><%= data.support.whatsapp || '—' %></div></div>
+      <div class="detail"><div class="k">Hours</div><div class="v"><%= data.support.hours || '—' %></div></div>
+    </div>
+    <% if (can.configPropose) { %>
+    <form method="post" action="/config/changes">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <input type="hidden" name="kind" value="support_contacts">
+      <div class="row">
+        <div><label for="supportEmail">Support email</label><input id="supportEmail" name="supportEmail" value="<%= data.support.email || '' %>" autocomplete="off"></div>
+        <div><label for="supportPhone">Support phone</label><input id="supportPhone" name="supportPhone" value="<%= data.support.phone || '' %>" autocomplete="off"></div>
+      </div>
+      <div class="row">
+        <div><label for="supportWhatsapp">WhatsApp</label><input id="supportWhatsapp" name="supportWhatsapp" value="<%= data.support.whatsapp || '' %>" autocomplete="off"></div>
+        <div><label for="supportHours">Hours</label><input id="supportHours" name="supportHours" value="<%= data.support.hours || '' %>" autocomplete="off"></div>
+      </div>
+      <label for="support-reason">Reason for change</label>
+      <input id="support-reason" name="reason" required minlength="10" maxlength="300" placeholder="Why this should change">
+      <p class="tag">Leave every field blank to remove the support block from the app. A different finance/superadmin must approve.</p>
+      <button class="primary">Propose support contacts</button>
+    </form>
+    <% } %>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Tier daily limits</h2><span class="tag">minor units, per currency</span></div>
+    <% if (data.limits.length === 0) { %><div class="empty">No approved daily limits. Trading is blocked until a limit exists.</div><% } else { %>
+    <table>
+      <thead><tr><th>Tier</th><th>Currency</th><th class="num">Daily limit</th></tr></thead>
+      <tbody>
+        <% for (const limit of data.limits) { %>
+        <tr><td><strong><%= limit.tierName %></strong><div class="tag"><%= limit.tierCode %></div></td><td><%= limit.currency %></td><td class="num"><%= fmtMinor(limit.dailyLimitMinor) %></td></tr>
+        <% } %>
+      </tbody>
+    </table>
+    <% } %>
+    <% if (can.configPropose) { %>
+    <div class="divider"></div>
+    <form method="post" action="/config/changes">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <input type="hidden" name="kind" value="tier_limit">
+      <div class="row">
+        <div><label for="tierCode">Tier</label>
+          <select id="tierCode" name="tierCode">
+            <% for (const tier of data.tiers) { %><option value="<%= tier.code %>"><%= tier.name %> · <%= tier.code %></option><% } %>
+          </select>
+        </div>
+        <div><label for="currency">Currency</label>
+          <select id="currency" name="currency">
+            <% for (const currency of data.currencies) { %><option value="<%= currency.code %>"><%= currency.code %> · <%= currency.name %></option><% } %>
+          </select>
+        </div>
+        <div><label for="dailyLimitMinor">Daily limit (minor)</label><input id="dailyLimitMinor" name="dailyLimitMinor" inputmode="numeric" placeholder="Blank removes the limit"></div>
+      </div>
+      <label for="limit-reason">Reason for change</label>
+      <input id="limit-reason" name="reason" required minlength="10" maxlength="300" placeholder="Risk approval, policy change, incident">
+      <p class="tag">Limits are enforced only when the account's limit currency matches the trade currency. There is no FX conversion. Blank means no approved limit, which blocks trades.</p>
+      <button class="primary">Propose daily limit</button>
+    </form>
+    <% } %>
+  </div>
+</div>
+
+<div class="grid two" style="margin-top:16px">
+  <div class="panel">
+    <div class="panel-head"><h2>Recent decisions</h2></div>
+    <% if (data.recent.length === 0) { %><div class="empty">No decisions yet.</div><% } else { %>
+    <table>
+      <thead><tr><th>Setting</th><th>Status</th><th>Version</th><th>Decided by</th><th></th></tr></thead>
+      <tbody>
+        <% for (const change of data.recent) { %>
+        <tr>
+          <td class="mono"><%= change.configKey %></td>
+          <td><span class="pill <%= change.status === 'approved' ? 'ok' : 'bad' %>"><%= change.status %></span></td>
+          <td><%= change.configVersion || '—' %></td>
+          <td><%= change.decidedByName || change.decidedByEmail || '—' %><div class="tag"><%= change.decidedAt ? change.decidedAt.replace('T', ' ').slice(0, 16) : '' %></div></td>
+          <td><a class="button small" href="/config/changes/<%= change.id %>">Open</a></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Published versions</h2><span class="tag">config_versions</span></div>
+    <table>
+      <thead><tr><th>Version</th><th>Notes</th><th>Published</th></tr></thead>
+      <tbody>
+        <% for (const version of data.versions) { %>
+        <tr><td><strong><%= version.version %></strong></td><td><%= version.notes || '' %></td><td><%= version.publishedAt.replace('T', ' ').slice(0, 16) %></td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('partials/footer') %>

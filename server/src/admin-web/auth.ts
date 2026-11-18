@@ -20,7 +20,11 @@ export type AdminPermission =
   | 'ledger:read'
   | 'support:read'
   | 'support:write'
-  | 'pii:reveal';
+  | 'pii:reveal'
+  | 'config:read'
+  | 'config:propose'
+  | 'config:approve'
+  | 'config:control';
 
 const PERMISSIONS: Record<AdminPermission, AdminRole[]> = {
   view: ['viewer', 'ops', 'finance', 'compliance', 'superadmin'],
@@ -34,6 +38,10 @@ const PERMISSIONS: Record<AdminPermission, AdminRole[]> = {
   'support:read': ['ops', 'compliance', 'superadmin'],
   'support:write': ['ops', 'compliance', 'superadmin'],
   'pii:reveal': ['compliance', 'superadmin'],
+  'config:read': ['ops', 'finance', 'superadmin'],
+  'config:propose': ['ops', 'finance', 'superadmin'],
+  'config:approve': ['finance', 'superadmin'],
+  'config:control': ['superadmin'],
 };
 
 export interface AdminSession {

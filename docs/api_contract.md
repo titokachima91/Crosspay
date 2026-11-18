@@ -35,7 +35,9 @@ Conventions
   "carriers":    [ { "id": "<id>", "name": "<name>", "countryCode": "<2 letters>",
                      "prefixPattern": "<regex matched from the START of the national number>" } ],
   "support":     { "email": "<address>", "phone": "<number>", "whatsapp": "<number>",
-                   "hours": "<free text>" }   (optional, every field optional)
+                   "hours": "<free text>" },   (optional, every field optional)
+  "service":     { "quotesPaused": <bool>, "tradesPaused": <bool>,
+                   "message": "<short operator message>" }   (optional)
 }
 All five lists are required (they may be empty). The first country listed is
 the default on the phone screen. Carrier matching is a suggestion only.
@@ -43,6 +45,10 @@ the default on the phone screen. Carrier matching is a suggestion only.
 desk exists; the app then says support contact options are not available yet
 instead of inventing an address or number. The app only offers copy actions
 today; in-app message submission is not connected.
+`service` is optional and appears only while an emergency pause or operator
+message is active. The current Flutter parser ignores it; the app maintenance
+banner is not connected yet. The pause itself is enforced by the quote and trade
+endpoints with `503 SERVICE_PAUSED`.
 
 ## GET /api/v1/rates   (no login)
 {
@@ -254,6 +260,9 @@ Response:
 - The lock lasts until expiresAt; nothing in the app assumes a duration. The
   app corrects its countdown with serverTime, so a wrong phone clock cannot
   stretch or cut the lock.
+- While new quotes are paused by an operator, the endpoint returns
+  `503 SERVICE_PAUSED` with the operator message. Rates and estimates remain
+  available.
 - Fees are added on top: totalDebitMinor = sendAmountMinor + feeMinor, and
   payoutMinor is never reduced by fees.
 - Codes the app translates today. Route status: high_matching_density,
@@ -326,6 +335,9 @@ Response:
   `503 PAYOUT_NOT_CONFIGURED`; it never starts a simulated collection. Estimate
   and quote require a configured pricing provider and return
   `503 PRICING_NOT_CONFIGURED` without one.
+- While new trades are paused by an operator, initiate returns
+  `503 SERVICE_PAUSED` with the operator message and does not consume the quote.
+  Existing payouts, refunds and matches continue.
 
 Trade object:
 {

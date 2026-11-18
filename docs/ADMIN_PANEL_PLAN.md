@@ -74,7 +74,7 @@ customer's full PII without a permissioned, audited reveal.
 | A. Ops read + narrow controls | Overview, queue, matches, payouts, refunds, corridors, LP orders; env admin key; audit writes | Built |
 | B. Admin identity and RBAC | Admin users, passwords + TOTP, sessions, roles, CSRF, IP allowlist, audit log UI | Built for local accounts; SSO/IP allowlist are deployment follow-ups |
 | C. Control room and analytics | Real-time redacted activity feed, SLOs, funnel/corridor/provider/liquidity/support analytics, saved views, exports | Built for feed/windows/funnel/revenue; saved views and charts remain |
-| D. Configuration center | Services, fees, spreads, tiers/limits, provider settings, feature flags, maintenance, staged rollout/rollback | Every change is versioned and approved |
+| D. Configuration center | Services, fees, spreads, tiers/limits, provider settings, feature flags, maintenance, staged rollout/rollback | Versioned approval for support contacts/tier limits and emergency quote/trade pauses built; fee editor, provider secrets, flags/banners and effective dates remain |
 | E. Bookkeeping | Chart approval, journal browser, trial balance, revenue/cost reports, operating-cash transfers | Read-only journal browser/trial balance built; chart approval and reports remain |
 | F. Settlement and reconciliation | Provider statements, bank/PSP statement import or API, matching, exceptions, daily close | One clean end-to-end settlement cycle |
 | G. Support and compliance | Customer-safe support workspace, cases/notes, KYC queue, sanctions hits, PII reveal workflow | Manual cases/notes/SMS/PII reveal built; KYC and sanctions queues remain |
@@ -988,8 +988,9 @@ Cutover checklist:
 
 ## 13. B4.6 built so far
 
-**Phase A, local-account Phase B and the Phase C feed/analytics, read-only
-bookkeeping and Phase G manual support workspace are built:**
+**Phase A, local-account Phase B, the Phase C feed/analytics, read-only
+bookkeeping, Phase D configuration v1 and the Phase G manual support workspace
+are built:**
 
 - separate `admin-web` process with server-rendered pages;
 - named `admin_users`, Argon2id passwords, TOTP, encrypted secrets, recovery
@@ -1006,6 +1007,10 @@ bookkeeping and Phase G manual support workspace are built:**
 - manual support workspace: `CS-…` cases from a customer/trade, append-only
   notes, priority/status/assignee, canned replies, customer 360, masked PII,
   permissioned/reasoned PII reveal and optional provider-gated SMS replies;
+- configuration v1: versioned support-contact and tier-limit proposals,
+  two-person approval, config versions, rollback proposals, emergency
+  quote/trade pauses enforced by the API, and provider-observed fee bps shown
+  read-only;
 - trigger-fed append-only `admin_activity_events` outbox and
   `pg_notify('admin_activity')`, so every process feeds the control room;
 - ops actions: re-check, match, disburse/resume, payout retry, refund, refund
@@ -1014,7 +1019,8 @@ bookkeeping and Phase G manual support workspace are built:**
 - CLI bootstrap (`npm run admin:create`) with terminal QR and recovery codes;
 - tests for auth, replay, CSRF, RBAC, pages, stream delivery, analytics,
   bookkeeping, support masking/append-only notes/PII audit/SMS gating,
-  TOTP enrolment, last-superadmin guard and audit.
+  configuration approval/enforcement, TOTP enrolment, last-superadmin guard
+  and audit.
 
 **Not built yet:**
 
@@ -1022,10 +1028,12 @@ bookkeeping and Phase G manual support workspace are built:**
 - Recovery-code login flow.
 - `LISTEN/NOTIFY` transport (polling + SSE is live); analytics charts, saved
   views and scheduled exports.
-- Configuration center for fees/services/tiers/provider settings/feature flags.
-- Settlement/reconciliation, KYC/sanctions compliance queues, approvals,
-  SPA, IP allowlist deployment. Support has no customer-facing chat, email or
-  WhatsApp channel yet.
+- Configuration remainder: provider secrets/endpoints, feature flags, app
+  banners, effective-date scheduling, per-corridor fee overrides and a fee
+  editor pending provider reconciliation.
+- Settlement/reconciliation, KYC/sanctions compliance queues, approvals beyond
+  configuration, SPA, IP allowlist deployment. Support has no customer-facing
+  chat, email or WhatsApp channel yet.
 
 See `docs/ADMIN_WEB_IMPLEMENTATION.md` for setup and current limitations.
 
