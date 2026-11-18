@@ -4,7 +4,7 @@
 **Project**: CrossPay
 **Package**: crosspay_app
 **Environment**: macOS Monterey | Flutter 3.24.5 | Dart 3.5.4 | Node 24 | PostgreSQL 17 for the API | SQLite for the sandbox
-**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 (matching, LP liquidity, exposure, app matching states, Phase A/B/C ops admin portal, read-only bookkeeping, configuration v1, manual support workspace) complete · market depth, analytics, CSV export and the reconciliation worker complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · B4.6 configuration remainder/settlement and B3 invoice/share remain
+**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 (matching, LP liquidity, exposure, app matching states, Phase A/B/C ops admin portal, read-only bookkeeping, configuration v1, reconciliation v1, manual support workspace) complete · market depth, analytics, CSV export and the reconciliation worker complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · B4.6 live statement feeds/configuration remainder and B3 invoice/share remain
 
 ---
 
@@ -229,20 +229,21 @@ connected.
 - [x] B4.3 Two-leg payout saga and compensation
 - [x] B4.4 Corridor exposure and liquidity providers
 - [x] B4.5 App matching states
-- [x] B4.6 CrossPay ops admin / control room (Phase A + Phases B/C/D v1, read-only bookkeeping and manual support workspace)
+- [x] B4.6 CrossPay ops admin / control room (Phase A + Phases B/C/D v1/F v1, read-only bookkeeping and manual support workspace)
 
 **B4.4**: per-corridor exposure view, min/max bounds, allowlisted pre-funded
 liquidity providers with standing orders, prefund/return journals, LP matching
-and exact capacity release on failure. **B4.6 Phase A/B/C/Dv1/G**: separate
+and exact capacity release on failure. **B4.6 Phase A/B/C/Dv1/Fv1/G**: separate
 `admin-web` portal, named admins, Argon2id, TOTP, server-side sessions, CSRF,
 RBAC, org pages, audit and safe ops actions; trigger-fed append-only activity
 outbox with an SSE control room, windowed analytics and funnel/revenue/provider
 views; read-only debit-positive trial balance and journal browser; versioned
 support-contact/tier-limit proposals with two-person approval, emergency
-quote/trade pauses and read-only provider fee observation; manual support cases
-with append-only notes, customer 360, canned replies, audited PII reveal and
-provider-gated SMS replies. The configuration remainder (fees/provider
-settings/flags/banners), settlement/reconciliation and compliance queues remain
+quote/trade pauses and read-only provider fee observation; manual provider/bank
+statement import with exact matching, typed exceptions and final daily close;
+manual support cases with append-only notes, customer 360, canned replies,
+audited PII reveal and provider-gated SMS replies. Live statement feeds,
+configuration remainder, compliance queues and bank balance matching remain
 planned in `docs/ADMIN_PANEL_PLAN.md`; current portal details in
 `docs/ADMIN_WEB_IMPLEMENTATION.md`.
 
@@ -524,8 +525,9 @@ Next, in order:
 1. **B4.6 configuration remainder** — provider settings/secrets, feature flags,
    app banners, effective-date scheduling, fee editor after provider
    reconciliation, analytics charts.
-2. **B4.6 Phase E/F** — settlement/reconciliation, statement import and
-   compliance queues (read-only bookkeeping and support cases are built).
+2. **B4.6 reconciliation remainder** — live provider/bank feeds, file upload,
+   missing-in-statement detection, fee-line matching, correction/re-open and
+   bank balance matching; then compliance queues.
 3. **Bank payouts and KYC/name-check adapters** — mobile-money payout, refunds,
    callbacks, matching and the reconciliation worker are built; bank rails need
    an approved partner account contract.

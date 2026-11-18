@@ -21,6 +21,7 @@
     <a href="/trades" class="<%= active === 'trades' ? 'active' : '' %>">Trades</a>
     <% if (typeof can !== 'undefined' && can.support) { %><a href="/support" class="<%= active === 'support' ? 'active' : '' %>">Support</a><% } %>
     <% if (typeof can !== 'undefined' && can.ledger) { %><a href="/bookkeeping" class="<%= active === 'bookkeeping' ? 'active' : '' %>">Bookkeeping</a><% } %>
+    <% if (typeof can !== 'undefined' && can.reconciliation) { %><a href="/reconciliation" class="<%= active === 'reconciliation' ? 'active' : '' %>">Reconciliation</a><% } %>
     <% if (typeof can !== 'undefined' && can.audit) { %><a href="/audit" class="<%= active === 'audit' ? 'active' : '' %>">Audit</a><% } %>
     <% if (typeof can !== 'undefined' && can.users) { %><a href="/admin-users" class="<%= active === 'users' ? 'active' : '' %>">Admin users</a><% } %>
   </nav>

@@ -76,7 +76,7 @@ customer's full PII without a permissioned, audited reveal.
 | C. Control room and analytics | Real-time redacted activity feed, SLOs, funnel/corridor/provider/liquidity/support analytics, saved views, exports | Built for feed/windows/funnel/revenue; saved views and charts remain |
 | D. Configuration center | Services, fees, spreads, tiers/limits, provider settings, feature flags, maintenance, staged rollout/rollback | Versioned approval for support contacts/tier limits and emergency quote/trade pauses built; fee editor, provider secrets, flags/banners and effective dates remain |
 | E. Bookkeeping | Chart approval, journal browser, trial balance, revenue/cost reports, operating-cash transfers | Read-only journal browser/trial balance built; chart approval and reports remain |
-| F. Settlement and reconciliation | Provider statements, bank/PSP statement import or API, matching, exceptions, daily close | One clean end-to-end settlement cycle |
+| F. Settlement and reconciliation | Provider statements, bank/PSP statement import or API, matching, exceptions, daily close | Manual CSV import, exact reference/journal matching, exceptions and final close built; live feeds, bank balance matching and missing-in-statement detection remain |
 | G. Support and compliance | Customer-safe support workspace, cases/notes, KYC queue, sanctions hits, PII reveal workflow | Manual cases/notes/SMS/PII reveal built; KYC and sanctions queues remain |
 | H. Sandbox mirror removal | Remove testing-only `CROSSPAY` book and docs | E and F pass in production/sandbox |
 
@@ -989,8 +989,8 @@ Cutover checklist:
 ## 13. B4.6 built so far
 
 **Phase A, local-account Phase B, the Phase C feed/analytics, read-only
-bookkeeping, Phase D configuration v1 and the Phase G manual support workspace
-are built:**
+bookkeeping, Phase D configuration v1, Phase F reconciliation v1 and the Phase G
+manual support workspace are built:**
 
 - separate `admin-web` process with server-rendered pages;
 - named `admin_users`, Argon2id passwords, TOTP, encrypted secrets, recovery
@@ -1011,6 +1011,10 @@ are built:**
   two-person approval, config versions, rollback proposals, emergency
   quote/trade pauses enforced by the API, and provider-observed fee bps shown
   read-only;
+- reconciliation v1: append-only manual provider/bank statement import,
+  exact reference/amount/currency or posting-key matching, typed exceptions,
+  required resolution notes, blocked close while exceptions are open, and a
+  final per-statement daily close;
 - trigger-fed append-only `admin_activity_events` outbox and
   `pg_notify('admin_activity')`, so every process feeds the control room;
 - ops actions: re-check, match, disburse/resume, payout retry, refund, refund
@@ -1031,9 +1035,12 @@ are built:**
 - Configuration remainder: provider secrets/endpoints, feature flags, app
   banners, effective-date scheduling, per-corridor fee overrides and a fee
   editor pending provider reconciliation.
-- Settlement/reconciliation, KYC/sanctions compliance queues, approvals beyond
-  configuration, SPA, IP allowlist deployment. Support has no customer-facing
-  chat, email or WhatsApp channel yet.
+- Reconciliation remainder: live provider/bank feeds, file upload, automatic
+  missing-in-statement detection, fee-line matching, correction/re-open and bank
+  balance matching.
+- KYC/sanctions compliance queues, approvals beyond configuration, SPA, IP
+  allowlist deployment. Support has no customer-facing chat, email or WhatsApp
+  channel yet.
 
 See `docs/ADMIN_WEB_IMPLEMENTATION.md` for setup and current limitations.
 

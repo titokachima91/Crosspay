@@ -1,0 +1,92 @@
+<%- include('partials/header', { title: 'Reconciliation', user, csrf, active: 'reconciliation', notice, error, can }) %>
+<% const fmtMinor = (value) => { try { return BigInt(value).toLocaleString('en-US'); } catch { return String(value); } }; %>
+
+<div class="kpis">
+  <div class="kpi"><div class="label">Open statements</div><div class="value"><%= data.summary.openStatements %></div><div class="hint">imported, not closed</div></div>
+  <div class="kpi"><div class="label">Closed statements</div><div class="value"><%= data.summary.closedStatements %></div><div class="hint">evidence retained</div></div>
+  <div class="kpi"><div class="label">Open exceptions</div><div class="value"><%= data.summary.openExceptions %></div><div class="hint">block daily close</div></div>
+  <div class="kpi"><div class="label">All exceptions</div><div class="value"><%= data.summary.totalExceptions %></div><div class="hint">open and resolved</div></div>
+</div>
+
+<div class="notice">
+  Manual evidence only. Matching is exact provider reference, amount and currency, or an explicit CrossPay
+  <span class="mono">posting_key</span> for bank lines. An exception cannot be written off; resolving it records a note.
+  This page does not claim a bank balance was matched and does not yet auto-detect internal rows missing from a statement.
+</div>
+
+<div class="grid two">
+  <div class="panel">
+    <div class="panel-head"><h2>Import a statement</h2><span class="tag">CSV, max 5,000 lines</span></div>
+    <% if (can.reconciliationImport) { %>
+    <form method="post" action="/reconciliation/statements" data-confirm="Import this statement? Statement lines are append-only and matching is immediate.">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="row">
+        <div>
+          <label for="sourceKind">Source</label>
+          <select id="sourceKind" name="sourceKind">
+            <option value="provider">Provider statement</option>
+            <option value="bank">Bank / PSP operating account</option>
+          </select>
+        </div>
+        <div>
+          <label for="sourceLabel">Source label</label>
+          <input id="sourceLabel" name="sourceLabel" required maxlength="80" placeholder="mpesa_tz or crdb-operating">
+        </div>
+        <div>
+          <label for="currency">Currency</label>
+          <select id="currency" name="currency">
+            <% for (const currency of data.currencies) { %><option value="<%= currency.code %>"><%= currency.code %> · <%= currency.name %></option><% } %>
+          </select>
+        </div>
+      </div>
+      <label for="fileName">File / export name (optional)</label>
+      <input id="fileName" name="fileName" maxlength="200" placeholder="mpesa-2026-11-18.csv">
+      <label for="csv">CSV</label>
+      <textarea id="csv" name="csv" rows="10" required placeholder="occurred_at,reference,kind,amount_minor,currency,posting_key,description&#10;2026-11-18T10:00:00Z,PAY-123,payout,50000,TZS,,Payout&#10;2026-11-18T10:05:00Z,COL-9,collection,1010000,TZS,,Collection"></textarea>
+      <p class="tag">Required columns: occurred_at, reference, kind, amount_minor, currency. Optional: posting_key, description. Kinds: collection, payout, refund, fee, transfer, adjustment. Provider sources use the lowercase provider id; bank lines need a CrossPay posting key.</p>
+      <button class="primary">Import and match</button>
+    </form>
+    <% } else { %>
+      <p class="tag">Your role can read reconciliation evidence but not import statements.</p>
+    <% } %>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>How matching works</h2></div>
+    <ul class="tag" style="line-height:1.7">
+      <li><strong>collection:</strong> payment attempt by provider + reference; must be confirmed and have a deposit journal.</li>
+      <li><strong>payout/refund:</strong> provider reference; must be paid and have its payout/refund journal.</li>
+      <li><strong>bank/fee/transfer:</strong> an explicit posting key must resolve to a balanced journal of the same amount and currency.</li>
+      <li>Amount, currency and status mismatches become exceptions. Nothing is auto-corrected.</li>
+      <li>Only finance/superadmin can resolve or close. Compliance can read the evidence.</li>
+      <li>Closing requires every exception resolved; resolved means “investigated and noted”, not written off.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <div class="panel-head"><h2>Statements</h2><span class="tag">latest 50</span></div>
+  <% if (data.statements.length === 0) { %>
+    <div class="empty">No statements imported yet. Paste a provider or bank CSV above.</div>
+  <% } else { %>
+  <table>
+    <thead><tr><th>Source</th><th>Currency</th><th>Period</th><th class="num">Lines</th><th class="num">Matched</th><th class="num">Exceptions</th><th>Status</th><th>Imported by</th><th></th></tr></thead>
+    <tbody>
+      <% for (const statement of data.statements) { %>
+      <tr>
+        <td><strong><%= statement.sourceLabel %></strong><div class="tag"><%= statement.sourceKind %></div></td>
+        <td><%= statement.currency %></td>
+        <td><%= statement.periodStart.replace('T', ' ').slice(0, 10) %> → <%= statement.periodEnd.replace('T', ' ').slice(0, 10) %></td>
+        <td class="num"><%= statement.lineCount %></td>
+        <td class="num"><%= statement.matchedCount %></td>
+        <td class="num"><%= statement.exceptionCount %><% if (statement.openExceptions > 0) { %><div class="tag"><%= statement.openExceptions %> open</div><% } %></td>
+        <td><span class="pill <%= statement.status === 'closed' ? 'ok' : statement.openExceptions > 0 ? 'warn' : 'info' %>"><%= statement.status %></span></td>
+        <td><%= statement.importedBy || '—' %><div class="tag"><%= statement.createdAt.replace('T', ' ').slice(0, 16) %></div></td>
+        <td><a class="button small" href="/reconciliation/statements/<%= statement.id %>">Open</a></td>
+      </tr>
+      <% } %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+<%- include('partials/footer') %>

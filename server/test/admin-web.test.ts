@@ -187,6 +187,41 @@ async function supportFixture(
   return { user, tradeId };
 }
 
+async function paidPayoutWithJournal(
+  phone: string,
+  tradeReference: string,
+  providerReference: string,
+  amountMinor: string,
+): Promise<{ tradeId: string; payoutId: string; postingKey: string }> {
+  const { tradeId } = await supportFixture(phone, tradeReference);
+  const payout = await db.pool.query<{ id: string }>(
+    `INSERT INTO payouts
+       (trade_id, provider, provider_reference, amount_minor, currency_code,
+        status, completed_at)
+     VALUES ($1, 'fake', $2, $3::bigint, 'KES', 'paid', now())
+     RETURNING id`,
+    [tradeId, providerReference, amountMinor],
+  );
+  const payoutId = payout.rows[0]!.id;
+  const postingKey = `test:recon:${providerReference.toLowerCase()}`;
+  await withTransaction(db.pool, async (client) => {
+    const payable = await ledgerAccountId(client, { code: '2000', currency: 'KES' });
+    const cash = await ledgerAccountId(client, { code: '1000', currency: 'KES' });
+    await postJournal(client, {
+      postingKey,
+      kind: 'payout_sent',
+      currencyCode: 'KES',
+      tradeId,
+      payoutId,
+      lines: [
+        { accountId: payable, amountMinor: BigInt(amountMinor) },
+        { accountId: cash, amountMinor: -BigInt(amountMinor) },
+      ],
+    });
+  });
+  return { tradeId, payoutId, postingKey };
+}
+
 describe('admin portal identity and pages', () => {
   it('redirects anonymous users to login and serves the login page', async () => {
     const root = await app.inject({ method: 'GET', url: '/' });
@@ -1162,6 +1197,292 @@ describe('admin portal identity and pages', () => {
     );
     assert.equal(cleared.statusCode, 303, cleared.body);
     assert.equal((await loadAppConfig(db.pool)).service, undefined);
+  });
+
+  it('imports a provider statement, matches exact references and closes only after exceptions are resolved', async () => {
+    const finance = await createRoleUser('finance-recon@crosspay.test', 'finance');
+    const ops = await createRoleUser('ops-recon@crosspay.test', 'ops');
+    const financeLogin = await login(finance.email, PASSWORD, finance.secret);
+    const opsLogin = await login(ops.email, PASSWORD, ops.secret);
+    await paidPayoutWithJournal('+255755981001', 'CP-RECONA', 'RECON-PAY-1', '50000');
+    await paidPayoutWithJournal('+255755981002', 'CP-RECONB', 'RECON-PAY-2', '70000');
+
+    const csv = [
+      'occurred_at,reference,kind,amount_minor,currency,posting_key,description',
+      '2026-11-18T10:00:00Z,RECON-PAY-1,payout,50000,KES,,Payout one',
+      '2026-11-18T10:05:00Z,RECON-MISSING,payout,1200,KES,,Missing payout',
+      '2026-11-18T10:10:00Z,RECON-PAY-2,payout,69999,KES,,Wrong amount',
+      '2026-11-18T10:15:00Z,RECON-PAY-1,payout,50000,KES,,Duplicate line',
+    ].join('\n');
+
+    const imported = await postForm(
+      '/reconciliation/statements',
+      {
+        _csrf: financeLogin.csrf,
+        sourceKind: 'provider',
+        sourceLabel: 'fake',
+        currency: 'KES',
+        fileName: 'fake-2026-11-18.csv',
+        csv,
+      },
+      { cookie: `cp_admin_session=${financeLogin.session}` },
+    );
+    assert.equal(imported.statusCode, 303, imported.body);
+    const statementId = /\/reconciliation\/statements\/([0-9a-f-]{36})/.exec(
+      String(imported.headers.location ?? ''),
+    )?.[1];
+    assert.ok(statementId);
+
+    const header = await db.pool.query<{
+      line_count: number;
+      matched_count: number;
+      exception_count: number;
+      status: string;
+    }>(
+      `SELECT line_count, matched_count, exception_count, status
+       FROM settlement_statements WHERE id = $1`,
+      [statementId],
+    );
+    assert.deepEqual(header.rows[0], {
+      line_count: 4,
+      matched_count: 1,
+      exception_count: 3,
+      status: 'imported',
+    });
+
+    const lines = await db.pool.query<{
+      line_no: number;
+      status: string;
+      reference: string;
+      exception_kind: string | null;
+    }>(
+      `SELECT l.line_no, l.status, l.reference, e.kind AS exception_kind
+       FROM settlement_lines l
+       LEFT JOIN reconciliation_exceptions e ON e.line_id = l.id
+       WHERE l.statement_id = $1 ORDER BY l.line_no`,
+      [statementId],
+    );
+    assert.deepEqual(
+      lines.rows.map((row) => [row.line_no, row.status, row.exception_kind]),
+      [
+        [2, 'matched', null],
+        [3, 'exception', 'unmatched_reference'],
+        [4, 'exception', 'amount_mismatch'],
+        [5, 'exception', 'duplicate_reference'],
+      ],
+    );
+
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/reconciliation/statements/${statementId}`,
+      headers: { cookie: `cp_admin_session=${financeLogin.session}` },
+    });
+    assert.equal(detail.statusCode, 200, detail.body);
+    assert.match(detail.body, /RECON-PAY-1/);
+    assert.match(detail.body, /unmatched_reference/);
+
+    const blocked = await postForm(
+      `/reconciliation/statements/${statementId}/close`,
+      { _csrf: financeLogin.csrf, note: 'Attempting the close too early' },
+      { cookie: `cp_admin_session=${financeLogin.session}` },
+    );
+    assert.equal(blocked.statusCode, 409, blocked.body);
+    assert.match(blocked.body, /Resolve every open exception/);
+
+    const exceptions = await db.pool.query<{ id: string }>(
+      `SELECT id FROM reconciliation_exceptions
+       WHERE statement_id = $1 AND status = 'open' ORDER BY created_at`,
+      [statementId],
+    );
+    assert.equal(exceptions.rows.length, 3);
+    for (const [index, exception] of exceptions.rows.entries()) {
+      const resolved = await postForm(
+        `/reconciliation/exceptions/${exception.id}/resolve`,
+        { _csrf: financeLogin.csrf, note: `Investigated with provider ${index + 1}` },
+        { cookie: `cp_admin_session=${financeLogin.session}` },
+      );
+      assert.equal(resolved.statusCode, 303, resolved.body);
+    }
+
+    const closed = await postForm(
+      `/reconciliation/statements/${statementId}/close`,
+      { _csrf: financeLogin.csrf, note: 'Daily close 2026-11-18' },
+      { cookie: `cp_admin_session=${financeLogin.session}` },
+    );
+    assert.equal(closed.statusCode, 303, closed.body);
+    const closedRow = await db.pool.query<{
+      status: string;
+      closed_by_admin_id: string;
+      closed_at: Date | null;
+    }>(
+      `SELECT status, closed_by_admin_id, closed_at FROM settlement_statements WHERE id = $1`,
+      [statementId],
+    );
+    assert.equal(closedRow.rows[0]?.status, 'closed');
+    assert.ok(closedRow.rows[0]?.closed_by_admin_id);
+    assert.ok(closedRow.rows[0]?.closed_at);
+
+    const duplicate = await postForm(
+      '/reconciliation/statements',
+      {
+        _csrf: financeLogin.csrf,
+        sourceKind: 'provider',
+        sourceLabel: 'fake',
+        currency: 'KES',
+        fileName: 'fake-2026-11-18.csv',
+        csv,
+      },
+      { cookie: `cp_admin_session=${financeLogin.session}` },
+    );
+    assert.equal(duplicate.statusCode, 409, duplicate.body);
+    assert.match(duplicate.body, /already imported/);
+
+    const activity = await db.pool.query<{ event_type: string; payload: Record<string, unknown> }>(
+      `SELECT event_type, payload FROM admin_activity_events
+       WHERE source = 'reconciliation' ORDER BY id`,
+    );
+    assert.deepEqual(
+      activity.rows.map((row) => row.event_type),
+      [
+        'statement.imported',
+        'exception.resolved',
+        'exception.resolved',
+        'exception.resolved',
+        'statement.closed',
+      ],
+    );
+    assert.ok(!JSON.stringify(activity.rows).includes('Investigated with provider'));
+
+    const audit = await db.pool.query<{ action: string; count: number }>(
+      `SELECT action, count(*)::int AS count FROM admin_audit_log
+       WHERE action LIKE 'reconciliation.%'
+       GROUP BY action ORDER BY action`,
+    );
+    assert.deepEqual(
+      audit.rows.map((row) => [row.action, row.count]),
+      [
+        ['reconciliation.exception.resolve', 3],
+        ['reconciliation.statement.close', 1],
+        ['reconciliation.statement.import', 1],
+      ],
+    );
+
+    const opsDenied = await app.inject({
+      method: 'GET',
+      url: '/reconciliation',
+      headers: { cookie: `cp_admin_session=${opsLogin.session}` },
+    });
+    assert.equal(opsDenied.statusCode, 403, opsDenied.body);
+  });
+
+  it('matches bank lines only through an explicit posting key and rejects mixed-currency CSVs', async () => {
+    const finance = await createRoleUser('finance-recon-bank@crosspay.test', 'finance');
+    const financeLogin = await login(finance.email, PASSWORD, finance.secret);
+    const payout = await paidPayoutWithJournal(
+      '+255755981003',
+      'CP-RECONC',
+      'RECON-PAY-3',
+      '50000',
+    );
+
+    const csv = [
+      'occurred_at,reference,kind,amount_minor,currency,posting_key,description',
+      `2026-11-18T11:00:00Z,BANK-1,transfer,50000,KES,${payout.postingKey},Operating transfer`,
+      '2026-11-18T11:05:00Z,BANK-2,transfer,1000,KES,missing:key,Unknown journal',
+      '2026-11-18T11:10:00Z,BANK-3,transfer,2000,KES,,No posting key',
+    ].join('\n');
+
+    const imported = await postForm(
+      '/reconciliation/statements',
+      {
+        _csrf: financeLogin.csrf,
+        sourceKind: 'bank',
+        sourceLabel: 'crdb-operating',
+        currency: 'KES',
+        fileName: 'crdb-operating-2026-11-18.csv',
+        csv,
+      },
+      { cookie: `cp_admin_session=${financeLogin.session}` },
+    );
+    assert.equal(imported.statusCode, 303, imported.body);
+    const statementId = /\/reconciliation\/statements\/([0-9a-f-]{36})/.exec(
+      String(imported.headers.location ?? ''),
+    )?.[1];
+    assert.ok(statementId);
+
+    const header = await db.pool.query<{
+      line_count: number;
+      matched_count: number;
+      exception_count: number;
+    }>(
+      `SELECT line_count, matched_count, exception_count
+       FROM settlement_statements WHERE id = $1`,
+      [statementId],
+    );
+    assert.deepEqual(header.rows[0], {
+      line_count: 3,
+      matched_count: 1,
+      exception_count: 2,
+    });
+    const kinds = await db.pool.query<{ kind: string }>(
+      `SELECT e.kind FROM reconciliation_exceptions e
+       WHERE e.statement_id = $1 ORDER BY e.created_at`,
+      [statementId],
+    );
+    assert.deepEqual(
+      kinds.rows.map((row) => row.kind),
+      ['unmatched_journal', 'unsupported_line'],
+    );
+
+    const matchedLine = await db.pool.query<{
+      status: string;
+      matched_table: string;
+      matched_journal_id: string;
+    }>(
+      `SELECT status, matched_table, matched_journal_id
+       FROM settlement_lines
+       WHERE statement_id = $1 AND line_no = 2`,
+      [statementId],
+    );
+    assert.equal(matchedLine.rows[0]?.status, 'matched');
+    assert.equal(matchedLine.rows[0]?.matched_table, 'journal');
+    assert.ok(matchedLine.rows[0]?.matched_journal_id);
+
+    const mixed = await postForm(
+      '/reconciliation/statements',
+      {
+        _csrf: financeLogin.csrf,
+        sourceKind: 'bank',
+        sourceLabel: 'crdb-usd',
+        currency: 'KES',
+        csv: [
+          'occurred_at,reference,kind,amount_minor,currency,posting_key,description',
+          '2026-11-18T12:00:00Z,BANK-USD,transfer,1000,USD,,Wrong currency',
+        ].join('\n'),
+      },
+      { cookie: `cp_admin_session=${financeLogin.session}` },
+    );
+    assert.equal(mixed.statusCode, 422, mixed.body);
+    assert.match(mixed.body, /does not match statement currency/);
+
+    const exceptions = await db.pool.query<{ id: string }>(
+      `SELECT id FROM reconciliation_exceptions WHERE statement_id = $1`,
+      [statementId],
+    );
+    for (const exception of exceptions.rows) {
+      const resolved = await postForm(
+        `/reconciliation/exceptions/${exception.id}/resolve`,
+        { _csrf: financeLogin.csrf, note: 'Checked with the bank export' },
+        { cookie: `cp_admin_session=${financeLogin.session}` },
+      );
+      assert.equal(resolved.statusCode, 303, resolved.body);
+    }
+    const closed = await postForm(
+      `/reconciliation/statements/${statementId}/close`,
+      { _csrf: financeLogin.csrf, note: 'Bank export checked for the day' },
+      { cookie: `cp_admin_session=${financeLogin.session}` },
+    );
+    assert.equal(closed.statusCode, 303, closed.body);
   });
 
   it('creates a named admin and refuses to suspend the last superadmin', async () => {

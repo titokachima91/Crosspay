@@ -1,0 +1,77 @@
+<%- include('partials/header', { title: detail.statement.sourceLabel, user, csrf, active: 'reconciliation', notice, error, can }) %>
+<% const fmtMinor = (value) => { try { return BigInt(value).toLocaleString('en-US'); } catch { return String(value); } }; %>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2><%= detail.statement.sourceLabel %></h2>
+    <span class="pill"><%= detail.statement.sourceKind %></span>
+    <span class="pill"><%= detail.statement.currency %></span>
+    <span class="pill <%= detail.statement.status === 'closed' ? 'ok' : detail.statement.openExceptions > 0 ? 'warn' : 'info' %>"><%= detail.statement.status %></span>
+    <a class="button small" href="/reconciliation">Back</a>
+  </div>
+  <div class="detail-grid">
+    <div class="detail"><div class="k">Period</div><div class="v"><%= detail.statement.periodStart.replace('T', ' ').slice(0, 16) %> → <%= detail.statement.periodEnd.replace('T', ' ').slice(0, 16) %></div></div>
+    <div class="detail"><div class="k">File</div><div class="v mono"><%= detail.statement.fileName %></div></div>
+    <div class="detail"><div class="k">Lines</div><div class="v"><%= detail.statement.lineCount %></div></div>
+    <div class="detail"><div class="k">Matched</div><div class="v"><%= detail.statement.matchedCount %></div></div>
+    <div class="detail"><div class="k">Exceptions</div><div class="v"><%= detail.statement.exceptionCount %> · <%= detail.statement.openExceptions %> open</div></div>
+    <div class="detail"><div class="k">Imported by</div><div class="v"><%= detail.statement.importedBy || '—' %><div class="tag"><%= detail.statement.createdAt.replace('T', ' ').slice(0, 16) %></div></div></div>
+  </div>
+  <% if (detail.statement.status === 'closed') { %>
+    <div class="notice ok">Closed by <%= detail.statement.closedBy || '—' %> at <%= detail.statement.closedAt ? detail.statement.closedAt.replace('T', ' ').slice(0, 16) : '—' %>. Evidence is retained and cannot be rewritten.</div>
+  <% } else if (can.reconciliationClose) { %>
+    <% if (detail.statement.openExceptions > 0) { %>
+      <div class="notice error">Resolve all <%= detail.statement.openExceptions %> open exception(s) before closing. Resolving records a note; it does not write off the difference.</div>
+    <% } else { %>
+      <form method="post" action="/reconciliation/statements/<%= detail.statement.id %>/close" data-confirm="Close this statement? Closing is final; corrections require a new statement import.">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <label for="close-note">Close note</label>
+        <input id="close-note" name="note" required minlength="5" maxlength="300" placeholder="Daily close reference or context">
+        <p class="tag">Closing confirms this statement was investigated. It does not assert that a bank balance matched.</p>
+        <button class="primary">Close statement</button>
+      </form>
+    <% } %>
+  <% } else { %>
+    <p class="tag">Your role can read this evidence but not close it.</p>
+  <% } %>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <div class="panel-head"><h2>Lines and exceptions</h2><span class="tag">append-only</span></div>
+  <% if (detail.lines.length === 0) { %><div class="empty">No lines.</div><% } else { %>
+  <table>
+    <thead><tr><th>#</th><th>Occurred</th><th>Kind</th><th>Reference</th><th class="num">Amount</th><th>Match</th><th>Exception</th></tr></thead>
+    <tbody>
+      <% for (const line of detail.lines) { %>
+      <tr>
+        <td class="num"><%= line.lineNo %></td>
+        <td><%= line.occurredAt.replace('T', ' ').slice(0, 16) %></td>
+        <td><span class="pill"><%= line.kind %></span></td>
+        <td class="mono"><%= line.reference || '—' %><% if (line.description) { %><div class="tag"><%= line.description %></div><% } %></td>
+        <td class="num"><%= fmtMinor(line.amountMinor) %> <%= line.currency %></td>
+        <td>
+          <% if (line.status === 'matched') { %><span class="pill ok">matched</span><% } else { %><span class="pill bad">exception</span><% } %>
+          <% if (line.matchedTable) { %><div class="tag"><%= line.matchedTable %></div><% } %>
+          <% if (line.matchedJournalId) { %><a class="mono tag" href="/bookkeeping/journals/<%= line.matchedJournalId %>"><%= line.matchedJournalPostingKey || line.matchedJournalId %></a><% } %>
+        </td>
+        <td>
+          <% if (!line.exception) { %>—<% } else { %>
+            <span class="pill <%= line.exception.status === 'resolved' ? 'ok' : 'bad' %>"><%= line.exception.kind %></span>
+            <div class="tag"><%= line.exception.status %></div>
+            <% if (line.exception.note) { %><div class="tag"><%= line.exception.note %><% if (line.exception.resolvedBy) { %> · <%= line.exception.resolvedBy %><% } %></div><% } %>
+            <% if (line.exception.status === 'open' && can.reconciliationResolve) { %>
+            <form method="post" action="/reconciliation/exceptions/<%= line.exception.id %>/resolve" style="margin-top:6px">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <input name="note" required minlength="5" maxlength="300" placeholder="What was investigated" style="min-width:180px">
+              <button class="small">Resolve</button>
+            </form>
+            <% } %>
+          <% } %>
+        </td>
+      </tr>
+      <% } %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+<%- include('partials/footer') %>

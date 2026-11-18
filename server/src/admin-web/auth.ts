@@ -24,7 +24,11 @@ export type AdminPermission =
   | 'config:read'
   | 'config:propose'
   | 'config:approve'
-  | 'config:control';
+  | 'config:control'
+  | 'reconciliation:read'
+  | 'reconciliation:import'
+  | 'reconciliation:resolve'
+  | 'reconciliation:close';
 
 const PERMISSIONS: Record<AdminPermission, AdminRole[]> = {
   view: ['viewer', 'ops', 'finance', 'compliance', 'superadmin'],
@@ -42,6 +46,10 @@ const PERMISSIONS: Record<AdminPermission, AdminRole[]> = {
   'config:propose': ['ops', 'finance', 'superadmin'],
   'config:approve': ['finance', 'superadmin'],
   'config:control': ['superadmin'],
+  'reconciliation:read': ['finance', 'compliance', 'superadmin'],
+  'reconciliation:import': ['finance', 'superadmin'],
+  'reconciliation:resolve': ['finance', 'superadmin'],
+  'reconciliation:close': ['finance', 'superadmin'],
 };
 
 export interface AdminSession {

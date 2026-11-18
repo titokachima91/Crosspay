@@ -787,4 +787,34 @@ and compliance queues.
 
 ---
 
+## 2026-11-18 - B4.6 Phase F reconciliation v1
+
+- Migration `0016`: `settlement_statements`, append-only `settlement_lines`,
+  `reconciliation_exceptions` and the `reconciliation` activity source.
+- Manual CSV paste import for provider or bank/PSP operating-account statements,
+  scoped to one source and currency, max 5,000 lines. File hash is unique per
+  source/currency; duplicate imports are refused. Statement content and lines
+  are immutable.
+- Exact matching only: provider reference + amount + currency + terminal status
+  for collections/payouts/refunds, plus the expected journal; bank/fee/transfer
+  lines need an explicit CrossPay `posting_key` whose journal has the same
+  currency and debit total.
+- Typed exceptions: unmatched reference, amount/currency/status mismatch,
+  missing journal, duplicate reference, unmatched journal, unsupported line.
+  Nothing is auto-corrected.
+- Finance/superadmin resolve exceptions with a required note; closing requires
+  every exception resolved and a required close note. Closing is final and does
+  not assert a bank balance matched.
+- Reconciliation pages, permissions, audit and activity added. Activity carries
+  counts/types, never line descriptions or resolution notes.
+- Honest v1 limits: no live provider API/bank feed/file upload, no automatic
+  missing-in-statement detection, no fee-line matching without a posting key,
+  no correction/re-open flow and no bank balance matching.
+- Verification: Node **112/112**, 20 suites, typecheck clean.
+
+Next: reconciliation remainder (live feeds, missing-in-statement detection,
+correction flow), configuration remainder and compliance queues.
+
+---
+
 ## Report End - No fluff. Just facts.

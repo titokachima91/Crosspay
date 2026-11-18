@@ -247,3 +247,25 @@ Configuration center
 - The optional `/config.service` block is additive and ignored by the current
   Flutter parser; the app maintenance banner is a follow-up, not a claim that the
   UI is connected.
+
+Reconciliation v1
+- Statements are manual CSV evidence, imported by finance/superadmin, one
+  source and one currency. The file hash is unique per source/currency; the same
+  export cannot be imported twice.
+- Statement lines and evidence are append-only. There is no re-run that rewrites
+  matching history and no “mark as matched” control.
+- Matching is exact: provider reference + amount + currency + terminal status
+  plus the expected journal. Bank/fee/transfer lines need an explicit CrossPay
+  `posting_key`; without it they become `unsupported_line` exceptions.
+- Exceptions are typed and can only be resolved with a note. Resolution means
+  investigated, not written off. No resolution edits a journal or creates a
+  journal.
+- A statement closes only when every exception is resolved, and a close note is
+  required. Closing is final; corrections require a new statement import.
+- Closing does not assert a bank balance matched. The page states that the
+  statement-to-ledger direction is the only v1 check; internal rows missing from
+  a statement are not auto-detected yet.
+- Reconciliation activity carries statement counts, source/currency and
+  exception types, never line descriptions, account data or resolution notes.
+- Compliance can read reconciliation evidence; only finance/superadmin can
+  import, resolve or close.

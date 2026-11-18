@@ -4,14 +4,17 @@
 windowed analytics and read-only bookkeeping built 2026-11-17. Manual support
 workspace with audited PII reveal built 2026-11-17. Phase D configuration center
 (versioned proposals, two-person approval, emergency service controls) built
-2026-11-18. Named local admins, TOTP, sessions, CSRF, RBAC, ops pages and audit
-are live. SSO, settlement import and deployment-level IP allowlist remain.
+2026-11-18. Phase F reconciliation v1 (manual statements, exact matching,
+exceptions, daily close) built 2026-11-18. Named local admins, TOTP, sessions,
+CSRF, RBAC, ops pages and audit are live. SSO, live statement feeds and
+deployment-level IP allowlist remain.
 **Code**: `server/src/admin-web/`, `server/scripts/create-admin.ts`
 **Tests**: `server/test/admin-web.test.ts`
 **Migrations**: `server/db/migrations/0012_admin_identity.sql`,
 `server/db/migrations/0013_admin_activity.sql`,
 `server/db/migrations/0014_support_workspace.sql`,
-`server/db/migrations/0015_configuration_center.sql`
+`server/db/migrations/0015_configuration_center.sql`,
+`server/db/migrations/0016_settlement_reconciliation.sql`
 **Plan**: `docs/ADMIN_PANEL_PLAN.md`
 
 ---
@@ -116,8 +119,8 @@ No customer JWT is accepted by the portal.
 |---|---|
 | `viewer` | read-only overview, control room, analytics, trades; no support cases or configuration |
 | `ops` | viewer + match/disburse/recheck/payout retry, corridor policy, support cases/notes/SMS, configuration proposals |
-| `finance` | viewer + LP providers/orders + refunds + bookkeeping, configuration proposals and approvals; no support cases |
-| `compliance` | viewer + audit + bookkeeping + support cases + customer PII reveal; no configuration |
+| `finance` | viewer + LP providers/orders + refunds + bookkeeping, configuration proposals/approvals, reconciliation import/resolve/close; no support cases |
+| `compliance` | viewer + audit + bookkeeping + reconciliation read + support cases + customer PII reveal; no configuration |
 | `superadmin` | everything, including admin-user management, PII reveal, config approval and emergency service controls |
 
 The role map is in `src/admin-web/auth.ts`. Named users can have multiple roles.
@@ -136,6 +139,8 @@ The last active superadmin cannot be suspended or demoted.
 | `/config/changes/:id` | immutable before/after diff, approve/reject/cancel, propose rollback |
 | `/bookkeeping` | Debit-positive trial balance per currency and filterable journal browser (finance/compliance/superadmin) |
 | `/bookkeeping/journals/:id` | Journal lines, balance check, reversal links and linked FX partner journals |
+| `/reconciliation` | statement summary, manual CSV import, provider/bank statement list and open-exception count |
+| `/reconciliation/statements/:id` | statement lines, exact matches, exceptions, resolve and daily close |
 | `/corridors` | enable/cap/min/max/deadline/estimate/spread forms |
 | `/liquidity` | providers, prefunded orders, create/cancel |
 | `/trades` | search by reference, phone, beneficiary last 4 |
@@ -175,7 +180,8 @@ future support tool.
 | `liquidity` | `liquidity_orders` insert/status changes |
 | `support` | case insert/status/priority/assignee, message insert/delivery, PII reveal |
 | `config` | config change proposed/decided, emergency service controls updated |
-| `admin` | `admin_audit_log` inserts (support/config resources are de-duplicated) |
+| `reconciliation` | statement imported/closed, exception resolved |
+| `admin` | `admin_audit_log` inserts (support/config/reconciliation resources are de-duplicated) |
 
 The payload carries references, statuses, currencies and minor amounts only.
 Recipient names, phone numbers, account numbers, case subjects and message
@@ -316,7 +322,62 @@ today.
 
 ---
 
-## 11. Current limitations
+## 11. Reconciliation v1
+
+Migration `0016` adds manual settlement statements, immutable statement lines,
+exceptions and a per-statement daily close. This is evidence review, not a
+ledger editor and not a bank feed.
+
+**Import**
+
+- Finance/superadmin paste a CSV into `/reconciliation` (max 5,000 lines).
+- Required columns: `occurred_at,reference,kind,amount_minor,currency`.
+  Optional: `posting_key,description`.
+- Kinds: `collection,payout,refund,fee,transfer,adjustment`.
+- A statement is one source (`provider` or `bank`), one currency and one derived
+  period. The file hash is unique per source/currency, so the same export cannot
+  be imported twice.
+- Lines are append-only. The statement header is immutable except for close
+  state. There is no re-run that rewrites history.
+
+**Matching**
+
+- `collection`: payment attempt by provider + reference; must be `confirmed`,
+  amount/currency equal, and have a `deposit_received` journal.
+- `payout`/`refund`: provider reference; must be `paid`, amount/currency equal,
+  and have its `payout_sent`/`refund_paid` journal.
+- `fee`/`transfer`/`adjustment`, and every bank line: require an explicit
+  CrossPay `posting_key`. The journal must be in the same currency and its debit
+  total must equal the line amount.
+- Errors become typed exceptions: `unmatched_reference`, `amount_mismatch`,
+  `currency_mismatch`, `status_mismatch`, `missing_journal`,
+  `duplicate_reference`, `unmatched_journal`, `unsupported_line`.
+- Nothing is auto-corrected and no line is marked matched without both the
+  provider evidence and a journal.
+
+**Exceptions and close**
+
+- An exception can be resolved once with a 5-300 character note. Resolution
+  records that the item was investigated; it does not write off money or edit a
+  journal.
+- Finance/superadmin close a statement only when every exception is resolved.
+  A close note is required, closing is final, and the resolved exception count
+  remains visible.
+- Compliance can read statements and exceptions; only finance/superadmin can
+  import, resolve or close.
+
+**Not connected in v1**
+
+- No live provider API, bank feed or file upload; CSV is pasted manually.
+- The check is statement → provider record → journal only. Internal provider
+  rows missing from the statement are not auto-detected yet.
+- No automatic fee-line matching without a posting key, no manual journal
+  posting, no correction/re-open flow and no statement-level CSV export.
+- Closing does not assert a bank balance matched.
+
+---
+
+## 12. Current limitations
 
 - No SSO yet; local accounts + TOTP only.
 - No recovery-code **login** flow; a superadmin resets TOTP by resetting the
@@ -330,8 +391,10 @@ today.
   are not editable yet.
 - The app does not render the maintenance banner or pause state yet; it only
   receives the optional `/config.service` block.
-- Settlement/reconciliation is a later phase. Bookkeeping is ledger-only until a
-  statement source exists.
+- Reconciliation is manual and one-directional: no provider API, bank feed, file
+  upload, automatic missing-in-statement detection, fee-line matching without a
+  posting key or correction/re-open flow. Closing does not assert a bank balance
+  matched.
 - Support is a manual case workspace: no customer-facing chat, no email/WhatsApp
   outbound, no attachments, no CSAT survey and no automated replies. SMS is the
   only outbound channel and requires a configured provider.
@@ -345,7 +408,7 @@ today.
 
 ---
 
-## 12. Tests
+## 13. Tests
 
 `server/test/admin-web.test.ts` covers:
 
@@ -368,6 +431,10 @@ today.
   published config versions and config activity without payload values;
 - emergency service controls, `SERVICE_PAUSED` enforcement on quote and trade
   initiation, and the optional `/config.service` block;
+- reconciliation import, exact payout matching, unmatched/amount/duplicate
+  exceptions, bank posting-key matching, mixed-currency rejection, blocked
+  close, exception resolution, final close, duplicate-file rejection and
+  reconciliation activity without notes;
 - PII reveal denied without `pii:reveal`, allowed with a reason for compliance,
   recorded in `support_pii_reveals`/audit/activity without the values;
 - SMS reply refused when no provider is configured, recorded as `sent` when the
@@ -376,11 +443,11 @@ today.
 - first-login TOTP enrolment and recovery-code display;
 - audit rows with the acting admin id.
 
-Suite after this phase: **110/110**, 20 suites, typecheck clean.
+Suite after this phase: **112/112**, 20 suites, typecheck clean.
 
 ---
 
-## 13. Deployment
+## 14. Deployment
 
 - Run `admin-web` as its own container/process with the same image as the API
   but `node dist/admin-web/server.js`.
@@ -392,10 +459,10 @@ Suite after this phase: **110/110**, 20 suites, typecheck clean.
 - Keep `ADMIN_API_KEY` unset in normal production if the portal is the only admin
   surface; use it only as a documented break-glass path.
 - Monitor 5xx, login failures, TOTP failures, audit insert failures, session
-  table growth, `admin_activity_events` growth, support rows stuck in `pending`
-  and alert on `service_controls` pauses that outlive an incident. The activity
-  outbox is append-only, so retention needs an explicit partitioned-table/export
-  decision rather than an ad-hoc delete.
+  table growth, `admin_activity_events` growth, support rows stuck in `pending`,
+  open reconciliation exceptions and alert on `service_controls` pauses that
+  outlive an incident. The activity outbox is append-only, so retention needs an
+  explicit partitioned-table/export decision rather than an ad-hoc delete.
 - The control room SSE holds one connection per browser. The shared poller keeps
   database load flat, but put the portal behind a proxy that does not buffer
   `text/event-stream`.

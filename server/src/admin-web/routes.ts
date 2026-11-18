@@ -73,6 +73,13 @@ import {
   updateServiceControls,
 } from './config-center.js';
 import {
+  closeStatement,
+  importStatement,
+  loadReconciliationCenter,
+  loadStatement,
+  resolveException,
+} from './reconciliation.js';
+import {
   SUPPORT_CATEGORIES,
   SUPPORT_OPENED_VIA,
   SUPPORT_PRIORITIES,
@@ -170,6 +177,10 @@ function can(session: AdminSession) {
     configPropose: hasPermission(roles, 'config:propose'),
     configApprove: hasPermission(roles, 'config:approve'),
     configControl: hasPermission(roles, 'config:control'),
+    reconciliation: hasPermission(roles, 'reconciliation:read'),
+    reconciliationImport: hasPermission(roles, 'reconciliation:import'),
+    reconciliationResolve: hasPermission(roles, 'reconciliation:resolve'),
+    reconciliationClose: hasPermission(roles, 'reconciliation:close'),
   };
 }
 
@@ -182,7 +193,7 @@ function view(
   return reply.view(template, {
     user: session ? session.user : null,
     csrf: session ? session.csrfToken : '',
-    can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false, support: false, supportWrite: false, pii: false, configRead: false, configPropose: false, configApprove: false, configControl: false },
+    can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false, support: false, supportWrite: false, pii: false, configRead: false, configPropose: false, configApprove: false, configControl: false, reconciliation: false, reconciliationImport: false, reconciliationResolve: false, reconciliationClose: false },
     notice: null,
     error: null,
     ...data,
@@ -334,7 +345,7 @@ export function registerAdminWebRoutes(
       {
         user: session ? session.user : null,
         csrf: session ? session.csrfToken : '',
-        can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false, support: false, supportWrite: false, pii: false, configRead: false, configPropose: false, configApprove: false, configControl: false },
+        can: session ? can(session) : { view: false, ops: false, corridor: false, liquidity: false, refund: false, audit: false, users: false, ledger: false, support: false, supportWrite: false, pii: false, configRead: false, configPropose: false, configApprove: false, configControl: false, reconciliation: false, reconciliationImport: false, reconciliationResolve: false, reconciliationClose: false },
         active: '',
         notice: null,
         error: statusCode >= 500 ? 'Unexpected error. Check the service logs.' : failure.message,
@@ -1648,6 +1659,112 @@ export function registerAdminWebRoutes(
       '/support/canned',
       change.after ? 'Canned reply activated' : 'Canned reply deactivated',
     );
+  });
+
+  app.get('/reconciliation', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'reconciliation:read');
+    const data = await loadReconciliationCenter(ctx.pool);
+    return view(reply, 'reconciliation', session, {
+      title: 'Reconciliation',
+      active: 'reconciliation',
+      data,
+      notice: queryValue(request, 'ok') || null,
+      error: queryValue(request, 'error') || null,
+    });
+  });
+
+  app.get('/reconciliation/statements/:id', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'reconciliation:read');
+    const id = uuidParam(request, 'STATEMENT_NOT_FOUND', 'Statement not found');
+    const detail = await loadStatement(ctx.pool, id);
+    if (!detail) throw errorWith(404, 'STATEMENT_NOT_FOUND', 'Statement not found');
+    return view(reply, 'reconciliation-statement', session, {
+      title: `${detail.statement.sourceLabel} · ${detail.statement.currency}`,
+      active: 'reconciliation',
+      detail,
+      notice: queryValue(request, 'ok') || null,
+      error: queryValue(request, 'error') || null,
+    });
+  });
+
+  app.post('/reconciliation/statements', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'reconciliation:import');
+    const imported = await importStatement(ctx, {
+      csv: formValue(request.body, 'csv'),
+      fileName: formValue(request.body, 'fileName'),
+      sourceKind: formValue(request.body, 'sourceKind'),
+      sourceLabel: formValue(request.body, 'sourceLabel'),
+      currency: formValue(request.body, 'currency'),
+      adminId: session.user.id,
+    });
+    await audit(ctx, request, session, {
+      action: 'reconciliation.statement.import',
+      resourceType: 'settlement_statement',
+      resourceId: imported.id,
+      after: {
+        sourceKind: formValue(request.body, 'sourceKind'),
+        sourceLabel: formValue(request.body, 'sourceLabel'),
+        currency: formValue(request.body, 'currency'),
+        lineCount: imported.lineCount,
+        matchedCount: imported.matchedCount,
+        exceptionCount: imported.exceptionCount,
+      },
+    });
+    return redirect(
+      reply,
+      `/reconciliation/statements/${imported.id}`,
+      `Imported ${imported.lineCount} lines · ${imported.matchedCount} matched · ${imported.exceptionCount} exceptions`,
+    );
+  });
+
+  app.post('/reconciliation/exceptions/:id/resolve', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'reconciliation:resolve');
+    const id = uuidParam(request, 'EXCEPTION_NOT_FOUND', 'Exception not found');
+    const note = formValue(request.body, 'note');
+    const result = await resolveException(ctx, {
+      id,
+      note,
+      adminId: session.user.id,
+    });
+    await audit(ctx, request, session, {
+      action: 'reconciliation.exception.resolve',
+      resourceType: 'reconciliation_exception',
+      resourceId: id,
+      reason: result.note,
+      after: { statementId: result.statementId },
+    });
+    return redirect(
+      reply,
+      `/reconciliation/statements/${result.statementId}`,
+      'Exception resolved',
+    );
+  });
+
+  app.post('/reconciliation/statements/:id/close', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'reconciliation:close');
+    const id = uuidParam(request, 'STATEMENT_NOT_FOUND', 'Statement not found');
+    const note = formValue(request.body, 'note').trim();
+    if (note.length < 5 || note.length > 300) {
+      throw errorWith(
+        422,
+        'RECONCILIATION_CLOSE_NOTE_REQUIRED',
+        'A close note of 5-300 characters is required',
+      );
+    }
+    const result = await closeStatement(ctx, { id, adminId: session.user.id });
+    await audit(ctx, request, session, {
+      action: 'reconciliation.statement.close',
+      resourceType: 'settlement_statement',
+      resourceId: id,
+      reason: note,
+      after: result,
+    });
+    return redirect(reply, `/reconciliation/statements/${id}`, 'Statement closed');
   });
 
   app.get('/audit', async (request, reply) => {
