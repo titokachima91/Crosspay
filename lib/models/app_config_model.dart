@@ -77,6 +77,24 @@ class SupportInfo {
   static bool _has(String? value) => value != null && value.trim().isNotEmpty;
 }
 
+/// Emergency service state published by the server. Null means normal.
+class ServiceStatus {
+  const ServiceStatus({
+    required this.quotesPaused,
+    required this.tradesPaused,
+    this.message,
+  });
+
+  final bool quotesPaused;
+  final bool tradesPaused;
+  final String? message;
+
+  bool get isActive =>
+      quotesPaused ||
+      tradesPaused ||
+      (message != null && message!.trim().isNotEmpty);
+}
+
 /// Reference data the server controls. Empty until the server has answered.
 class AppConfig {
   const AppConfig({
@@ -86,6 +104,7 @@ class AppConfig {
     this.countries = const [],
     this.carriers = const [],
     this.support,
+    this.service,
   });
 
   final List<Currency> currencies;
@@ -97,6 +116,9 @@ class AppConfig {
   /// Support channels, when the server publishes them. Null means the support
   /// block has not been configured yet.
   final SupportInfo? support;
+
+  /// Emergency quote/trade pause or maintenance message, when active.
+  final ServiceStatus? service;
 
   bool get isEmpty => currencies.isEmpty;
 

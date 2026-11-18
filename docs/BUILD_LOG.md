@@ -861,4 +861,26 @@ queues.
 
 ---
 
+## 2026-11-19 - recovery code login, statement upload and app banner
+
+- Admin auth: `/login/recovery` consumes one unused recovery code after the
+  password step, creates a normal session, audits `admin.recovery_login` and
+  rejects reuse. Recovery codes remain hashed and single-use.
+- Reconciliation: the import form accepts a CSV file upload (2 MB, one file) or
+  pasted text. Multipart CSRF is validated inside the import route before any
+  parsing/write; other multipart routes are refused.
+- App: `/config.service` is now parsed by the Flutter `AppConfig` and rendered as
+  a maintenance banner above the signed-in tabs, showing the operator message or
+  which new requests are paused.
+- Fixed the analyzer false alarm caused by deleting `.dart_tool` for snapshot
+  space: `flutter pub get` restored package resolution and `flutter analyze`
+  returns **No issues found**.
+- Verification: Node **115/115**, 20 suites; typecheck clean; production build
+  clean; targeted `main_shell_screen_test.dart` passed; Flutter analyzer clean.
+
+Next: live statement feeds, bank-side missing detection, configuration
+remainder and sanctions/name-check queues.
+
+---
+
 ## Report End - No fluff. Just facts.

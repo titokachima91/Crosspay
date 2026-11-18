@@ -287,3 +287,17 @@ KYC review
   configuration and must exist before trading.
 - Sanctions/watchlist screening and document capture are follow-ups, not implied
   by this queue.
+
+Recovery, upload and app banner
+- Recovery codes are hashed, single-use and allowed only after the password
+  step. Consumption is atomic and audited; a used code cannot open another
+  session.
+- Statement import accepts either one CSV file or pasted text. Multipart CSRF is
+  validated inside the only route that accepts multipart; every other multipart
+  request is refused.
+- The app parses `/config.service` and renders the operator maintenance message
+  or pause reason above the signed-in tabs. The banner is server-controlled; the
+  app never invents a maintenance state.
+- `.dart_tool` is regenerable. Removing it for snapshot space requires
+  `flutter pub get` before analysis; otherwise the analyzer reports thousands of
+  false missing-package errors.

@@ -6,9 +6,10 @@ workspace with audited PII reveal built 2026-11-17. Phase D configuration center
 (versioned proposals, two-person approval, emergency service controls) built
 2026-11-18. Phase F reconciliation v1 (manual statements, exact matching,
 exceptions, daily close) built 2026-11-18. Compliance KYC review queue built
-2026-11-19. Named local admins, TOTP, sessions, CSRF, RBAC, ops pages and audit
-are live. SSO, live statement feeds, sanctions screening and deployment-level IP
-allowlist remain.
+2026-11-19. Recovery-code login, statement file upload and the app maintenance
+banner were added 2026-11-19. Named local admins, TOTP, sessions, CSRF, RBAC,
+ops pages and audit are live. SSO, live statement feeds, sanctions screening and
+deployment-level IP allowlist remain.
 **Code**: `server/src/admin-web/`, `server/scripts/create-admin.ts`
 **Tests**: `server/test/admin-web.test.ts`
 **Migrations**: `server/db/migrations/0012_admin_identity.sql`,
@@ -87,14 +88,16 @@ previous asset copy, so repeated builds cannot nest `public/public`.
    challenge. The secret is encrypted in `admin_login_challenges`; the QR and
    manual secret are shown once.
 3. If TOTP is enrolled, the user is sent to `/login/totp`.
-4. A valid six-digit code creates a server-side session:
+4. A valid unused recovery code at `/login/recovery` can replace the TOTP step.
+   The code is consumed atomically and the recovery login is audited.
+5. A valid six-digit code creates a server-side session:
    - random token in an `HttpOnly`, `SameSite=Strict`, `Secure` cookie;
    - only the SHA-256 token hash is stored;
    - the session row holds the CSRF token and expiry (8 hours by default).
-5. TOTP replay is rejected by `admin_users.totp_last_step`.
-6. Failed logins are counted per email/IP; 10 failures in 15 minutes blocks the
+6. TOTP replay is rejected by `admin_users.totp_last_step`.
+7. Failed logins are counted per email/IP; 10 failures in 15 minutes blocks the
    account/IP for the window.
-7. Logout revokes the session row and clears the cookie.
+8. Logout revokes the session row and clears the cookie.
 
 No customer JWT is accepted by the portal.
 
@@ -277,8 +280,7 @@ Nothing here edits source code or writes a journal directly.
 - Rates, estimates, existing payouts, refunds and matches keep running. This is
   a drain switch, not a full stop.
 - `GET /config` includes an optional `service` block while a pause or message is
-  active. The Flutter app ignores unknown blocks today; the app banner UI is not
-  connected yet.
+  active. The Flutter app renders it as a banner above the signed-in tabs.
 
 **Fees stay provider-owned**
 
@@ -336,9 +338,10 @@ ledger editor and not a bank feed.
 
 **Import**
 
-- Finance/superadmin paste a CSV into `/reconciliation` (max 5,000 lines).
-- Required columns: `occurred_at,reference,kind,amount_minor,currency`.
-  Optional: `posting_key,description`.
+- Finance/superadmin upload one CSV file (or paste it) at `/reconciliation`, max
+  5,000 lines / 2 MB. Required columns:
+  `occurred_at,reference,kind,amount_minor,currency`. Optional:
+  `posting_key,description`.
 - Kinds: `collection,payout,refund,fee,transfer,adjustment`.
 - A statement is one source (`provider` or `bank`), one currency and one derived
   period. The file hash is unique per source/currency, so the same export cannot
@@ -379,7 +382,7 @@ ledger editor and not a bank feed.
 
 **Not connected in v1**
 
-- No live provider API, bank feed or file upload; CSV is pasted manually.
+- No live provider API or bank feed; CSV file upload/paste is manual.
 - Provider statements check both directions: statement → internal record →
   journal, and internal record missing from the statement. Bank statements only
   check the posting-key direction; bank-side missing detection is not built.
@@ -415,23 +418,19 @@ Migration `0018` adds a manual compliance queue over the existing
 
 ## 13. Current limitations
 
-- No SSO yet; local accounts + TOTP only.
-- No recovery-code **login** flow; a superadmin resets TOTP by resetting the
-  account or the CLI/database, and recovery codes are stored hashed.
+- No SSO yet; local accounts + TOTP or a one-time recovery code.
 - The control room transport is 2-second polling + SSE, not database
   `LISTEN/NOTIFY` consumption. The notify trigger is ready for that change.
 - Analytics is server-rendered tables; charts and saved views are later.
 - Configuration center v1 covers support contacts, tier daily limits and
   emergency quote/trade pauses. Fee bps, provider secrets/endpoints, feature
-  flags, app banners, effective-date scheduling and per-corridor fee overrides
-  are not editable yet.
-- The app does not render the maintenance banner or pause state yet; it only
-  receives the optional `/config.service` block.
+  flags, general banners, effective-date scheduling and per-corridor fee
+  overrides are not editable yet.
 - Reconciliation is manual. Provider statements check both directions; bank
   statements only check lines with a posting key, and bank-side missing
-  detection is not built. No provider API, bank feed, file upload, automatic
-  fee matching without a posting key or correction/re-open flow. Closing does
-  not assert a bank balance matched.
+  detection is not built. No provider API, bank feed, automatic fee matching
+  without a posting key or correction/re-open flow. Closing does not assert a
+  bank balance matched.
 - Support is a manual case workspace: no customer-facing chat, no email/WhatsApp
   outbound, no attachments, no CSAT survey and no automated replies. SMS is the
   only outbound channel and requires a configured provider.
@@ -480,11 +479,13 @@ Migration `0018` adds a manual compliance queue over the existing
   recorded in `support_pii_reveals`/audit/activity without the values;
 - SMS reply refused when no provider is configured, recorded as `sent` when the
   gateway accepts it and `failed` when the gateway rejects it;
+- recovery-code login, one-time consumption, audit and reuse rejection;
+- reconciliation multipart CSV upload;
 - named admin creation and last-superadmin self-protection;
 - first-login TOTP enrolment and recovery-code display;
 - audit rows with the acting admin id.
 
-Suite after this phase: **114/114**, 20 suites, typecheck clean.
+Suite after this phase: **115/115**, 20 suites, typecheck clean.
 
 ---
 

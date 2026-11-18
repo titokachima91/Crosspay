@@ -8,6 +8,8 @@ import 'package:crosspay_app/features/ledger/screens/transaction_history_screen.
 import 'package:crosspay_app/features/transaction/screens/home_dashboard_screen.dart';
 import 'package:crosspay_app/features/transaction/screens/market_depth_screen.dart';
 import 'package:crosspay_app/providers/auth_provider.dart';
+import 'package:crosspay_app/providers/config_provider.dart';
+import 'package:crosspay_app/models/app_config_model.dart';
 import 'package:crosspay_app/widgets/persistent_bottom_nav.dart';
 
 /// The signed-in app: four tabs under one navigation bar.
@@ -67,22 +69,76 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
       }
     });
 
+    final service = ref.watch(appConfigProvider).config.service;
     return Scaffold(
       body: !_visible
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.emerald))
-          : IndexedStack(
-              index: _index,
-              children: const [
-                HomeDashboardScreen(),
-                TransactionHistoryScreen(),
-                MarketDepthScreen(),
-                AccountTabScreen(),
+          : Column(
+              children: [
+                if (service != null && service.isActive)
+                  _ServiceBanner(status: service),
+                Expanded(
+                  child: IndexedStack(
+                    index: _index,
+                    children: const [
+                      HomeDashboardScreen(),
+                      TransactionHistoryScreen(),
+                      MarketDepthScreen(),
+                      AccountTabScreen(),
+                    ],
+                  ),
+                ),
               ],
             ),
       bottomNavigationBar: PersistentBottomNav(
         currentIndex: _index,
         onSelected: (index) => setState(() => _index = index),
+      ),
+    );
+  }
+}
+
+class _ServiceBanner extends StatelessWidget {
+  const _ServiceBanner({required this.status});
+
+  final ServiceStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final pauses = [
+      if (status.quotesPaused) 'new quotes',
+      if (status.tradesPaused) 'new transfers',
+    ];
+    final fallback = pauses.isEmpty
+        ? 'Service notice'
+        : '${pauses.join(' and ')} are paused for a short maintenance window.';
+    return Material(
+      color: AppColors.warning.withOpacity(0.12),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.info_outline, color: AppColors.warning, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  status.message?.trim().isNotEmpty == true
+                      ? status.message!.trim()
+                      : fallback,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

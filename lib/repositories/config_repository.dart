@@ -20,6 +20,7 @@ class ConfigRepository {
       final response = await _dio.get<dynamic>(ApiEndpoints.config);
       final root = JsonReader.of(response.data);
       final support = root.optionalObject('support');
+      final service = root.optionalObject('service');
       return AppConfig(
         support: support == null
             ? null
@@ -28,6 +29,13 @@ class ConfigRepository {
                 phone: support.optionalString('phone'),
                 whatsapp: support.optionalString('whatsapp'),
                 hours: support.optionalString('hours'),
+              ),
+        service: service == null
+            ? null
+            : ServiceStatus(
+                quotesPaused: service.boolean('quotesPaused'),
+                tradesPaused: service.boolean('tradesPaused'),
+                message: service.optionalString('message'),
               ),
         currencies: [
           for (final c in root.list('currencies'))

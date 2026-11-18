@@ -149,7 +149,7 @@ with two-person approval, emergency quote/trade pauses, manual statement
 matching with provider missing-in-statement detection, exceptions and daily
 close, KYC metadata review with masked identity, market depth, analytics, CSV
 export and the reconciliation worker.
-**114 tests pass.** No Docker or local PostgreSQL installation is required.
+**115 tests pass.** No Docker or local PostgreSQL installation is required.
 
 Live provider smokes (with the sandbox running):
 
@@ -182,8 +182,9 @@ bookkeeping is a read-only trial balance/journal browser, support has
 append-only cases with audited PII reveal and provider-gated SMS replies,
 configuration has versioned two-person changes plus superadmin emergency pauses,
 reconciliation has manual statement matching, exceptions and final daily close,
-and compliance has a KYC metadata review queue with masked identity. Put it
-behind a zero-trust proxy or VPN and a separate `admin.` hostname in production.
+compliance has a KYC metadata review queue with masked identity, and the app
+renders the server-published maintenance pause banner. Put it behind a
+zero-trust proxy or VPN and a separate `admin.` hostname in production.
 
 `npm run verify` is for a real database. It checks migration state, the five
 `/config` lists, payout-rail kinds, seeded rows and ledger balance.
@@ -260,8 +261,8 @@ behind a zero-trust proxy or VPN and a separate `admin.` hostname in production.
 
 ## Next step
 
-1. Finish reconciliation: live provider/bank feeds, file upload, bank-side
-   missing-in-statement detection, fee-line matching and correction/re-open.
+1. Finish reconciliation: live provider/bank feeds, bank-side missing-in-statement
+   detection, fee-line matching and correction/re-open.
 2. Finish the configuration center: provider settings, feature flags, app
    banners, effective-date scheduling and the fee editor after provider
    reconciliation.

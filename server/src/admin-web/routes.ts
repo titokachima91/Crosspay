@@ -12,6 +12,7 @@ import {
   ADMIN_CHALLENGE_COOKIE,
   ADMIN_SESSION_COOKIE,
   consumeChallenge,
+  consumeRecoveryCode,
   createAdminUser,
   createChallenge,
   createSession,
@@ -112,7 +113,13 @@ declare module 'fastify' {
   }
 }
 
-const PUBLIC_PATHS = new Set(['/login', '/login/totp', '/setup-totp', '/health']);
+const PUBLIC_PATHS = new Set([
+  '/login',
+  '/login/totp',
+  '/login/recovery',
+  '/setup-totp',
+  '/health',
+]);
 
 function errorWith(statusCode: number, code: string, message: string): Error {
   const error = new Error(message) as Error & { statusCode: number; code: string };
@@ -136,6 +143,46 @@ function queryValue(request: FastifyRequest, key: string): string {
   if (typeof request.query !== 'object' || !request.query) return '';
   const value = (request.query as Record<string, unknown>)[key];
   return typeof value === 'string' ? value : '';
+}
+
+async function reconciliationImportForm(request: FastifyRequest): Promise<{
+  csv: string;
+  fileName: string;
+  sourceKind: string;
+  sourceLabel: string;
+  currency: string;
+  csrf: string;
+}> {
+  if (request.isMultipart()) {
+    const fields: Record<string, string> = {};
+    let file: Buffer | null = null;
+    let fileName = '';
+    for await (const part of request.parts()) {
+      if (part.type === 'file') {
+        file = await part.toBuffer();
+        fileName = part.filename;
+      } else {
+        fields[part.fieldname] = String(part.value);
+      }
+    }
+    const csv = file ? file.toString('utf8') : (fields['csv'] ?? '');
+    return {
+      csv,
+      fileName: fields['fileName'] || fileName,
+      sourceKind: fields['sourceKind'] ?? '',
+      sourceLabel: fields['sourceLabel'] ?? '',
+      currency: fields['currency'] ?? '',
+      csrf: fields['_csrf'] ?? '',
+    };
+  }
+  return {
+    csv: formValue(request.body, 'csv'),
+    fileName: formValue(request.body, 'fileName'),
+    sourceKind: formValue(request.body, 'sourceKind'),
+    sourceLabel: formValue(request.body, 'sourceLabel'),
+    currency: formValue(request.body, 'currency'),
+    csrf: formValue(request.body, '_csrf'),
+  };
 }
 
 function uuidParam(request: FastifyRequest, code: string, message: string): string {
@@ -326,7 +373,7 @@ export function registerAdminWebRoutes(
   app.addHook('preValidation', async (request) => {
     if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) return;
     const path = (request.url.split('?')[0] || '/').replace(/\/+$/, '') || '/';
-    if (['/login', '/login/totp', '/setup-totp'].includes(path)) {
+    if (['/login', '/login/totp', '/login/recovery', '/setup-totp'].includes(path)) {
       if (!sameOrigin(request, config)) {
         throw errorWith(403, 'ADMIN_ORIGIN_INVALID', 'The request origin is not allowed');
       }
@@ -336,6 +383,13 @@ export function registerAdminWebRoutes(
     if (!session) throw errorWith(401, 'ADMIN_UNAUTHORIZED', 'Sign in again');
     if (!sameOrigin(request, config)) {
       throw errorWith(403, 'ADMIN_ORIGIN_INVALID', 'The request origin is not allowed');
+    }
+    if (request.isMultipart()) {
+      if (path !== '/reconciliation/statements') {
+        throw errorWith(403, 'ADMIN_CSRF_INVALID', 'Multipart is not accepted here');
+      }
+      // The import route parses the parts and validates the CSRF field itself.
+      return;
     }
     requireCsrf(request, session);
   });
@@ -475,6 +529,88 @@ export function registerAdminWebRoutes(
     setSessionCookie(reply, session.token, config);
     clearCookie(reply, ADMIN_CHALLENGE_COOKIE);
     return reply.redirect('/');
+  });
+
+  app.get('/login/recovery', async (request, reply) => {
+    const challenge = await loadChallenge(ctx.pool, {
+      token: request.cookies[ADMIN_CHALLENGE_COOKIE] ?? '',
+      purpose: 'login',
+    });
+    if (!challenge) {
+      clearCookie(reply, ADMIN_CHALLENGE_COOKIE);
+      return reply.redirect('/login');
+    }
+    return view(reply, 'login-recovery', null, { error: null });
+  });
+
+  app.post('/login/recovery', async (request, reply) => {
+    const challengeToken = request.cookies[ADMIN_CHALLENGE_COOKIE] ?? '';
+    const challenge = await loadChallenge(ctx.pool, {
+      token: challengeToken,
+      purpose: 'login',
+    });
+    if (!challenge) {
+      clearCookie(reply, ADMIN_CHALLENGE_COOKIE);
+      return reply.redirect('/login');
+    }
+    const adminResult = await ctx.pool.query<{ email: string; status: string }>(
+      `SELECT email, status FROM admin_users WHERE id = $1`,
+      [challenge.adminUserId],
+    );
+    const admin = adminResult.rows[0];
+    if (!admin || admin.status !== 'active') {
+      clearCookie(reply, ADMIN_CHALLENGE_COOKIE);
+      return reply.redirect('/login');
+    }
+    if (await tooManyLoginFailures(ctx.pool, { email: admin.email, ip: request.ip })) {
+      return reply.code(429).view('login-recovery', {
+        user: null,
+        csrf: '',
+        can: {},
+        active: '',
+        notice: null,
+        error: 'Too many attempts. Wait a few minutes and try again.',
+      });
+    }
+    const valid = await consumeRecoveryCode(
+      ctx.pool,
+      challenge.adminUserId,
+      formValue(request.body, 'code'),
+    );
+    await recordLoginAttempt(ctx.pool, {
+      email: admin.email,
+      ip: request.ip,
+      succeeded: valid,
+    });
+    if (!valid) {
+      return reply.code(401).view('login-recovery', {
+        user: null,
+        csrf: '',
+        can: {},
+        active: '',
+        notice: null,
+        error: 'That recovery code is not valid or has already been used.',
+      });
+    }
+
+    await consumeChallenge(ctx.pool, { token: challengeToken, purpose: 'login' });
+    const session = await createSession(ctx.pool, {
+      adminUserId: challenge.adminUserId,
+      ip: request.ip,
+      userAgent: request.headers['user-agent'] ?? null,
+      ttlSeconds: config.sessionTtlSeconds,
+    });
+    setSessionCookie(reply, session.token, config);
+    clearCookie(reply, ADMIN_CHALLENGE_COOKIE);
+    const loaded = await loadSession(ctx.pool, session.token);
+    if (loaded) {
+      await audit(ctx, request, loaded, {
+        action: 'admin.recovery_login',
+        resourceType: 'admin_user',
+        resourceId: challenge.adminUserId,
+      });
+    }
+    return reply.code(303).redirect('/');
   });
 
   app.get('/setup-totp', async (request, reply) => {
@@ -1700,12 +1836,16 @@ export function registerAdminWebRoutes(
   app.post('/reconciliation/statements', async (request, reply) => {
     const session = request.adminSession as AdminSession;
     requirePermission(session.user.roles, 'reconciliation:import');
+    const form = await reconciliationImportForm(request);
+    if (!form.csrf || !safeEqual(form.csrf, session.csrfToken)) {
+      throw errorWith(403, 'ADMIN_CSRF_INVALID', 'The form expired. Refresh and try again.');
+    }
     const imported = await importStatement(ctx, {
-      csv: formValue(request.body, 'csv'),
-      fileName: formValue(request.body, 'fileName'),
-      sourceKind: formValue(request.body, 'sourceKind'),
-      sourceLabel: formValue(request.body, 'sourceLabel'),
-      currency: formValue(request.body, 'currency'),
+      csv: form.csv,
+      fileName: form.fileName,
+      sourceKind: form.sourceKind,
+      sourceLabel: form.sourceLabel,
+      currency: form.currency,
       adminId: session.user.id,
     });
     await audit(ctx, request, session, {
@@ -1713,9 +1853,9 @@ export function registerAdminWebRoutes(
       resourceType: 'settlement_statement',
       resourceId: imported.id,
       after: {
-        sourceKind: formValue(request.body, 'sourceKind'),
-        sourceLabel: formValue(request.body, 'sourceLabel'),
-        currency: formValue(request.body, 'currency'),
+        sourceKind: form.sourceKind,
+        sourceLabel: form.sourceLabel,
+        currency: form.currency,
         lineCount: imported.lineCount,
         matchedCount: imported.matchedCount,
         exceptionCount: imported.exceptionCount,

@@ -20,7 +20,9 @@ import { ledgerAccountId } from '../src/trades.js';
 import { loadAppConfig } from '../src/repositories/config-repository.js';
 import {
   createAdminUser,
+  generateRecoveryCodes,
   generateTotpSecret,
+  hashRecoveryCode,
   hashToken,
   totpFor,
   type AdminRole,
@@ -99,6 +101,31 @@ function form(payload: Record<string, string>): {
     payload: new URLSearchParams(payload).toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   };
+}
+
+function multipartCsv(
+  boundary: string,
+  fields: Record<string, string>,
+  filename: string,
+  csv: string,
+): Buffer {
+  const chunks: Buffer[] = [];
+  for (const [name, value] of Object.entries(fields)) {
+    chunks.push(
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`,
+      ),
+    );
+  }
+  chunks.push(
+    Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: text/csv\r\n\r\n`,
+    ),
+    Buffer.from(csv),
+    Buffer.from('\r\n'),
+    Buffer.from(`--${boundary}--\r\n`),
+  );
+  return Buffer.concat(chunks);
 }
 
 function postForm(
@@ -1437,18 +1464,27 @@ describe('admin portal identity and pages', () => {
       '2026-11-18T11:10:00Z,BANK-3,transfer,2000,KES,,No posting key',
     ].join('\n');
 
-    const imported = await postForm(
-      '/reconciliation/statements',
-      {
-        _csrf: financeLogin.csrf,
-        sourceKind: 'bank',
-        sourceLabel: 'crdb-operating',
-        currency: 'KES',
-        fileName: 'crdb-operating-2026-11-18.csv',
-        csv,
+    const boundary = '----crosspay-reconciliation-test';
+    const imported = await app.inject({
+      method: 'POST',
+      url: '/reconciliation/statements',
+      headers: {
+        cookie: `cp_admin_session=${financeLogin.session}`,
+        'content-type': `multipart/form-data; boundary=${boundary}`,
       },
-      { cookie: `cp_admin_session=${financeLogin.session}` },
-    );
+      payload: multipartCsv(
+        boundary,
+        {
+          _csrf: financeLogin.csrf,
+          sourceKind: 'bank',
+          sourceLabel: 'crdb-operating',
+          currency: 'KES',
+          fileName: 'crdb-operating-2026-11-18.csv',
+        },
+        'crdb-operating-2026-11-18.csv',
+        csv,
+      ),
+    });
     assert.equal(imported.statusCode, 303, imported.body);
     const statementId = /\/reconciliation\/statements\/([0-9a-f-]{36})/.exec(
       String(imported.headers.location ?? ''),
@@ -1673,6 +1709,76 @@ describe('admin portal identity and pages', () => {
     );
     assert.equal(activity.rows[0]?.payload['rejectionCode'], 'ID_UNREADABLE');
     assert.ok(!JSON.stringify(activity.rows[0]).includes('could not be read'));
+  });
+
+  it('signs in with a single-use recovery code after the password step', async () => {
+    const email = 'recovery@crosspay.test';
+    const secret = generateTotpSecret();
+    const adminUserId = await createAdminUser(db.pool, {
+      email,
+      name: 'Recovery Admin',
+      password: PASSWORD,
+      roles: ['superadmin'],
+      totpSecret: secret,
+      crypto: ctx.crypto,
+    });
+    const [code] = generateRecoveryCodes(1);
+    assert.ok(code);
+    await db.pool.query(
+      `INSERT INTO admin_recovery_codes (admin_user_id, code_hash)
+       VALUES ($1, $2)`,
+      [adminUserId, hashRecoveryCode(code)],
+    );
+
+    const start = await postForm('/login', { email, password: PASSWORD });
+    assert.equal(start.statusCode, 302);
+    const challenge = cookieFrom(start, 'cp_admin_challenge');
+    assert.ok(challenge);
+
+    const page = await app.inject({
+      method: 'GET',
+      url: '/login/recovery',
+      headers: { cookie: `cp_admin_challenge=${challenge}` },
+    });
+    assert.equal(page.statusCode, 200);
+    assert.match(page.body, /Recovery code/);
+
+    const signedIn = await postForm(
+      '/login/recovery',
+      { code },
+      { cookie: `cp_admin_challenge=${challenge}` },
+    );
+    assert.equal(signedIn.statusCode, 303, JSON.stringify(signedIn.headers));
+    const session = cookieFrom(signedIn, 'cp_admin_session');
+    assert.ok(session);
+
+    const stored = await db.pool.query<{ used_at: Date | null }>(
+      `SELECT used_at FROM admin_recovery_codes WHERE admin_user_id = $1`,
+      [adminUserId],
+    );
+    assert.ok(stored.rows[0]?.used_at);
+    const home = await app.inject({
+      method: 'GET',
+      url: '/',
+      headers: { cookie: `cp_admin_session=${session}` },
+    });
+    assert.equal(home.statusCode, 200);
+    const audit = await db.pool.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM admin_audit_log
+       WHERE action = 'admin.recovery_login' AND admin_user_id = $1`,
+      [adminUserId],
+    );
+    assert.equal(audit.rows[0]?.count, 1);
+
+    const secondStart = await postForm('/login', { email, password: PASSWORD });
+    const secondChallenge = cookieFrom(secondStart, 'cp_admin_challenge');
+    assert.ok(secondChallenge);
+    const reuse = await postForm(
+      '/login/recovery',
+      { code },
+      { cookie: `cp_admin_challenge=${secondChallenge}` },
+    );
+    assert.equal(reuse.statusCode, 401);
   });
 
   it('creates a named admin and refuses to suspend the last superadmin', async () => {

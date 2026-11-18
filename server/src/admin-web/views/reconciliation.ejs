@@ -20,7 +20,7 @@
   <div class="panel">
     <div class="panel-head"><h2>Import a statement</h2><span class="tag">CSV, max 5,000 lines</span></div>
     <% if (can.reconciliationImport) { %>
-    <form method="post" action="/reconciliation/statements" data-confirm="Import this statement? Statement lines are append-only and matching is immediate.">
+    <form method="post" action="/reconciliation/statements" enctype="multipart/form-data" data-confirm="Import this statement? Statement lines are append-only and matching is immediate.">
       <input type="hidden" name="_csrf" value="<%= csrf %>">
       <div class="row">
         <div>
@@ -43,9 +43,11 @@
       </div>
       <label for="fileName">File / export name (optional)</label>
       <input id="fileName" name="fileName" maxlength="200" placeholder="mpesa-2026-11-18.csv">
-      <label for="csv">CSV</label>
-      <textarea id="csv" name="csv" rows="10" required placeholder="occurred_at,reference,kind,amount_minor,currency,posting_key,description&#10;2026-11-18T10:00:00Z,PAY-123,payout,50000,TZS,,Payout&#10;2026-11-18T10:05:00Z,COL-9,collection,1010000,TZS,,Collection"></textarea>
-      <p class="tag">Required columns: occurred_at, reference, kind, amount_minor, currency. Optional: posting_key, description. Kinds: collection, payout, refund, fee, transfer, adjustment. Provider sources use the lowercase provider id; bank lines need a CrossPay posting key.</p>
+      <label for="file">CSV file</label>
+      <input id="file" name="file" type="file" accept=".csv,text/csv">
+      <label for="csv">Or paste CSV</label>
+      <textarea id="csv" name="csv" rows="8" placeholder="occurred_at,reference,kind,amount_minor,currency,posting_key,description&#10;2026-11-18T10:00:00Z,PAY-123,payout,50000,TZS,,Payout&#10;2026-11-18T10:05:00Z,COL-9,collection,1010000,TZS,,Collection"></textarea>
+      <p class="tag">Required columns: occurred_at, reference, kind, amount_minor, currency. Optional: posting_key, description. Kinds: collection, payout, refund, fee, transfer, adjustment. Provider sources use the lowercase provider id; bank lines need a CrossPay posting key. Upload one CSV file or paste the text, not both.</p>
       <button class="primary">Import and match</button>
     </form>
     <% } else { %>

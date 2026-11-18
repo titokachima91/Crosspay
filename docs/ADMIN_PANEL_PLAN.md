@@ -74,7 +74,7 @@ customer's full PII without a permissioned, audited reveal.
 | A. Ops read + narrow controls | Overview, queue, matches, payouts, refunds, corridors, LP orders; env admin key; audit writes | Built |
 | B. Admin identity and RBAC | Admin users, passwords + TOTP, sessions, roles, CSRF, IP allowlist, audit log UI | Built for local accounts; SSO/IP allowlist are deployment follow-ups |
 | C. Control room and analytics | Real-time redacted activity feed, SLOs, funnel/corridor/provider/liquidity/support analytics, saved views, exports | Built for feed/windows/funnel/revenue; saved views and charts remain |
-| D. Configuration center | Services, fees, spreads, tiers/limits, provider settings, feature flags, maintenance, staged rollout/rollback | Versioned approval for support contacts/tier limits and emergency quote/trade pauses built; fee editor, provider secrets, flags/banners and effective dates remain |
+| D. Configuration center | Services, fees, spreads, tiers/limits, provider settings, feature flags, maintenance, staged rollout/rollback | Versioned approval for support contacts/tier limits, emergency quote/trade pauses and the app pause/message banner built; fee editor, provider secrets, flags, scheduled banners and effective dates remain |
 | E. Bookkeeping | Chart approval, journal browser, trial balance, revenue/cost reports, operating-cash transfers | Read-only journal browser/trial balance built; chart approval and reports remain |
 | F. Settlement and reconciliation | Provider statements, bank/PSP statement import or API, matching, exceptions, daily close | Manual CSV import, exact reference/journal matching, provider missing-in-statement detection, exceptions and final close built; live feeds, bank balance matching and bank-side missing detection remain |
 | G. Support and compliance | Customer-safe support workspace, cases/notes, KYC queue, sanctions hits, PII reveal workflow | Manual cases/notes/SMS/PII reveal and manual KYC metadata review built; sanctions and name-check provider queues remain |
@@ -1019,6 +1019,9 @@ manual support workspace are built:**
 - compliance KYC queue: pending/verified/rejected list, masked customer phone,
   identity last4 only, approve/reject with code and note, customer status update,
   immutable decisions and redacted compliance activity;
+- recovery-code login with one-time consumption and audit;
+- reconciliation CSV file upload as well as paste;
+- app service banner for emergency pause/maintenance message;
 - trigger-fed append-only `admin_activity_events` outbox and
   `pg_notify('admin_activity')`, so every process feeds the control room;
 - ops actions: re-check, match, disburse/resume, payout retry, refund, refund
@@ -1032,16 +1035,15 @@ manual support workspace are built:**
 
 **Not built yet:**
 
-- SSO; local accounts + TOTP only.
-- Recovery-code login flow.
+- SSO; local accounts + TOTP or a recovery code.
 - `LISTEN/NOTIFY` transport (polling + SSE is live); analytics charts, saved
   views and scheduled exports.
-- Configuration remainder: provider secrets/endpoints, feature flags, app
-  banners, effective-date scheduling, per-corridor fee overrides and a fee
-  editor pending provider reconciliation.
-- Reconciliation remainder: live provider/bank feeds, file upload, automatic
-  bank-side missing-in-statement detection, fee-line matching, correction/re-open
-  and bank balance matching.
+- Configuration remainder: provider secrets/endpoints, feature flags, scheduled
+  localized banners, effective-date scheduling, per-corridor fee overrides and
+  a fee editor pending provider reconciliation.
+- Reconciliation remainder: live provider/bank feeds, automatic bank-side
+  missing-in-statement detection, fee-line matching, correction/re-open and bank
+  balance matching.
 - KYC/sanctions remainder: document images/OCR, name-check provider, sanctions
   watchlists and compliance case linkage; approvals beyond configuration, SPA,
   IP allowlist deployment. Support has no customer-facing chat, email or

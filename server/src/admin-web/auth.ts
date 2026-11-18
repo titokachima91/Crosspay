@@ -409,3 +409,19 @@ export function generateRecoveryCodes(count = 10): string[] {
   }
   return codes;
 }
+
+/** Atomically consumes one unused recovery code. */
+export async function consumeRecoveryCode(
+  pool: Pool,
+  adminUserId: string,
+  code: string,
+): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE admin_recovery_codes
+     SET used_at = now()
+     WHERE admin_user_id = $1 AND code_hash = $2 AND used_at IS NULL
+     RETURNING id`,
+    [adminUserId, hashRecoveryCode(code)],
+  );
+  return (result.rowCount ?? 0) === 1;
+}

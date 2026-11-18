@@ -46,9 +46,9 @@ desk exists; the app then says support contact options are not available yet
 instead of inventing an address or number. The app only offers copy actions
 today; in-app message submission is not connected.
 `service` is optional and appears only while an emergency pause or operator
-message is active. The current Flutter parser ignores it; the app maintenance
-banner is not connected yet. The pause itself is enforced by the quote and trade
-endpoints with `503 SERVICE_PAUSED`.
+message is active. The Flutter app renders it as a maintenance banner above the
+signed-in tabs. The pause itself is enforced by the quote and trade endpoints
+with `503 SERVICE_PAUSED`.
 
 ## GET /api/v1/rates   (no login)
 {

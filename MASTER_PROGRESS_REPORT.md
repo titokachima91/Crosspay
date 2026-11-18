@@ -4,7 +4,7 @@
 **Project**: CrossPay
 **Package**: crosspay_app
 **Environment**: macOS Monterey | Flutter 3.24.5 | Dart 3.5.4 | Node 24 | PostgreSQL 17 for the API | SQLite for the sandbox
-**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 (matching, LP liquidity, exposure, app matching states, Phase A/B/C ops admin portal, read-only bookkeeping, configuration v1, reconciliation v1, KYC review, manual support workspace) complete · market depth, analytics, CSV export and the reconciliation worker complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · B4.6 live statement feeds/config remainder/sanctions and B3 invoice/share remain
+**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 (matching, LP liquidity, exposure, app matching states, Phase A/B/C ops admin portal, read-only bookkeeping, configuration v1, reconciliation v1, KYC review, manual support workspace, recovery-code login and app pause banner) complete · market depth, analytics, CSV export and the reconciliation worker complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · B4.6 live statement feeds/config remainder/sanctions and B3 invoice/share remain
 
 ---
 
@@ -244,10 +244,11 @@ statement import with exact matching, provider missing-in-statement detection,
 typed exceptions and final daily close; manual support cases with append-only
 notes, customer 360, canned replies, audited PII reveal and provider-gated SMS
 replies; manual KYC metadata review with masked identity, immutable decisions
-and customer status update. Live statement feeds, configuration remainder,
-sanctions/name-check queues and bank-side reconciliation remain planned in
-`docs/ADMIN_PANEL_PLAN.md`; current portal details in
-`docs/ADMIN_WEB_IMPLEMENTATION.md`.
+and customer status update; recovery-code login with one-time consumption;
+CSV statement file upload; and the app pause/maintenance banner. Live statement
+feeds, configuration remainder, sanctions/name-check queues and bank-side
+reconciliation remain planned in `docs/ADMIN_PANEL_PLAN.md`; current portal
+details in `docs/ADMIN_WEB_IMPLEMENTATION.md`.
 
 **Built**: `docs/B4_MATCHING_IMPLEMENTATION.md`. Matching is off by
 `P2P_ENABLED=false` and per-corridor rows in `p2p_corridors`; no corridor is
@@ -525,11 +526,11 @@ Completed:
 
 Next, in order:
 1. **B4.6 configuration remainder** — provider settings/secrets, feature flags,
-   app banners, effective-date scheduling, fee editor after provider
-   reconciliation, analytics charts.
-2. **B4.6 reconciliation remainder** — live provider/bank feeds, file upload,
-   bank-side missing-in-statement detection, fee-line matching,
-   correction/re-open and bank balance matching.
+   scheduled/localized banners, effective-date scheduling, fee editor after
+   provider reconciliation, analytics charts.
+2. **B4.6 reconciliation remainder** — live provider/bank feeds, bank-side
+   missing-in-statement detection, fee-line matching, correction/re-open and
+   bank balance matching.
 3. **B4.6 compliance remainder** — sanctions/watchlist and name-check provider
    queues, document capture; approvals beyond configuration.
 4. **Bank payouts and KYC/name-check adapters** — mobile-money payout, refunds,

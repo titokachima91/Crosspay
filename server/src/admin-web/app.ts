@@ -2,6 +2,7 @@ import path from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
 import formbody from '@fastify/formbody';
+import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import view from '@fastify/view';
 import ejs from 'ejs';
@@ -22,6 +23,9 @@ export async function buildAdminWebServer(
 
   await app.register(cookie);
   await app.register(formbody);
+  await app.register(multipart, {
+    limits: { fileSize: 2 * 1024 * 1024, files: 1, fields: 20 },
+  });
   await app.register(fastifyStatic, {
     root: path.join(import.meta.dirname, 'public'),
     prefix: '/assets/',

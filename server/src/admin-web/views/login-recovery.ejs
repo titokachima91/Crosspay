@@ -1,0 +1,14 @@
+<%- include('partials/header', { title: 'Recovery code', user: null, csrf: '', active: '', notice: null, error: error || null }) %>
+<div class="auth-card">
+  <h1>Use a recovery code</h1>
+  <div class="sub">Enter one of the one-time recovery codes saved when you enrolled your authenticator.</div>
+  <form method="post" action="/login/recovery">
+    <div class="field">
+      <label for="code">Recovery code</label>
+      <input id="code" name="code" autocomplete="one-time-code" required autofocus placeholder="XXXX-XXXX-XXXX">
+    </div>
+    <button class="primary" type="submit">Sign in</button>
+  </form>
+  <div class="auth-foot">Each code works once. Return to the <a href="/login/totp">authenticator code</a> if you still have it.</div>
+</div>
+<%- include('partials/footer') %>
