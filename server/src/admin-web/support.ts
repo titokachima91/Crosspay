@@ -456,7 +456,7 @@ export async function loadCustomer360(pool: Pool, userId: string) {
   const row = user.rows[0];
   if (!row) return null;
 
-  const [trades, cases, counts] = await Promise.all([
+  const [trades, cases, counts, sessions] = await Promise.all([
     pool.query<{
       id: string;
       reference: string;
@@ -497,6 +497,22 @@ export async function loadCustomer360(pool: Pool, userId: string) {
        FROM support_cases WHERE user_id = $1`,
       [userId],
     ),
+    pool.query<{
+      active_sessions: number;
+      active_families: number;
+      oldest_created_at: Date | null;
+      latest_used_at: Date | null;
+    }>(
+      `SELECT count(*)::int AS active_sessions,
+              count(DISTINCT family_id)::int AS active_families,
+              min(created_at) AS oldest_created_at,
+              max(COALESCE(last_used_at, created_at)) AS latest_used_at
+       FROM refresh_tokens
+       WHERE user_id = $1
+         AND revoked_at IS NULL
+         AND expires_at > now()`,
+      [userId],
+    ),
   ]);
 
   return {
@@ -513,6 +529,16 @@ export async function loadCustomer360(pool: Pool, userId: string) {
     },
     caseCount: Number(counts.rows[0]?.total ?? 0),
     openCaseCount: Number(counts.rows[0]?.open ?? 0),
+    sessions: {
+      activeSessions: Number(sessions.rows[0]?.active_sessions ?? 0),
+      activeFamilies: Number(sessions.rows[0]?.active_families ?? 0),
+      oldestCreatedAt: sessions.rows[0]?.oldest_created_at
+        ? new Date(sessions.rows[0]!.oldest_created_at).toISOString()
+        : null,
+      latestUsedAt: sessions.rows[0]?.latest_used_at
+        ? new Date(sessions.rows[0]!.latest_used_at).toISOString()
+        : null,
+    },
     trades: trades.rows.map((trade) => ({
       id: trade.id,
       reference: trade.reference,
@@ -534,6 +560,80 @@ export async function loadCustomer360(pool: Pool, userId: string) {
       lastActivityAt: new Date(supportCase.last_activity_at).toISOString(),
     })),
   };
+}
+
+export interface RevokeCustomerSessionsResult {
+  activeSessions: number;
+  familyCount: number;
+  revokedTokens: number;
+}
+
+/**
+ * Revokes every outstanding refresh token for one customer. Access tokens are
+ * short-lived and expire on their own; the customer must sign in again once
+ * the current access token ends. No money, KYC or case state is touched.
+ */
+export async function revokeCustomerSessions(
+  pool: Pool,
+  input: {
+    userId: string;
+    adminEmail: string;
+    reason: string;
+  },
+): Promise<RevokeCustomerSessionsResult> {
+  const why = input.reason.trim();
+  if (why.length < 5 || why.length > 300) {
+    throw new SupportError(
+      422,
+      'SESSION_REVOKE_REASON_INVALID',
+      'A reason of 5-300 characters is required to revoke sessions',
+    );
+  }
+
+  return withTransaction(pool, async (client) => {
+    const user = await client.query(
+      `SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+      [input.userId],
+    );
+    if (user.rowCount !== 1) {
+      throw new SupportError(404, 'SUPPORT_CUSTOMER_NOT_FOUND', 'Customer not found');
+    }
+
+    const active = await client.query<{ sessions: number; families: number }>(
+      `SELECT count(*)::int AS sessions,
+              count(DISTINCT family_id)::int AS families
+       FROM refresh_tokens
+       WHERE user_id = $1
+         AND revoked_at IS NULL
+         AND expires_at > now()`,
+      [input.userId],
+    );
+    const activeSessions = Number(active.rows[0]?.sessions ?? 0);
+    const familyCount = Number(active.rows[0]?.families ?? 0);
+
+    const revoked = await client.query(
+      `UPDATE refresh_tokens
+       SET revoked_at = now()
+       WHERE user_id = $1 AND revoked_at IS NULL`,
+      [input.userId],
+    );
+    const revokedTokens = revoked.rowCount ?? 0;
+
+    await client.query(
+      `INSERT INTO admin_activity_events
+         (source, event_type, severity, trade_id, reference, actor_label,
+          summary, payload, created_at)
+       VALUES ('support', 'customer.sessions_revoked', 'warning',
+               NULL, NULL, $1, $2, $3::jsonb, now())`,
+      [
+        input.adminEmail,
+        `Customer sessions revoked · ${activeSessions} active · ${familyCount} families`,
+        JSON.stringify({ activeSessions, familyCount, revokedTokens }),
+      ],
+    );
+
+    return { activeSessions, familyCount, revokedTokens };
+  });
 }
 
 export async function loadSupportAgents(pool: Pool) {

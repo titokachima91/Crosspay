@@ -83,6 +83,13 @@ export interface OverviewData {
     payoutSeconds: number | null;
     refundSeconds: number | null;
   };
+  worker: {
+    lastFinishedAt: string | null;
+    ageSeconds: number | null;
+    durationMs: number | null;
+    errors: number;
+    lastError: string | null;
+  };
   queue: Array<{
     id: string;
     reference: string;
@@ -140,7 +147,7 @@ export interface OverviewData {
 }
 
 export async function loadOverview(pool: Pool): Promise<OverviewData> {
-  const [corridors, queue, matches, payouts, refunds, orders, counts] = await Promise.all([
+  const [corridors, queue, matches, payouts, refunds, orders, counts, heartbeat] = await Promise.all([
     loadCorridors(pool),
     pool.query(
       `SELECT t.id, t.reference, t.status, t.send_currency, t.receive_currency,
@@ -217,6 +224,19 @@ export async function loadOverview(pool: Pool): Promise<OverviewData> {
          (SELECT EXTRACT(EPOCH FROM (now() - min(requested_at)))::int
           FROM refunds WHERE status IN ('pending', 'submitted')) AS refund_seconds`,
     ),
+    pool.query<{
+      last_finished_at: Date | null;
+      age_seconds: number | null;
+      duration_ms: number | null;
+      errors: number;
+      last_error: string | null;
+    }>(
+      `SELECT finished_at AS last_finished_at,
+              EXTRACT(EPOCH FROM (now() - finished_at))::int AS age_seconds,
+              duration_ms, errors, last_error
+       FROM worker_heartbeats
+       WHERE worker = 'worker'`,
+    ),
   ]);
 
   const alerts: Array<{ level: 'warning' | 'critical'; message: string }> = [];
@@ -233,6 +253,39 @@ export async function loadOverview(pool: Pool): Promise<OverviewData> {
   }
   if (Number(counts.rows[0]?.refunds ?? '0') > 0) {
     alerts.push({ level: 'warning', message: `${counts.rows[0]?.refunds} refund(s) pending` });
+  }
+
+  const workerRow = heartbeat.rows[0];
+  const worker = {
+    lastFinishedAt: workerRow?.last_finished_at
+      ? new Date(workerRow.last_finished_at).toISOString()
+      : null,
+    ageSeconds: workerRow?.age_seconds ?? null,
+    durationMs: workerRow?.duration_ms ?? null,
+    errors: Number(workerRow?.errors ?? 0),
+    lastError: workerRow?.last_error ?? null,
+  };
+  if (!workerRow || worker.ageSeconds === null) {
+    alerts.push({
+      level: 'warning',
+      message: 'Reconciliation worker has not reported a completed pass yet',
+    });
+  } else if (worker.ageSeconds > 900) {
+    alerts.push({
+      level: 'critical',
+      message: `Reconciliation worker is stale (${Math.round(worker.ageSeconds / 60)} minutes since its last pass)`,
+    });
+  } else if (worker.ageSeconds > 300) {
+    alerts.push({
+      level: 'warning',
+      message: `Reconciliation worker last reported ${Math.round(worker.ageSeconds / 60)} minutes ago`,
+    });
+  }
+  if (worker.errors > 0) {
+    alerts.push({
+      level: 'warning',
+      message: `Last reconciliation pass reported ${worker.errors} error(s)`,
+    });
   }
 
   const oldest = {
@@ -278,6 +331,7 @@ export async function loadOverview(pool: Pool): Promise<OverviewData> {
       liquidityOrders: Number(counts.rows[0]?.liquidity_orders ?? '0'),
     },
     oldest,
+    worker,
     queue: queue.rows.map((row) => ({
       id: String(row['id']),
       reference: String(row['reference']),

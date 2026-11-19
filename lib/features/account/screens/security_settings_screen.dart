@@ -14,7 +14,15 @@ import 'package:crosspay_app/providers/auth_provider.dart';
 /// the PIN always remains the fallback. The refresh token lives in the same
 /// platform-secure storage and rotates on every use.
 class SecuritySettingsScreen extends ConsumerStatefulWidget {
-  const SecuritySettingsScreen({super.key});
+  const SecuritySettingsScreen({
+    super.key,
+    this.pinManager,
+    this.biometrics,
+  });
+
+  /// Test seams; production uses the secure-storage-backed defaults.
+  final PinManager? pinManager;
+  final BiometricManager? biometrics;
 
   @override
   ConsumerState<SecuritySettingsScreen> createState() =>
@@ -23,9 +31,12 @@ class SecuritySettingsScreen extends ConsumerStatefulWidget {
 
 class _SecuritySettingsScreenState
     extends ConsumerState<SecuritySettingsScreen> {
-  final PinManager _pin = PinManager();
+  late final PinManager _pin = widget.pinManager ?? PinManager();
+  late final BiometricManager _biometrics =
+      widget.biometrics ?? BiometricManager();
   bool _hasPin = false;
   bool _biometricsAvailable = false;
+  bool _biometricEnabled = false;
   bool _checking = true;
 
   @override
@@ -36,11 +47,13 @@ class _SecuritySettingsScreenState
 
   Future<void> _load() async {
     final has = await _pin.hasPin();
-    final biometrics = await BiometricManager().isAvailable();
+    final available = await _biometrics.isAvailable();
+    final enabled = has && available ? await _pin.hasBiometricUnlock() : false;
     if (!mounted) return;
     setState(() {
       _hasPin = has;
-      _biometricsAvailable = biometrics;
+      _biometricsAvailable = available;
+      _biometricEnabled = enabled;
       _checking = false;
     });
   }
@@ -48,11 +61,71 @@ class _SecuritySettingsScreenState
   Future<void> _onPinToggle(bool enabled) async {
     if (enabled) {
       final created = await _showPinDialog(setup: true);
-      if (created == true) setState(() => _hasPin = true);
+      if (created == true) {
+        // A newly created PIN starts with biometrics off; enabling it needs a
+        // fresh successful device check.
+        await _pin.setBiometricUnlock(false);
+        if (!mounted) return;
+        setState(() {
+          _hasPin = true;
+          _biometricEnabled = false;
+        });
+      }
     } else {
       final removed = await _showPinDialog(setup: false);
-      if (removed == true) setState(() => _hasPin = false);
+      if (removed == true) {
+        if (!mounted) return;
+        setState(() {
+          _hasPin = false;
+          _biometricEnabled = false;
+        });
+      }
     }
+  }
+
+  Future<void> _onBiometricToggle(bool enabled) async {
+    if (enabled) {
+      if (!_hasPin || !_biometricsAvailable) return;
+      final ok = await _biometrics.authenticate(
+        localizedReason: 'Confirm your fingerprint or face to enable unlock',
+      );
+      if (!mounted) return;
+      if (!ok) {
+        _showMessage(
+          'Biometric check did not succeed. Try again with your device '
+          'biometrics, or keep using the PIN.',
+        );
+        return;
+      }
+      await _pin.setBiometricUnlock(true);
+      if (!mounted) return;
+      setState(() => _biometricEnabled = true);
+      _showMessage('Biometric unlock is on. Your PIN still works as fallback.');
+    } else {
+      await _pin.setBiometricUnlock(false);
+      if (!mounted) return;
+      setState(() => _biometricEnabled = false);
+      _showMessage('Biometric unlock is off.');
+    }
+  }
+
+  Future<void> _testBiometrics() async {
+    final ok = await _biometrics.authenticate(
+      localizedReason: 'Confirm your fingerprint or face',
+    );
+    if (!mounted) return;
+    _showMessage(
+      ok
+          ? 'Biometric check passed on this device.'
+          : 'Biometric check did not pass. Check that a fingerprint or face '
+              'is enrolled in the device settings.',
+    );
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   /// Setup: enter + confirm a new PIN. Turn-off: verify current PIN.
@@ -178,24 +251,47 @@ class _SecuritySettingsScreenState
                       height: 1,
                       color: Theme.of(context).colorScheme.outlineVariant,
                     ),
-                    _InfoRow(
-                      icon: Icons.fingerprint,
+                    _SwitchRow(
                       label: 'Biometric unlock',
-                      trailing: _checking
+                      subtitle: _checking
                           ? 'Checking…'
-                          : (_biometricsAvailable
-                              ? 'Available on this device'
-                              : 'Not available on this device'),
+                          : !_biometricsAvailable
+                              ? 'Not available or no biometric is enrolled on this device'
+                              : !_hasPin
+                                  ? 'Set a PIN first'
+                                  : (_biometricEnabled
+                                      ? 'On — fingerprint or face is offered first'
+                                      : 'Off — PIN is used'),
+                      value: _biometricEnabled &&
+                          _hasPin &&
+                          _biometricsAvailable &&
+                          !_checking,
+                      enabled: !_checking && _hasPin && _biometricsAvailable,
+                      onChanged: _onBiometricToggle,
                     ),
+                    if (_biometricsAvailable && _hasPin)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: _testBiometrics,
+                            icon: const Icon(Icons.fingerprint, size: 18),
+                            label: const Text('Test biometrics now'),
+                          ),
+                        ),
+                      ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                       child: Text(
-                        _hasPin
-                            ? 'Fingerprint or face is offered first when the '
-                                'app opens; your PIN always works as the '
-                                'fallback.'
-                            : 'Set a PIN first. Biometrics are then offered '
-                                'first when the app opens, with the PIN as the '
+                        _biometricsAvailable
+                            ? 'When enabled, the device asks for your '
+                                'fingerprint or face when the app opens. If '
+                                'it fails or you cancel, the PIN dialog is '
+                                'shown.'
+                            : 'This device reports no enrolled fingerprint or '
+                                'face. Add one in the device settings, then '
+                                'reopen this screen. The PIN remains the '
                                 'fallback.',
                         style: TextStyle(
                           fontSize: 13,

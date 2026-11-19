@@ -1,0 +1,127 @@
+# Production-like local stack: PostgreSQL + migrations + API + admin + worker.
+#
+#   cp server/.env.example server/.env    # fill every secret
+#   export POSTGRES_PASSWORD=...          # URL-safe; it is embedded in DATABASE_URL
+#   docker compose up --build
+#
+# The API keeps port 3000, the admin portal 3001. `server/.env` supplies the
+# application secrets; the database URL below overrides its localhost value.
+name: crosspay
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-crosspay}
+      POSTGRES_USER: ${POSTGRES_USER:-crosspay}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - crosspay-db:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-crosspay} -d ${POSTGRES_DB:-crosspay}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    build: ./server
+    command: ["node", "dist/db/migrate-cli.js"]
+    env_file:
+      - ./server/.env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-crosspay}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-crosspay}
+      DATABASE_SSL: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    healthcheck:
+      disable: true
+
+  api:
+    build: ./server
+    env_file:
+      - ./server/.env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-crosspay}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-crosspay}
+      DATABASE_SSL: "false"
+      PORT: "3000"
+      HOST: 0.0.0.0
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    restart: unless-stopped
+
+  admin:
+    build: ./server
+    command: ["node", "dist/admin-web/server.js"]
+    env_file:
+      - ./server/.env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-crosspay}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-crosspay}
+      DATABASE_SSL: "false"
+      ADMIN_WEB_HOST: 0.0.0.0
+      ADMIN_WEB_PORT: "3001"
+      ADMIN_BASE_URL: ${ADMIN_BASE_URL:-http://127.0.0.1:3001}
+      ADMIN_COOKIE_SECURE: ${ADMIN_COOKIE_SECURE:-false}
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    restart: unless-stopped
+
+  worker:
+    build: ./server
+    command: ["node", "dist/worker-main.js"]
+    env_file:
+      - ./server/.env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-crosspay}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-crosspay}
+      DATABASE_SSL: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+
+volumes:
+  crosspay-db:

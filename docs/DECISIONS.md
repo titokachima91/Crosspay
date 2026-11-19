@@ -320,10 +320,20 @@ Scheduled banners, invoices, sessions and live activity
   tokens; a network failure keeps them for the next launch. The refresh request
   itself is never retried, because the token is single-use.
 - Stay signed in is always behind the local PIN/biometric gate. Biometrics are
-  attempted first when available; the PIN dialog is always the fallback.
+  opt-in per device: the person enables them from Security settings after a
+  successful device check; a denied or cancelled prompt falls back to the PIN.
+  Disabling the PIN clears the biometric preference.
+- Support can revoke all refresh-token families for one customer with a
+  5-300 character reason. It audits the reason and emits redacted activity.
+  Access tokens expire on their own; KYC, trades, cases and money are untouched.
+  Revocation and refresh rotation lock the user row first, so a refresh cannot
+  slip a new token past the revocation sweep.
 - The control room consumes PostgreSQL `LISTEN admin_activity` on a dedicated
   pooled connection, with the interval poll retained as fallback and reconnect
   path. A notification during an in-flight poll schedules one more poll.
+- The reconciliation worker records a heartbeat per pass. The admin overview
+  highlights a missing or stale heartbeat and the error count; the heartbeat is
+  operational metadata, not a money record.
 - `.dart_tool` is regenerable. Removing it for snapshot space requires
   `flutter pub get` before analysis; otherwise the analyzer reports thousands of
   false missing-package errors.

@@ -659,6 +659,11 @@ Each explanation links to the underlying event, provider reference and journal.
 | Refund | finance/ops | approval threshold; provider-confirmed |
 | Mark paid / edit ledger / bypass KYC | **nobody** | not an admin action |
 
+Built today: reset a customer session, add case note/tag/assignee, send a
+free-text or canned SMS when a provider exists, and reveal masked PII with a
+reason. Re-check, resend, cancel, match and refund actions remain planned and
+must not be added as buttons that pretend to succeed.
+
 **Case workflow**
 
 - open from a trade, user or inbound message;

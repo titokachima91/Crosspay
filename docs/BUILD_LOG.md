@@ -997,4 +997,65 @@ new snapshot.
 
 ---
 
+## 2026-11-20 - biometric opt-in, customer session reset, worker heartbeat and containers
+
+**Session rule followed**: no sandbox environment hardcoding, no invented
+operational data in `lib/`, server is the source of truth, nothing written to
+the sandbox database or protected SMS/AI files.
+
+### Biometric unlock is now a real opt-in
+- `BiometricPreference` stores the per-device choice in platform-secure storage.
+  Default off. `PinManager.ensureUnlocked` only prompts for biometrics when a
+  PIN exists, the preference is on, and the device reports an enrolled
+  biometric. Denial/cancel falls back to the PIN dialog; no PIN means no gate.
+- Security settings now has a real biometric switch, a "Test biometrics now"
+  action, honest unavailable/no-enrolment text, and clears the preference when
+  the PIN is turned off. Enabling requires a successful device check first.
+- `test/biometric_unlock_test.dart` covers enabled success, denial fallback,
+  no attempt before opt-in, the settings toggle, and the unavailable state.
+- Android still uses `FlutterFragmentActivity` and `compileSdk 35`;
+  `flutter build apk --debug` succeeds. A sideloadable build is at
+  `~/Desktop/Projects/CrossPay/CrossPay-debug-biometrics-2026-11-20.apk`
+  (SHA-256 `d99b182e3f08ddb391ba568fb94f9d18a4170680b3ae46f41540b6ef991127e6`).
+- Real-device fingerprint/Face ID and iOS remain unverified here.
+
+### Customer session reset
+- Support Customer 360 shows active refresh-token sessions and families. A
+  `support:write` operator can revoke all sessions for one customer with a
+  5-300 character reason.
+- Revocation updates only `refresh_tokens`, records the reason and counts in
+  `admin_audit_log`, and emits a redacted `customer.sessions_revoked` activity
+  event. KYC, trades, cases and money are untouched. Viewers are denied.
+  Refresh rotation now also locks the user row first, so a concurrent refresh
+  cannot insert a new token after the revocation sweep.
+- Verified by a new admin-web test covering counts, validation, family
+  revocation, another customer's untouched token, audit reason and redaction.
+
+### Worker heartbeat and deployment scaffolding
+- Migration `0022` adds `worker_heartbeats`. `runWorkerPass` records start,
+  finish, duration and error count without changing the pass result. The admin
+  overview shows the last pass age and raises warning/critical alerts for a
+  missing or stale worker.
+- The worker entrypoint moved to `src/worker-cli.ts` / `src/worker-main.ts` so
+  the compiled image can run it without `tsx`.
+- Added compiled `src/db/migrate-cli.ts` and
+  `src/admin-web/create-admin-cli.ts` entrypoints.
+- Added `server/Dockerfile`, `server/.dockerignore`, root `compose.yaml`
+  (PostgreSQL 17, one-shot migrations, API, admin, worker, health checks) and
+  `docs/DEPLOYMENT.md` with migration, admin creation, health and backup steps.
+  Docker is not installed on this machine, so the YAML was syntax-checked and
+  the compiled entrypoints exercised, but the containers were not run.
+
+### Verification
+- Node: **122/122**, 21 suites; typecheck clean; production build clean and the
+  new compiled entrypoints present.
+- Flutter: **236 passed, 1 skipped**; analyzer clean; debug APK built.
+- Live sandbox contract from the previous run still passes against the isolated
+  dev-OTP instance; the active :8080 real-SMS configuration was not changed.
+
+Next: push the local branch to origin after the product owner's explicit
+confirmation, then take the final snapshot.
+
+---
+
 ## Report End - No fluff. Just facts.

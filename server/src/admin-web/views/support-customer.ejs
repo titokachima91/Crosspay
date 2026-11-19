@@ -14,8 +14,30 @@
     <div class="detail"><div class="k">Phone verified</div><div class="v"><%= detail.customer.phoneVerified ? 'yes' : 'no' %></div></div>
     <div class="detail"><div class="k">Joined</div><div class="v"><%= detail.customer.createdAt.replace('T', ' ').slice(0, 10) %></div></div>
     <div class="detail"><div class="k">Cases</div><div class="v"><%= detail.caseCount %> total · <%= detail.openCaseCount %> open</div></div>
+    <div class="detail"><div class="k">Active sessions</div><div class="v"><%= detail.sessions.activeSessions %> token(s) · <%= detail.sessions.activeFamilies %> family(ies)</div></div>
   </div>
   <p class="tag">The full phone and beneficiary account are masked here. Open a case and use the permissioned reveal to see them; every reveal is logged.</p>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <div class="panel-head">
+    <h2>Customer sessions</h2>
+    <span class="pill <%= detail.sessions.activeSessions > 0 ? 'info' : 'ok' %>"><%= detail.sessions.activeSessions %> active</span>
+    <% if (detail.sessions.latestUsedAt) { %><span class="tag">last used <%= detail.sessions.latestUsedAt.replace('T', ' ').slice(0, 16) %></span><% } %>
+  </div>
+  <p class="tag">Revoking signs the customer out on every device by revoking all refresh-token families. Existing access tokens expire within their short lifetime. It does not change KYC, trades, cases or money.</p>
+  <% if (detail.sessions.activeSessions === 0) { %>
+    <div class="empty">No active sessions.</div>
+  <% } else if (can.supportWrite) { %>
+    <form method="post" action="/support/customers/<%= detail.customer.id %>/sessions/revoke" data-confirm="Revoke every active session for this customer? They will need to sign in again.">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <label for="session-reason">Reason for revoking sessions</label>
+      <input id="session-reason" name="reason" required minlength="5" maxlength="300" placeholder="Lost phone, account takeover report, support request">
+      <button class="danger">Revoke all sessions</button>
+    </form>
+  <% } else { %>
+    <p class="tag">Your role can read support data but not revoke sessions.</p>
+  <% } %>
 </div>
 
 <div class="grid two" style="margin-top:16px">

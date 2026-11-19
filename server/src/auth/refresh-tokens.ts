@@ -95,6 +95,18 @@ export async function rotateRefreshToken(
   const now = input.now ?? new Date();
   const tokenHash = input.crypto.hashToken(input.token);
 
+  // Resolve the owner first, then lock the user row before the token row.
+  // Support session revocation locks the user row first; a consistent order
+  // prevents both a deadlock and a refresh that slips a new token past the
+  // revocation sweep.
+  const owner = await client.query<{ user_id: string }>(
+    `SELECT user_id FROM refresh_tokens WHERE token_hash = $1`,
+    [tokenHash],
+  );
+  const ownerId = owner.rows[0]?.user_id;
+  if (!ownerId) throw new RefreshTokenInvalidError();
+  await client.query(`SELECT id FROM users WHERE id = $1 FOR UPDATE`, [ownerId]);
+
   const selected = await client.query(
     `SELECT id, user_id, family_id, expires_at, revoked_at
      FROM refresh_tokens

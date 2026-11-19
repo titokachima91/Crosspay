@@ -9,9 +9,11 @@ exceptions, daily close) built 2026-11-18. Compliance KYC review queue built
 2026-11-19. Recovery-code login, statement file upload and the app maintenance
 banner were added 2026-11-19. The same day added linked reconciliation
 corrections, localized scheduled app banners and a `LISTEN/NOTIFY` control-room
-transport. Named local admins, TOTP, sessions, CSRF, RBAC, ops pages and audit
-are live. SSO, live statement feeds, sanctions screening and deployment-level
-IP allowlist remain.
+transport. On 2026-11-20 support gained customer session revocation, the worker
+started recording heartbeats in the overview, and the compiled container /
+migration / admin entrypoints were added. Named local admins, TOTP, sessions,
+CSRF, RBAC, ops pages and audit are live. SSO, live statement feeds, sanctions
+screening and deployment-level IP allowlist remain.
 **Code**: `server/src/admin-web/`, `server/scripts/create-admin.ts`
 **Tests**: `server/test/admin-web.test.ts`
 **Migrations**: `server/db/migrations/0012_admin_identity.sql`,
@@ -23,7 +25,8 @@ IP allowlist remain.
 `server/db/migrations/0018_kyc_review.sql`,
 `server/db/migrations/0019_trade_invoices.sql`,
 `server/db/migrations/0020_reconciliation_corrections.sql`,
-`server/db/migrations/0021_app_banners.sql`
+`server/db/migrations/0021_app_banners.sql`,
+`server/db/migrations/0022_worker_heartbeats.sql`
 **Plan**: `docs/ADMIN_PANEL_PLAN.md`
 
 ---
@@ -225,6 +228,12 @@ The tests prove both paths: a one-minute fallback interval still delivers a new
 event immediately through `LISTEN`, and a deliberately broken listener still
 delivers through the polling fallback.
 
+The overview also shows the reconciliation worker's last completed pass from
+`worker_heartbeats` (age, duration and error count). A missing heartbeat or one
+older than 5 minutes is a warning; older than 15 minutes is critical. This is
+the only place worker health is asserted operationally; the worker itself still
+does not hold money.
+
 Analytics counts completed trades only, exposes a funnel by send currency, and
 reads revenue from ledger accounts `3000` (fee) and `3100` (spread). Provider
 fees (`6000`) and compensation (`6100`) are shown as separate costs. Minor units
@@ -361,6 +370,12 @@ today.
 - Support actions never mark a payment paid, edit a journal, promise a refund or
   bypass KYC. They call only support services and leave money actions to the
   trade/refund screens.
+- Customer 360 shows the number of active refresh-token sessions. A support
+  operator with `support:write` can revoke all sessions for one customer with a
+  5-300 character reason. The action revokes every unrevoked refresh token,
+  records the reason and counts in `admin_audit_log`, and emits a redacted
+  `customer.sessions_revoked` control-room event. Access tokens expire on their
+  own; KYC, trades, cases and money are untouched.
 
 ---
 
@@ -513,6 +528,10 @@ Migration `0018` adds a manual compliance queue over the existing
 - support case creation, masked phone, append-only notes, state/assignee update,
   viewer denial, canned reply create/deactivate and control-room activity that
   excludes message bodies;
+- customer session revocation: active-session count, required reason, viewer
+  denial, token-family revocation, audit reason and redacted activity;
+- reconciliation worker heartbeat: a completed pass records finish time,
+  duration and error count, and the overview raises a stale/missing alert;
 - configuration proposals for support contacts and tier limits, two-person
   approval, self-approval denial, one-pending-change conflict, rollback,
   published config versions and config activity without payload values;
@@ -541,16 +560,22 @@ Migration `0018` adds a manual compliance queue over the existing
 - first-login TOTP enrolment and recovery-code display;
 - audit rows with the acting admin id.
 
-Suite after this phase: **121/121**, 21 suites, typecheck clean.
+Suite after this phase: **122/122**, 21 suites, typecheck clean.
 
 ---
 
 ## 15. Deployment
 
-- Run `admin-web` as its own container/process with the same image as the API
-  but `node dist/admin-web/server.js`.
-- Put it behind a zero-trust proxy (Cloudflare Access / Google IAP / Tailscale)
-  or VPN; add IP allowlist where stable.
+Full instructions: `docs/DEPLOYMENT.md`. Summary:
+
+- `server/Dockerfile` builds one image used as the API, the admin portal
+  (`node dist/admin-web/server.js`) and the worker (`node dist/worker-main.js`).
+- `compose.yaml` runs PostgreSQL 17, a one-shot compiled migration job
+  (`dist/db/migrate-cli.js`), the API and the admin portal, with health checks.
+- `node dist/admin-web/create-admin-cli.js` is the compiled first-admin command;
+  it is never run automatically on API boot.
+- Put the portal behind a zero-trust proxy (Cloudflare Access / Google IAP /
+  Tailscale) or VPN; add IP allowlist where stable.
 - Use a separate hostname (`admin.example.com`), TLS, WAF, noindex.
 - Use a least-privilege database role; it does not run migrations.
 - Set `ADMIN_BASE_URL` to the public HTTPS origin and `ADMIN_COOKIE_SECURE=true`.
@@ -559,8 +584,9 @@ Suite after this phase: **121/121**, 21 suites, typecheck clean.
 - Monitor 5xx, login failures, TOTP failures, audit insert failures, session
   table growth, `admin_activity_events` growth, support rows stuck in `pending`,
   open reconciliation exceptions and alert on `service_controls` pauses that
-  outlive an incident. The activity outbox is append-only, so retention needs an
-  explicit partitioned-table/export decision rather than an ad-hoc delete.
+  outlive an incident. The overview now alerts on a missing or stale worker
+  heartbeat. The activity outbox is append-only, so retention needs an explicit
+  partitioned-table/export decision rather than an ad-hoc delete.
 - The control room SSE holds one connection per browser. The shared poller keeps
   database load flat, but put the portal behind a proxy that does not buffer
   `text/event-stream`.

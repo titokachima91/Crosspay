@@ -5,6 +5,7 @@
   <div class="kpi"><div class="label">Pending payouts</div><div class="value"><%= data.counts.payouts %></div><div class="hint">pending or submitted</div></div>
   <div class="kpi"><div class="label">Pending refunds</div><div class="value"><%= data.counts.refunds %></div><div class="hint">pending or submitted</div></div>
   <div class="kpi"><div class="label">Active LP orders</div><div class="value"><%= data.counts.liquidityOrders %></div><div class="hint">prefunded and live</div></div>
+  <div class="kpi"><div class="label">Worker</div><div class="value"><%= data.worker.ageSeconds === null ? 'never' : Math.round(data.worker.ageSeconds) + 's' %></div><div class="hint"><%= data.worker.errors > 0 ? data.worker.errors + ' error(s) last pass' : (data.worker.lastFinishedAt ? 'last pass clean' : 'no pass yet') %></div></div>
 </div>
 
 <% if (data.alerts.length > 0) { %>

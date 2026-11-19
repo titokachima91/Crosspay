@@ -105,6 +105,7 @@ import {
   loadSupportCases,
   loadSupportSummary,
   recordPiiReveal,
+  revokeCustomerSessions,
   sendSupportSms,
   toggleCannedReply,
   updateSupportCase,
@@ -1645,7 +1646,37 @@ export function registerAdminWebRoutes(
       title: detail.customer.displayName ?? `Customer …${detail.customer.phoneLast4}`,
       active: 'support',
       detail,
+      notice: queryValue(request, 'ok') || null,
+      error: queryValue(request, 'error') || null,
     });
+  });
+
+  app.post('/support/customers/:id/sessions/revoke', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'support:write');
+    const id = (request.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) {
+      throw errorWith(404, 'SUPPORT_CUSTOMER_NOT_FOUND', 'Customer not found');
+    }
+    const reason = formValue(request.body, 'reason').trim();
+    const result = await revokeCustomerSessions(ctx.pool, {
+      userId: id,
+      adminEmail: session.user.email,
+      reason,
+    });
+    await audit(ctx, request, session, {
+      action: 'support.customer.sessions.revoke',
+      resourceType: 'user',
+      resourceId: id,
+      reason,
+      before: { activeSessions: result.activeSessions },
+      after: { revokedTokens: result.revokedTokens, familyCount: result.familyCount },
+    });
+    return redirect(
+      reply,
+      `/support/customers/${id}`,
+      `Revoked ${result.revokedTokens} refresh token(s) across ${result.familyCount} session family(ies)`,
+    );
   });
 
   app.get('/support/cases/:id', async (request, reply) => {

@@ -14,12 +14,23 @@ import 'package:crosspay_app/core/security/biometric_manager.dart';
 /// (refresh tokens, timeouts) — this lock only guards the app surface.
 class PinManager {
   PinManager([FlutterSecureStorage? storage])
-      : _storage = storage ?? const FlutterSecureStorage();
+      : _storage = storage ?? const FlutterSecureStorage(),
+        _biometricPreference =
+            BiometricPreference(storage ?? const FlutterSecureStorage());
 
   static const _keyHash = 'crosspay_pin_hash';
   static const _keySalt = 'crosspay_pin_salt';
 
   final FlutterSecureStorage _storage;
+  final BiometricPreference _biometricPreference;
+
+  /// True when the person has explicitly enabled biometric unlock.
+  Future<bool> hasBiometricUnlock() => _biometricPreference.isEnabled();
+
+  /// Enables or disables biometric presentation before the PIN. The caller
+  /// must have verified the device biometrics before enabling it.
+  Future<void> setBiometricUnlock(bool enabled) =>
+      _biometricPreference.setEnabled(enabled);
 
   /// True when a lock PIN has been set on this device.
   Future<bool> hasPin() async {
@@ -46,15 +57,18 @@ class PinManager {
     return _hash(pin, salt) == stored;
   }
 
-  /// Removes the app lock (used when the person turns the lock off).
+  /// Removes the app lock and the biometric preference (used when the person
+  /// turns the lock off).
   Future<void> clear() async {
     await _storage.delete(key: _keyHash);
     await _storage.delete(key: _keySalt);
+    await _biometricPreference.clear();
   }
 
-  /// Gate used by the app shell: offers biometrics when the device supports
-  /// them, then falls back to the PIN dialog. Returns true when unlocked (or
-  /// when no PIN is set). Cancelling the PIN dialog leaves the shell.
+  /// Gate used by the app shell: offers biometrics when the person enabled
+  /// them and the device supports them, then falls back to the PIN dialog.
+  /// Returns true when unlocked (or when no PIN is set). Cancelling the PIN
+  /// dialog leaves the shell.
   Future<bool> ensureUnlocked(
     BuildContext context, {
     BiometricManager? biometrics,
@@ -62,14 +76,17 @@ class PinManager {
   }) async {
     if (!await hasPin()) return true;
 
-    final manager = biometrics ?? BiometricManager();
-    if (await manager.isAvailable()) {
-      final unlocked = await manager.authenticate(
-        localizedReason: biometricReason ?? 'Confirm with fingerprint or face',
-      );
-      if (unlocked) return true;
-      if (!context.mounted) return false;
-      // Denied or cancelled: the PIN dialog is still available.
+    if (await hasBiometricUnlock()) {
+      final manager = biometrics ?? BiometricManager();
+      if (await manager.isAvailable()) {
+        final unlocked = await manager.authenticate(
+          localizedReason:
+              biometricReason ?? 'Confirm with fingerprint or face',
+        );
+        if (unlocked) return true;
+        if (!context.mounted) return false;
+        // Denied or cancelled: the PIN dialog is still available.
+      }
     }
 
     while (true) {

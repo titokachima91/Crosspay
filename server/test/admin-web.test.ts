@@ -784,6 +784,115 @@ describe('admin portal identity and pages', () => {
     assert.equal(trade.rows[0]?.user_id, user);
   });
 
+  it('revokes a customer session family from support with a reason and audit', async () => {
+    const ops = await createRoleUser('ops-sessions@crosspay.test', 'ops');
+    const opsLogin = await login(ops.email, PASSWORD, ops.secret);
+    const customerId = await createUser(db.pool, {
+      phone: '+255755980020',
+      displayName: 'Session Customer',
+      kycStatus: 'verified',
+      limitCurrency: 'TZS',
+    });
+    const otherId = await createUser(db.pool, {
+      phone: '+255755980021',
+      displayName: 'Other Customer',
+      kycStatus: 'verified',
+      limitCurrency: 'TZS',
+    });
+
+    const firstHash = ctx.crypto.hashToken('session-token-one');
+    const secondHash = ctx.crypto.hashToken('session-token-two');
+    const otherHash = ctx.crypto.hashToken('other-session-token');
+    await db.pool.query(
+      `INSERT INTO refresh_tokens (user_id, token_hash, family_id, expires_at)
+       VALUES ($1, $2, gen_random_uuid(), now() + interval '30 days'),
+              ($1, $3, gen_random_uuid(), now() + interval '30 days'),
+              ($4, $5, gen_random_uuid(), now() + interval '30 days')`,
+      [customerId, firstHash, secondHash, otherId, otherHash],
+    );
+
+    const page = await app.inject({
+      method: 'GET',
+      url: `/support/customers/${customerId}`,
+      headers: { cookie: `cp_admin_session=${opsLogin.session}` },
+    });
+    assert.equal(page.statusCode, 200, page.body);
+    assert.match(page.body, /2 active/);
+    assert.match(page.body, /Revoke all sessions/);
+
+    const shortReason = await postForm(
+      `/support/customers/${customerId}/sessions/revoke`,
+      { _csrf: opsLogin.csrf, reason: 'lost' },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(shortReason.statusCode, 422, shortReason.body);
+    assert.match(shortReason.body, /reason of 5-300 characters/i);
+
+    const reason = 'Customer reported a lost phone and asked to sign out everywhere';
+    const revoked = await postForm(
+      `/support/customers/${customerId}/sessions/revoke`,
+      { _csrf: opsLogin.csrf, reason },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(revoked.statusCode, 303, revoked.body);
+    assert.match(String(revoked.headers.location ?? ''), /Revoked%202%20refresh%20token/);
+
+    const tokens = await db.pool.query<{
+      token_hash: string;
+      revoked_at: Date | null;
+    }>(
+      `SELECT token_hash, revoked_at FROM refresh_tokens
+       WHERE token_hash = ANY($1::text[])
+       ORDER BY token_hash`,
+      [[firstHash, secondHash, otherHash]],
+    );
+    const byHash = new Map(tokens.rows.map((row) => [row.token_hash, row.revoked_at]));
+    assert.ok(byHash.get(firstHash));
+    assert.ok(byHash.get(secondHash));
+    assert.equal(byHash.get(otherHash), null);
+
+    const after = await app.inject({
+      method: 'GET',
+      url: `/support/customers/${customerId}`,
+      headers: { cookie: `cp_admin_session=${opsLogin.session}` },
+    });
+    assert.equal(after.statusCode, 200, after.body);
+    assert.match(after.body, /No active sessions/);
+
+    const audit = await db.pool.query<{ action: string; reason: string }>(
+      `SELECT action, reason FROM admin_audit_log
+       WHERE resource_type = 'user' AND resource_id = $1
+       ORDER BY created_at DESC LIMIT 1`,
+      [customerId],
+    );
+    assert.equal(audit.rows[0]?.action, 'support.customer.sessions.revoke');
+    assert.equal(audit.rows[0]?.reason, reason);
+
+    const activity = await db.pool.query<{
+      payload: Record<string, unknown>;
+      summary: string;
+    }>(
+      `SELECT payload, summary FROM admin_activity_events
+       WHERE source = 'support' AND event_type = 'customer.sessions_revoked'
+       ORDER BY id DESC LIMIT 1`,
+    );
+    assert.equal(activity.rows[0]?.payload['activeSessions'], 2);
+    assert.equal(activity.rows[0]?.payload['familyCount'], 2);
+    assert.equal(activity.rows[0]?.payload['revokedTokens'], 2);
+    assert.match(activity.rows[0]?.summary ?? '', /Customer sessions revoked/);
+    assert.ok(!JSON.stringify(activity.rows[0]).includes('Session Customer'));
+    assert.ok(!JSON.stringify(activity.rows[0]).includes('+255755980020'));
+
+    const viewer = await createRoleUser('viewer-sessions@crosspay.test', 'viewer');
+    const viewerLogin = await login(viewer.email, PASSWORD, viewer.secret);
+    const forbidden = await postForm(
+      `/support/customers/${customerId}/sessions/revoke`,
+      { _csrf: viewerLogin.csrf, reason: 'Viewer must not be allowed' },
+      { cookie: `cp_admin_session=${viewerLogin.session}` },
+    );
+    assert.equal(forbidden.statusCode, 403, forbidden.body);
+  });
+
   it('requires compliance permission, a reason and an audit for PII reveal', async () => {
     const ops = await createRoleUser('ops-pii@crosspay.test', 'ops');
     const compliance = await createRoleUser('compliance-pii@crosspay.test', 'compliance');

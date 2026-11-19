@@ -292,6 +292,17 @@ describe('reconciliation worker', () => {
       [created.quoteId],
     );
     assert.equal(stored.rows[0]?.status, 'expired');
+
+    const heartbeat = await db.pool.query<{
+      finished_at: Date | null;
+      duration_ms: number | null;
+      errors: number;
+    }>(
+      `SELECT finished_at, duration_ms, errors FROM worker_heartbeats WHERE worker = 'worker'`,
+    );
+    assert.ok(heartbeat.rows[0]?.finished_at, 'a completed pass records its finish time');
+    assert.equal(heartbeat.rows[0]?.errors, 0);
+    assert.ok((heartbeat.rows[0]?.duration_ms ?? -1) >= 0);
   });
 
   it('resumes a direct payout from the provider status', async () => {

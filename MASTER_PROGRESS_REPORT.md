@@ -1,10 +1,10 @@
 # CROSSPAY: MASTER PROGRESS REPORT
 
-**Updated**: 2026-11-19
+**Updated**: 2026-11-20
 **Project**: CrossPay
 **Package**: crosspay_app
 **Environment**: macOS Monterey | Flutter 3.24.5 | Dart 3.5.4 | Node 24 | PostgreSQL 17 for the API | SQLite for the sandbox
-**Progress**: Frontend complete (F5.3 included) · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 (matching, LP liquidity, exposure, app matching states, Phase A/B/C ops admin portal, read-only bookkeeping, configuration center with localized scheduled banners, reconciliation v1.1 with linked corrections, KYC review, manual support workspace, recovery-code login, app pause banner, invoice/share links and `LISTEN/NOTIFY` control room) complete · market depth, analytics, CSV export and the reconciliation worker complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · B4.6 live statement feeds/sanctions, bank balance matching and the provider-owned fee editor remain
+**Progress**: Frontend complete (F5.3 included; real-device biometric check pending) · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 (matching, LP liquidity, exposure, app matching states, Phase A/B/C ops admin portal, read-only bookkeeping, configuration center with localized scheduled banners, reconciliation v1.1 with linked corrections, KYC review, manual support workspace with customer session revocation, recovery-code login, app pause banner, invoice/share links and `LISTEN/NOTIFY` control room) complete · market depth, analytics, CSV export, worker heartbeat and the reconciliation worker complete · production container/migration scaffolding complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · B4.6 live statement feeds/sanctions, bank balance matching, provider-owned fee editor, real-device biometrics and production hosting remain
 
 ---
 
@@ -92,21 +92,23 @@ code 1234
 - [x] F5.1 Profile and limit bar
 - [x] F5.2 Saved recipients CRUD
 - [x] F5.3 Security — PIN lock, app-shell gate, language and theme persistence,
-  biometric unlock (fingerprint/face with PIN fallback) and stay-signed-in
-  refresh-token rotation with a single-flight 401 interceptor. Android uses a
+  opt-in biometric unlock with PIN fallback, and stay-signed-in refresh-token
+  rotation with a single-flight 401 interceptor. Android uses a
   `FlutterFragmentActivity` host and compiles against SDK 35; a debug APK
-  builds. Real-device fingerprint/Face ID still needs a physical device test;
-  iOS is unverified because Xcode is incomplete.
+  builds and is available for sideloading. Real-device fingerprint/Face ID
+  still needs a physical device test; iOS is unverified because Xcode is
+  incomplete.
 
 **Frontend verification**:
 - `dart analyze lib test preview` → **No issues found** (2026-11-19)
-- `flutter test` → **231 passed, 1 skipped** (2026-11-19); the skipped test is
+- `flutter test` → **236 passed, 1 skipped** (2026-11-20); the skipped test is
   the opt-in live sandbox contract test
 - `LIVE_SANDBOX=1 flutter test test/live_sandbox_test.dart` → **passed** against
   an isolated dev-OTP sandbox instance (2026-11-19)
 - `flutter build web --release -t preview/main.dart` → **Built build/web**
   (2026-11-19)
-- `flutter build apk --debug` → **Built app-debug.apk** (2026-11-19)
+- `flutter build apk --debug` → **Built app-debug.apk** (2026-11-20); sideload
+  copy at `~/Desktop/Projects/CrossPay/CrossPay-debug-biometrics-2026-11-20.apk`
 
 ---
 
@@ -371,13 +373,13 @@ The CrossPay API does not initiate or pay yet; that is B2.3/B2.4.
 
 | Suite | Result | Date |
 |---|---|---|
-| Flutter widget/unit | **231 passed, 1 skipped** | 2026-11-19 |
+| Flutter widget/unit | **236 passed, 1 skipped** | 2026-11-20 |
 | Flutter static analysis | **No issues found** | 2026-11-19 |
 | Live Flutter contract against sandbox | **passed** | 2026-11-19 |
-| Android debug APK build | **Built app-debug.apk** | 2026-11-19 |
-| CrossPay API `typecheck` | **clean** | 2026-11-19 |
-| CrossPay API `build` | **clean** | 2026-11-19 |
-| CrossPay API tests | **121/121, 21 suites** | 2026-11-19 |
+| Android debug APK build | **Built app-debug.apk** | 2026-11-20 |
+| CrossPay API `typecheck` | **clean** | 2026-11-20 |
+| CrossPay API `build` | **clean** | 2026-11-20 |
+| CrossPay API tests | **122/122, 21 suites** | 2026-11-20 |
 | Sandbox tests | **37/37** (14 facade + 9 simulator + 10 customers + 4 real-SMS) | 2026-11-15 |
 | B2.0 snapshot restore | `npm ci` + typecheck + build + **36/36** | 2026-11-15 |
 | B2.2 snapshot restore | `npm ci` + typecheck + build + **42/42** | 2026-11-15 |
@@ -471,13 +473,13 @@ These cannot be finished by engineering alone:
 
 Engineering blockers:
 - Live SMS delivery: the sandbox real-SMS path is working from Vodacom SIM 1 (`0767304776`) to `+255714604777`; the production SMS partner is not configured. The local gateway must be running for the :8080 sandbox, or contract tests use an isolated dev-OTP instance.
-- Real-device biometric testing: the Android host and permission entries compile into a debug APK, but fingerprint/Face ID must be checked on physical Android and iOS devices. iOS builds are blocked until Xcode is fully installed.
+- Real-device biometric testing: the Android host, SDK 35 and opt-in settings compile into a debug APK, but fingerprint/Face ID must be checked on physical Android and iOS devices. iOS builds are blocked until Xcode is fully installed.
 - Production database/hosting is not provisioned. The schema and migrations are exercised on the persistent dev PostgreSQL cluster and in the test suite; managed PostgreSQL, TLS, backup/restore and retention still need a deployment decision.
+- The container stack (`server/Dockerfile`, `compose.yaml`) is written and YAML-checked, but Docker is not installed on this machine, so it has not been launched here.
 - A real pricing source and approved spread (B2.2 works against the sandbox).
 - Collection/payout provider contracts (B2.3/B2.4).
 - Name-check provider.
 - CrossPay market-depth source (sandbox has depth; CrossPay does not proxy it).
-- Biometrics and app-side refresh-token handling (F5.3).
 
 ---
 
@@ -539,23 +541,32 @@ Completed:
   refunds, bank accounts and transfers.
 - Full live flow through the sandbox and real Flutter repositories.
 - Admin portal through KYC review, reconciliation v1.1, localized scheduled
-  banners, invoice/share links and `LISTEN/NOTIFY` live activity.
+  banners, invoice/share links, customer session revocation and `LISTEN/NOTIFY`
+  live activity.
+- Worker heartbeat, compiled migration/admin/worker entrypoints and the
+  production-like container stack.
 - Verified snapshots of both projects.
 
 Next, in order:
-1. **B4.6 configuration remainder** — provider settings/secrets, feature flags,
+1. **Real-device verification** — install the debug APK, enable biometric unlock
+   from Security, test unlock/deny/cancel/PIN fallback; build iOS once Xcode is
+   complete.
+2. **Sandbox demo data** — product owner creates institutions/accounts manually;
+   the app only reads what exists. Use an isolated dev-OTP instance for contract
+   runs when the main sandbox is on real SMS.
+3. **B4.6 configuration remainder** — provider settings/secrets, feature flags,
    generic effective-date scheduling, analytics charts, and the fee editor only
    after one reconciled provider-owned fee source exists.
-2. **B4.6 reconciliation remainder** — live provider/bank feeds, bank-side
+4. **B4.6 reconciliation remainder** — live provider/bank feeds, bank-side
    missing-in-statement detection, fee-line matching and bank balance matching.
-3. **B4.6 compliance remainder** — sanctions/watchlist and name-check provider
+5. **B4.6 compliance remainder** — sanctions/watchlist and name-check provider
    queues, document capture; approvals beyond configuration.
-4. **Bank payouts and KYC/name-check adapters** — mobile-money payout, refunds,
+6. **Bank payouts and KYC/name-check adapters** — mobile-money payout, refunds,
    callbacks, matching and the reconciliation worker are built; bank rails need
    an approved partner account contract.
-5. Replace the sandbox pricing/collection/payout adapters with approved real
+7. Replace the sandbox pricing/collection/payout adapters with approved real
    providers when contracts exist.
-6. Remove the sandbox testing-only `CROSSPAY` mirror after the admin books and
+8. Remove the sandbox testing-only `CROSSPAY` mirror after the admin books and
    reconciliation pass.
 
 Git: branch `fix/theme-system` is local. The invoice, correction, banner,

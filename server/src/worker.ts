@@ -17,12 +17,69 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+const WORKER_NAME = 'worker';
+
+async function recordWorkerStart(pool: AppContext['pool']): Promise<void> {
+  await pool.query(
+    `INSERT INTO worker_heartbeats
+       (worker, started_at, finished_at, duration_ms, errors, last_error, updated_at)
+     VALUES ($1, now(), NULL, NULL, 0, NULL, now())
+     ON CONFLICT (worker) DO UPDATE
+       SET started_at = now(), finished_at = NULL, duration_ms = NULL,
+           errors = 0, last_error = NULL, updated_at = now()`,
+    [WORKER_NAME],
+  );
+}
+
+async function recordWorkerFinish(
+  pool: AppContext['pool'],
+  input: { durationMs: number; errors: number; lastError: string | null },
+): Promise<void> {
+  await pool.query(
+    `UPDATE worker_heartbeats
+     SET finished_at = now(), duration_ms = $2, errors = $3,
+         last_error = $4, updated_at = now()
+     WHERE worker = $1`,
+    [
+      WORKER_NAME,
+      Math.max(0, Math.round(input.durationMs)),
+      Math.max(0, input.errors),
+      input.lastError ? input.lastError.slice(0, 300) : null,
+    ],
+  );
+}
+
+/**
+ * Runs one pass and records its heartbeat. Heartbeat failures never change the
+ * pass result: the worker's job is reconciliation, not monitoring itself.
+ */
+export async function runWorkerPass(ctx: AppContext): Promise<WorkerReport> {
+  const startedAt = Date.now();
+  await recordWorkerStart(ctx.pool).catch(() => undefined);
+  try {
+    const report = await runWorkerPassCore(ctx);
+    await recordWorkerFinish(ctx.pool, {
+      durationMs: Date.now() - startedAt,
+      errors: report.errors.length,
+      lastError: report.errors[0]?.message ?? null,
+    }).catch(() => undefined);
+    return report;
+  } catch (error) {
+    await recordWorkerFinish(ctx.pool, {
+      durationMs: Date.now() - startedAt,
+      errors: 1,
+      lastError: messageOf(error),
+    }).catch(() => undefined);
+    throw error;
+  }
+}
+
 /**
  * One reconciliation pass. It is deliberately safe to run concurrently with
  * the API: every action is idempotent by posting key, provider reference or
  * refund row. Run it from cron or a long-lived worker process.
  */
-export async function runWorkerPass(ctx: AppContext): Promise<WorkerReport> {
+async function runWorkerPassCore(ctx: AppContext): Promise<WorkerReport> {
   const report: WorkerReport = {
     expiredQuotes: 0,
     expiredTrades: 0,

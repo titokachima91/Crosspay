@@ -1,6 +1,46 @@
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter/material.dart';
+
+/// The device-level choice to use biometrics before the PIN.
+///
+/// Stored in the same platform-secure storage as the PIN. Default off: a
+/// biometric prompt is only offered after the person explicitly enables it
+/// and a PIN exists. Turning the PIN off clears this preference.
+class BiometricPreference {
+  BiometricPreference([FlutterSecureStorage? storage])
+      : _storage = storage ?? const FlutterSecureStorage();
+
+  static const String _key = 'crosspay_biometric_unlock';
+
+  final FlutterSecureStorage _storage;
+
+  Future<bool> isEnabled() async {
+    try {
+      return await _storage.read(key: _key) == 'true';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    if (enabled) {
+      await _storage.write(key: _key, value: 'true');
+    } else {
+      await _storage.delete(key: _key);
+    }
+  }
+
+  Future<void> clear() async {
+    try {
+      await _storage.delete(key: _key);
+    } catch (_) {
+      // The PIN removal still stands; a stale preference is harmless because
+      // the gate only offers biometrics when a PIN exists.
+    }
+  }
+}
 
 /// F5.3 - biometric unlock manager (fingerprint / face).
 ///
@@ -55,45 +95,47 @@ class BiometricManager {
     if (!context.mounted) return false;
     // Fall back to the plain PIN dialog.
     return await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        final controller = TextEditingController();
-        String? error;
-        return StatefulBuilder(
-          builder: (ctx, setState) => AlertDialog(
-            title: const Text('Enter PIN'),
-            content: TextField(
-              controller: controller,
-              obscureText: true,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(6),
-              ],
-              onSubmitted: (v) => Navigator.pop(dialogContext, v),
-              decoration: InputDecoration(labelText: 'PIN', errorText: error),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, null),
-                child: const Text('Cancel'),
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) {
+            final controller = TextEditingController();
+            String? error;
+            return StatefulBuilder(
+              builder: (ctx, setState) => AlertDialog(
+                title: const Text('Enter PIN'),
+                content: TextField(
+                  controller: controller,
+                  obscureText: true,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(6),
+                  ],
+                  onSubmitted: (v) => Navigator.pop(dialogContext, v),
+                  decoration:
+                      InputDecoration(labelText: 'PIN', errorText: error),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, null),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      if (controller.text.length < 4) {
+                        setState(() => error = 'Use at least 4 digits');
+                        return;
+                      }
+                      Navigator.pop(dialogContext, controller.text);
+                    },
+                    child: const Text('Unlock'),
+                  ),
+                ],
               ),
-              TextButton(
-                onPressed: () {
-                  if (controller.text.length < 4) {
-                    setState(() => error = 'Use at least 4 digits');
-                    return;
-                  }
-                  Navigator.pop(dialogContext, controller.text);
-                },
-                child: const Text('Unlock'),
-              ),
-            ],
-          ),
-        );
-      },
-    ) ?? false;
+            );
+          },
+        ) ??
+        false;
   }
 }
