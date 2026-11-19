@@ -93,14 +93,20 @@ code 1234
 - [x] F5.2 Saved recipients CRUD
 - [x] F5.3 Security — PIN lock, app-shell gate, language and theme persistence,
   biometric unlock (fingerprint/face with PIN fallback) and stay-signed-in
-  refresh-token rotation with a single-flight 401 interceptor
+  refresh-token rotation with a single-flight 401 interceptor. Android uses a
+  `FlutterFragmentActivity` host and compiles against SDK 35; a debug APK
+  builds. Real-device fingerprint/Face ID still needs a physical device test;
+  iOS is unverified because Xcode is incomplete.
 
 **Frontend verification**:
 - `dart analyze lib test preview` → **No issues found** (2026-11-19)
 - `flutter test` → **231 passed, 1 skipped** (2026-11-19); the skipped test is
   the opt-in live sandbox contract test
+- `LIVE_SANDBOX=1 flutter test test/live_sandbox_test.dart` → **passed** against
+  an isolated dev-OTP sandbox instance (2026-11-19)
 - `flutter build web --release -t preview/main.dart` → **Built build/web**
   (2026-11-19)
+- `flutter build apk --debug` → **Built app-debug.apk** (2026-11-19)
 
 ---
 
@@ -367,7 +373,8 @@ The CrossPay API does not initiate or pay yet; that is B2.3/B2.4.
 |---|---|---|
 | Flutter widget/unit | **231 passed, 1 skipped** | 2026-11-19 |
 | Flutter static analysis | **No issues found** | 2026-11-19 |
-| Live Flutter contract against sandbox | **passed** | 2026-11-15 |
+| Live Flutter contract against sandbox | **passed** | 2026-11-19 |
+| Android debug APK build | **Built app-debug.apk** | 2026-11-19 |
 | CrossPay API `typecheck` | **clean** | 2026-11-19 |
 | CrossPay API `build` | **clean** | 2026-11-19 |
 | CrossPay API tests | **121/121, 21 suites** | 2026-11-19 |
@@ -435,7 +442,8 @@ Earlier checkpoints remain on the Desktop:
 - Facade errors use `{error:{code,message}}`
 - Facade money flow uses the existing double-entry ledger, no facade balance
 - Platform fee covers the PSP collection fee; default 150 bps
-- Sandbox OTP codes visible by default; `FACADE_DEV_OTP=false` disables
+- Sandbox OTP codes are visible only when SMS delivery is disabled
+  (`FACADE_SMS_DELIVERY=false`); `FACADE_DEV_OTP=false` hides them even then
 
 ---
 
@@ -457,10 +465,13 @@ These cannot be finished by engineering alone:
 12. KYC retention, encryption and data-residency decision.
 13. Liquidity provider model, matching policy, match deadline and corridor
     exposure caps. Plan: `docs/P2P_MATCHING_PLAN.md`.
-14. Invoice/export persistence and the signed-link policy.
+14. CSV export link retention and data-export policy. Invoice links are settled:
+    server-issued, one per trade, 72 hours, active trades only.
 
 Engineering blockers:
-- Live SMS delivery: the sandbox real-SMS path is working from Vodacom SIM 1 (`0767304776`) to `+255714604777`; the production SMS partner is not configured.
+- Live SMS delivery: the sandbox real-SMS path is working from Vodacom SIM 1 (`0767304776`) to `+255714604777`; the production SMS partner is not configured. The local gateway must be running for the :8080 sandbox, or contract tests use an isolated dev-OTP instance.
+- Real-device biometric testing: the Android host and permission entries compile into a debug APK, but fingerprint/Face ID must be checked on physical Android and iOS devices. iOS builds are blocked until Xcode is fully installed.
+- Production database/hosting is not provisioned. The schema and migrations are exercised on the persistent dev PostgreSQL cluster and in the test suite; managed PostgreSQL, TLS, backup/restore and retention still need a deployment decision.
 - A real pricing source and approved spread (B2.2 works against the sandbox).
 - Collection/payout provider contracts (B2.3/B2.4).
 - Name-check provider.

@@ -7,7 +7,10 @@ plugins {
 
 android {
     namespace = "com.yourname.crosspay_app"
-    compileSdk = flutter.compileSdkVersion
+    // local_auth's lifecycle plugin is compiled against SDK 35. Flutter 3.24
+    // still defaults to 34, which produces a build warning; compile against
+    // 35 so biometrics are built from the supported platform.
+    compileSdk = 35
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

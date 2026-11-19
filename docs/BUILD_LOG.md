@@ -972,4 +972,29 @@ bank balance matching, sanctions/watchlist and document capture. Nothing pushed.
 
 ---
 
+## 2026-11-19 - Android biometric host and live sandbox contract rerun
+
+- Android: `MainActivity` now extends `FlutterFragmentActivity`; `local_auth`
+  does not work on a plain `FlutterActivity`. `compileSdk` is pinned to 35
+  because the local-auth lifecycle plugin is compiled against it. `flutter
+  build apk --debug` succeeded, so the fingerprint/Face ID host compiles.
+- Real-device biometric verification is still not done: this machine has no
+  attached Android device and Xcode is incomplete, so Face ID/iOS remains
+  unverified. The web build has no biometric support and falls back to PIN.
+- Live sandbox: an isolated copy of the sandbox SQLite database was started on
+  port 8081 with `FACADE_SMS_DELIVERY=false` and `FACADE_DEV_OTP=true`.
+  `LIVE_SANDBOX=1` passed end to end against it, including config/rates, OTP,
+  KYC, profile, beneficiaries, quote, P2P collection, payout, history, timeline
+  and the invoice fetched while the trade was active.
+- The existing :8080 sandbox is configured for real SMS (`FACADE_SMS_DELIVERY=true`)
+  and its local gateway is not running, so `/auth/otp/request` returns 503 and
+  the live test cannot use that instance as-is. That is configuration, not a
+  code failure; use an isolated dev-OTP instance for contract runs.
+- No sandbox DB, GasLink key/route or protected SMS/AI file was modified.
+
+Next: run the final repository/build suite on this follow-up commit, then take a
+new snapshot.
+
+---
+
 ## Report End - No fluff. Just facts.

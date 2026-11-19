@@ -20,12 +20,16 @@ import 'package:crosspay_app/repositories/trade_repository.dart';
 ///
 /// This is opt-in so the normal suite stays offline and deterministic:
 ///
-///   cd kachi-fintech-sandbox && PORT=8080 npm start
+///   cd kachi-fintech-sandbox
+///   PORT=8080 FACADE_SMS_DELIVERY=false FACADE_DEV_OTP=true npm start
 ///   cd crosspay_app && LIVE_SANDBOX=1 flutter test test/live_sandbox_test.dart
 ///
-/// LIVE_SANDBOX_KEY must match SANDBOX_API_KEY_CROSSPAY (default:
-/// live-sandbox-key). Every run uses a fresh phone number and NIN, so it can
-/// be repeated without colliding with earlier KYC verification rows.
+/// The test reads the OTP from `/api/v1/sandbox/state`, so SMS delivery must
+/// be off for this run. When the live sandbox is configured for real SMS,
+/// start a copy on another port with a copied SQLite database and point
+/// LIVE_SANDBOX_URL at it. LIVE_SANDBOX_KEY must match
+/// SANDBOX_API_KEY_CROSSPAY. Every run uses a fresh phone number and NIN, so
+/// it can be repeated without colliding with earlier KYC verification rows.
 void main() {
   final live = Platform.environment['LIVE_SANDBOX'] == '1';
 
