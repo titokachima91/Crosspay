@@ -390,9 +390,13 @@ Desktop copies are timestamped, verified snapshots. They are never overwritten
 and never used as the live tree.
 
 **Latest CrossPay snapshot**
-`~/Desktop/crosspay_app_2026-11-15_073154_b2.2-pricing`
-Commit `5e00d9e`, 346 files, 3.8 MB. Restored into an isolated directory:
-`npm ci`, typecheck, build and **42/42** tests passed.
+`~/Desktop/Projects/CrossPay/crosspay_app_2026-11-19_221742_b4.6-invoices-banners-session`
+Commit `25ac30f`, 421 tracked files, 21 MB. The snapshot includes `.git` but no
+`node_modules`, `build`, `.dart_tool`, `server/.devdb`, `server/dist` or `.env`.
+Verified against the source tree at this commit: Node typecheck and production
+build clean, **121/121** tests in 21 suites; Flutter analyze clean, **231
+passed, 1 skipped**; Flutter web release build clean. `git fsck` passes and the
+snapshot worktree is clean.
 
 **Latest sandbox snapshot**
 `~/Desktop/kachi-fintech-sandbox_otp-sim_2026-11-15_153857`
@@ -542,8 +546,9 @@ Next, in order:
 6. Remove the sandbox testing-only `CROSSPAY` mirror after the admin books and
    reconciliation pass.
 
-Git: branch `fix/theme-system` is local. B2.3/B2.4/B4 and the named-admin portal
-are committed locally; nothing has been pushed.
+Git: branch `fix/theme-system` is local. The invoice, correction, banner,
+session-refresh, biometric and live-activity work is committed locally (`25ac30f`)
+and a verified snapshot exists; nothing has been pushed.
 
 ---
 
