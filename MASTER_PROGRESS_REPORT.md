@@ -397,13 +397,14 @@ Desktop copies are timestamped, verified snapshots. They are never overwritten
 and never used as the live tree.
 
 **Latest CrossPay snapshot**
-`~/Desktop/Projects/CrossPay/crosspay_app_2026-11-19_221742_b4.6-invoices-banners-session`
-Commit `25ac30f`, 421 tracked files, 21 MB. The snapshot includes `.git` but no
+`~/Desktop/Projects/CrossPay/crosspay_app_2026-11-19_224328_b4.6-biometrics-android-live-sandbox`
+Commit `cdf51e4`, 421 tracked files, 22 MB. The snapshot includes `.git` but no
 `node_modules`, `build`, `.dart_tool`, `server/.devdb`, `server/dist` or `.env`.
-Verified against the source tree at this commit: Node typecheck and production
-build clean, **121/121** tests in 21 suites; Flutter analyze clean, **231
-passed, 1 skipped**; Flutter web release build clean. `git fsck` passes and the
-snapshot worktree is clean.
+Verified against the source tree: Node typecheck and production build clean,
+**121/121** tests in 21 suites; Flutter analyze clean, **231 passed, 1 skipped**;
+Flutter web release build clean; Android debug APK built; live sandbox contract
+passed against an isolated dev-OTP instance. `git fsck` passes and the snapshot
+worktree is clean.
 
 **Latest sandbox snapshot**
 `~/Desktop/kachi-fintech-sandbox_otp-sim_2026-11-15_153857`
@@ -558,8 +559,8 @@ Next, in order:
    reconciliation pass.
 
 Git: branch `fix/theme-system` is local. The invoice, correction, banner,
-session-refresh, biometric and live-activity work is committed locally (`25ac30f`)
-and a verified snapshot exists; nothing has been pushed.
+session-refresh, biometric, live-activity and Android-host work is committed
+locally (`cdf51e4`) and a verified snapshot exists; nothing has been pushed.
 
 ---
 
