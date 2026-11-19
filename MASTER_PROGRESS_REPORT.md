@@ -399,14 +399,14 @@ Desktop copies are timestamped, verified snapshots. They are never overwritten
 and never used as the live tree.
 
 **Latest CrossPay snapshot**
-`~/Desktop/Projects/CrossPay/crosspay_app_2026-11-19_224328_b4.6-biometrics-android-live-sandbox`
-Commit `cdf51e4`, 421 tracked files, 22 MB. The snapshot includes `.git` but no
+`~/Desktop/Projects/CrossPay/crosspay_app_2026-11-20_015636_b4.6-biometrics-session-deploy`
+Commit `fac92f0`, 431 tracked files, 22 MB. The snapshot includes `.git` but no
 `node_modules`, `build`, `.dart_tool`, `server/.devdb`, `server/dist` or `.env`.
 Verified against the source tree: Node typecheck and production build clean,
-**121/121** tests in 21 suites; Flutter analyze clean, **231 passed, 1 skipped**;
-Flutter web release build clean; Android debug APK built; live sandbox contract
-passed against an isolated dev-OTP instance. `git fsck` passes and the snapshot
-worktree is clean.
+**122/122** tests in 21 suites; Flutter analyze clean, **236 passed, 1 skipped**;
+web release and Android debug builds clean; live sandbox contract passed against
+an isolated dev-OTP instance. `git fsck` passes and the snapshot worktree is
+clean.
 
 **Latest sandbox snapshot**
 `~/Desktop/kachi-fintech-sandbox_otp-sim_2026-11-15_153857`
@@ -569,9 +569,10 @@ Next, in order:
 8. Remove the sandbox testing-only `CROSSPAY` mirror after the admin books and
    reconciliation pass.
 
-Git: branch `fix/theme-system` is local. The invoice, correction, banner,
-session-refresh, biometric, live-activity and Android-host work is committed
-locally (`cdf51e4`) and a verified snapshot exists; nothing has been pushed.
+Git: branch `fix/theme-system` is pushed to
+`origin/fix/theme-system` (`fac92f0`). Open the PR at
+`https://github.com/titokachima91/Crosspay/pull/new/fix/theme-system`.
+`main` was not modified by this work.
 
 ---
 
