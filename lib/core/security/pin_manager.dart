@@ -3,6 +3,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:crosspay_app/core/security/biometric_manager.dart';
 
 /// F5.3 — local app-lock PIN manager.
 ///
@@ -51,11 +52,26 @@ class PinManager {
     await _storage.delete(key: _keySalt);
   }
 
-  /// Gate used by the app shell: prompts for the PIN when a lock exists.
-  /// Returns true when unlocked (or when no PIN is set). The dialog is
-  /// plain Material — no biometrics yet (product rule 5).
-  Future<bool> ensureUnlocked(BuildContext context) async {
+  /// Gate used by the app shell: offers biometrics when the device supports
+  /// them, then falls back to the PIN dialog. Returns true when unlocked (or
+  /// when no PIN is set). Cancelling the PIN dialog leaves the shell.
+  Future<bool> ensureUnlocked(
+    BuildContext context, {
+    BiometricManager? biometrics,
+    String? biometricReason,
+  }) async {
     if (!await hasPin()) return true;
+
+    final manager = biometrics ?? BiometricManager();
+    if (await manager.isAvailable()) {
+      final unlocked = await manager.authenticate(
+        localizedReason: biometricReason ?? 'Confirm with fingerprint or face',
+      );
+      if (unlocked) return true;
+      if (!context.mounted) return false;
+      // Denied or cancelled: the PIN dialog is still available.
+    }
+
     while (true) {
       if (!context.mounted) return false;
       final entered = await showDialog<String>(
@@ -90,8 +106,7 @@ class PinManager {
                 TextButton(
                   onPressed: () {
                     if (controller.text.length < 4) {
-                      setDialogState(
-                          () => error = 'Use at least 4 digits');
+                      setDialogState(() => error = 'Use at least 4 digits');
                       return;
                     }
                     Navigator.pop(dialogContext, controller.text);

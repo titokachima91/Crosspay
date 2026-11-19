@@ -81,7 +81,25 @@ class JsonReader {
     if (v is! List) throw _invalid(key);
     return [
       for (final item in v)
-        if (item is Map<String, dynamic>) JsonReader._(item) else throw _invalid(key),
+        if (item is Map<String, dynamic>)
+          JsonReader._(item)
+        else
+          throw _invalid(key),
+    ];
+  }
+
+  /// An absent key is an empty list; a present but wrongly typed value is an
+  /// invalid response. Used for optional server-published arrays.
+  List<JsonReader> optionalList(String key) {
+    final v = _map[key];
+    if (v == null) return const [];
+    if (v is! List) throw _invalid(key);
+    return [
+      for (final item in v)
+        if (item is Map<String, dynamic>)
+          JsonReader._(item)
+        else
+          throw _invalid(key),
     ];
   }
 }

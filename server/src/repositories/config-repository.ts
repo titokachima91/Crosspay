@@ -44,6 +44,15 @@ export interface ConfigSupport {
   hours?: string;
 }
 
+export interface ConfigBanner {
+  id: string;
+  messageEn: string;
+  messageSw: string;
+  severity: 'info' | 'warning' | 'critical';
+  startsAt: string;
+  endsAt: string;
+}
+
 export interface AppConfigPayload {
   currencies: ConfigCurrency[];
   hubs: ConfigHub[];
@@ -51,6 +60,8 @@ export interface AppConfigPayload {
   countries: ConfigCountry[];
   carriers: ConfigCarrier[];
   support?: ConfigSupport;
+  /** Published banners whose scheduled window is open right now. */
+  banners?: ConfigBanner[];
   /** Present only while a service control or maintenance message is active. */
   service?: {
     quotesPaused: boolean;
@@ -71,7 +82,7 @@ async function rows(db: Queryable, text: string): Promise<Record<string, unknown
  * configured.
  */
 export async function loadAppConfig(db: Queryable): Promise<AppConfigPayload> {
-  const [currencies, hubs, payoutRails, countries, carriers, support, controls] =
+  const [currencies, hubs, payoutRails, countries, carriers, support, banners, controls] =
     await Promise.all([
       rows(
         db,
@@ -113,6 +124,13 @@ export async function loadAppConfig(db: Queryable): Promise<AppConfigPayload> {
         `SELECT email, phone, whatsapp, hours
          FROM support_settings
          WHERE id = 1`,
+      ),
+      rows(
+        db,
+        `SELECT id, message_en, message_sw, severity, starts_at, ends_at
+         FROM app_banners
+         WHERE now() >= starts_at AND now() < ends_at
+         ORDER BY starts_at, id`,
       ),
       loadServiceControls(db),
     ]);
@@ -165,6 +183,17 @@ export async function loadAppConfig(db: Queryable): Promise<AppConfigPayload> {
       tradesPaused: controls.tradesPaused,
       ...(controls.message ? { message: controls.message } : {}),
     };
+  }
+
+  if (banners.length > 0) {
+    payload.banners = banners.map((row) => ({
+      id: String(row['id']),
+      messageEn: String(row['message_en']),
+      messageSw: String(row['message_sw']),
+      severity: row['severity'] as ConfigBanner['severity'],
+      startsAt: new Date(row['starts_at'] as Date).toISOString(),
+      endsAt: new Date(row['ends_at'] as Date).toISOString(),
+    }));
   }
 
   return payload;

@@ -1,23 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crosspay_app/core/constants/app_colors.dart';
+import 'package:crosspay_app/core/constants/app_routes.dart';
+import 'package:crosspay_app/core/security/biometric_manager.dart';
 import 'package:crosspay_app/core/security/pin_manager.dart';
+import 'package:crosspay_app/providers/auth_provider.dart';
 
-/// F5.3 Security settings — app-lock PIN, biometric status, sign out.
+/// F5.3 Security settings — app-lock PIN, biometric unlock, sign out.
 ///
 /// The PIN is hashed locally (never stored raw, never sent anywhere).
-/// Biometric unlock is shown as plainly unavailable until the
-/// local_auth package is wired per platform (product rule 5).
-class SecuritySettingsScreen extends StatefulWidget {
+/// Biometrics are offered by the shell gate when the device supports them;
+/// the PIN always remains the fallback. The refresh token lives in the same
+/// platform-secure storage and rotates on every use.
+class SecuritySettingsScreen extends ConsumerStatefulWidget {
   const SecuritySettingsScreen({super.key});
 
   @override
-  State<SecuritySettingsScreen> createState() => _SecuritySettingsScreenState();
+  ConsumerState<SecuritySettingsScreen> createState() =>
+      _SecuritySettingsScreenState();
 }
 
-class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
+class _SecuritySettingsScreenState
+    extends ConsumerState<SecuritySettingsScreen> {
   final PinManager _pin = PinManager();
   bool _hasPin = false;
+  bool _biometricsAvailable = false;
   bool _checking = true;
 
   @override
@@ -28,9 +36,11 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
 
   Future<void> _load() async {
     final has = await _pin.hasPin();
+    final biometrics = await BiometricManager().isAvailable();
     if (!mounted) return;
     setState(() {
       _hasPin = has;
+      _biometricsAvailable = biometrics;
       _checking = false;
     });
   }
@@ -168,10 +178,31 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                       height: 1,
                       color: Theme.of(context).colorScheme.outlineVariant,
                     ),
-                    const _InfoRow(
-                      icon: Icons.lock_outline,
+                    _InfoRow(
+                      icon: Icons.fingerprint,
                       label: 'Biometric unlock',
-                      trailing: 'Not available yet',
+                      trailing: _checking
+                          ? 'Checking…'
+                          : (_biometricsAvailable
+                              ? 'Available on this device'
+                              : 'Not available on this device'),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: Text(
+                        _hasPin
+                            ? 'Fingerprint or face is offered first when the '
+                                'app opens; your PIN always works as the '
+                                'fallback.'
+                            : 'Set a PIN first. Biometrics are then offered '
+                                'first when the app opens, with the PIN as the '
+                                'fallback.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.4,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -183,7 +214,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                     const _InfoRow(
                       icon: Icons.schedule,
                       label: 'Stay signed in',
-                      trailing: 'Server decides',
+                      trailing: 'On this device',
                     ),
                     Divider(
                       height: 1,
@@ -231,8 +262,12 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                     icon: const Icon(Icons.logout, size: 18),
                     label: const Text('Sign out'),
                     onPressed: () async {
-                      // Session teardown handled by auth provider.
-                      Navigator.of(context).popUntil((r) => r.isFirst);
+                      await ref.read(authProvider.notifier).signOut();
+                      if (!context.mounted) return;
+                      Navigator.of(context).pushNamedAndRemoveUntil(
+                        AppRoutes.splash,
+                        (route) => false,
+                      );
                     },
                   ),
                 ),
@@ -319,8 +354,8 @@ class _SwitchRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: TextStyle(
-                      fontSize: 13, color: scheme.onSurfaceVariant),
+                  style:
+                      TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
                 ),
               ],
             ),

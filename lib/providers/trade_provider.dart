@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import 'package:crosspay_app/core/network/api_exception.dart';
 import 'package:crosspay_app/models/beneficiary_model.dart';
 import 'package:crosspay_app/models/trade_model.dart';
 import 'package:crosspay_app/providers/auth_provider.dart';
@@ -21,6 +22,9 @@ class TradeState {
     this.attemptKey,
     this.attemptQuoteId,
     this.activeTrade,
+    this.invoice,
+    this.invoiceLoading = false,
+    this.invoiceErrorKey,
     this.errorMessage,
   });
 
@@ -40,6 +44,13 @@ class TradeState {
 
   /// The trade being tracked on Screens 2.4 to 2.6.
   final Trade? activeTrade;
+
+  /// The server-issued invoice for [activeTrade], once loaded.
+  final Invoice? invoice;
+  final bool invoiceLoading;
+
+  /// Localization key for the last invoice failure.
+  final String? invoiceErrorKey;
   final String? errorMessage;
 
   TradeState copyWith({
@@ -49,6 +60,11 @@ class TradeState {
     String? attemptKey,
     String? attemptQuoteId,
     Trade? activeTrade,
+    Invoice? invoice,
+    bool clearInvoice = false,
+    bool? invoiceLoading,
+    String? invoiceErrorKey,
+    bool clearInvoiceError = false,
     String? errorMessage,
     bool clearError = false,
   }) {
@@ -59,6 +75,10 @@ class TradeState {
       attemptKey: attemptKey ?? this.attemptKey,
       attemptQuoteId: attemptQuoteId ?? this.attemptQuoteId,
       activeTrade: activeTrade ?? this.activeTrade,
+      invoice: clearInvoice ? null : (invoice ?? this.invoice),
+      invoiceLoading: invoiceLoading ?? this.invoiceLoading,
+      invoiceErrorKey:
+          clearInvoiceError ? null : (invoiceErrorKey ?? this.invoiceErrorKey),
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
   }
@@ -91,7 +111,9 @@ class TradeNotifier extends Notifier<TradeState> {
 
     state = state.copyWith(
       recipient: details,
-      attemptKey: sameAttempt ? state.attemptKey : ref.read(attemptKeyGeneratorProvider)(),
+      attemptKey: sameAttempt
+          ? state.attemptKey
+          : ref.read(attemptKeyGeneratorProvider)(),
       attemptQuoteId: quoteId,
       clearError: true,
     );
@@ -109,8 +131,7 @@ class TradeNotifier extends Notifier<TradeState> {
       );
 
   /// Call for each live update from the order tracker.
-  void tradeUpdated(Trade trade) =>
-      state = state.copyWith(activeTrade: trade);
+  void tradeUpdated(Trade trade) => state = state.copyWith(activeTrade: trade);
 
   void failed(String message) => state = state.copyWith(
         flowStatus: TradeFlowStatus.error,
@@ -122,7 +143,12 @@ class TradeNotifier extends Notifier<TradeState> {
     final repo = ref.read(tradeRepositoryProvider);
     final config = ref.read(appConfigProvider).config;
     final trade = await repo.getTrade(tradeId, config);
-    state = state.copyWith(activeTrade: trade, flowStatus: TradeFlowStatus.active);
+    state = state.copyWith(
+      activeTrade: trade,
+      flowStatus: TradeFlowStatus.active,
+      clearInvoice: true,
+      clearInvoiceError: true,
+    );
   }
 
   /// Claim manual payment for the active trade
@@ -130,7 +156,8 @@ class TradeNotifier extends Notifier<TradeState> {
   Future<void> claimManualPayment({required String idempotencyKey}) async {
     final repo = ref.read(tradeRepositoryProvider);
     final appConfig = ref.read(appConfigProvider).config;
-    await repo.claimPayment(state.activeTrade!.id, idempotencyKey: idempotencyKey);
+    await repo.claimPayment(state.activeTrade!.id,
+        idempotencyKey: idempotencyKey);
     // Trigger a fetch to get updated state
     await repo.getTrade(state.activeTrade!.id, appConfig);
     state = state.copyWith(clearError: true);
@@ -138,19 +165,35 @@ class TradeNotifier extends Notifier<TradeState> {
 
   /// Reset trade tracking state
   void resetTradeTracking() => state = const TradeState(
-    flowStatus: TradeFlowStatus.idle,
-    activeTrade: null,
-  );
+        flowStatus: TradeFlowStatus.idle,
+        activeTrade: null,
+      );
 
-  /// Generate and share an invoice for the active trade.
-  Future<void> shareInvoice() async {
-    final trade = state.activeTrade;
-    if (trade == null) return;
-    final repo = ref.read(tradeRepositoryProvider);
+  /// Ask the server for this trade's invoice link. The server decides the
+  /// token, expiry and URLs; a second call returns the same link.
+  Future<void> loadInvoice(String tradeId) async {
     final config = ref.read(appConfigProvider).config;
-    final key = ref.read(attemptKeyGeneratorProvider)();
-    await repo.shareTrade(trade.id, idempotencyKey: key, config: config);
+    state = state.copyWith(invoiceLoading: true, clearInvoiceError: true);
+    try {
+      final invoice = await ref
+          .read(tradeRepositoryProvider)
+          .getInvoice(tradeId, config: config);
+      state = state.copyWith(invoice: invoice, invoiceLoading: false);
+    } on ApiException catch (error) {
+      state = state.copyWith(
+        invoiceLoading: false,
+        clearInvoice: true,
+        invoiceErrorKey: _invoiceErrorKey(error),
+      );
+    }
   }
+
+  static String _invoiceErrorKey(ApiException error) => switch (error.code) {
+        'INVOICE_EXPIRED' => 'invoice.error.expired',
+        'INVOICE_NOT_AVAILABLE' => 'invoice.error.not_available',
+        'INVOICE_NOT_CONFIGURED' => 'invoice.error.not_configured',
+        _ => error.messageKey,
+      };
 
   void reset() => state = const TradeState();
 }

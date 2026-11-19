@@ -1,104 +1,80 @@
 import 'package:flutter/material.dart';
-import 'package:crosspay_app/core/constants/app_colors.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:crosspay_app/providers/localization_provider.dart';
 
-/// Visual QR code representation for invoice sharing.
-/// In production this would use a QR code package like qr_flutter.
-class InvoiceQrCode extends StatelessWidget {
+/// The server-issued invoice QR image.
+///
+/// The PNG comes from `GET /api/v1/invoices/:token/qr.png`. The app never
+/// paints a stand-in pattern: if the image is unavailable the payer is told to
+/// use the link instead.
+class InvoiceQrCode extends ConsumerWidget {
   const InvoiceQrCode({
     super.key,
-    required this.tradeId,
+    required this.qrCodeUrl,
     required this.reference,
-    required this.amount,
-    required this.currency,
   });
 
-  final String tradeId;
+  final String qrCodeUrl;
   final String reference;
-  final int amount;
-  final String currency;
-
-  // Generate a simple deterministic QR-like pattern from tradeId
-  List<bool> _qrPattern() {
-    final pattern = <bool>[];
-    final hash = tradeId.hashCode.abs();
-    for (int i = 0; i < 25 * 25; i++) {
-      pattern.add(((hash >> (i % 32)) & 1) == 1);
-    }
-    return pattern;
-  }
 
   @override
-  Widget build(BuildContext context) {
-    final pattern = _qrPattern();
-    const size = 200.0;
-    const cellSize = size / 25;
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-
     return Column(
       children: [
         Container(
-          width: size,
-          height: size,
+          width: 220,
+          height: 220,
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: scheme.outlineVariant),
           ),
-          child: CustomPaint(
-            size: const Size(size, size),
-            painter: _QrPainter(pattern: pattern, cellSize: cellSize),
+          child: Image.network(
+            qrCodeUrl,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.none,
+            semanticLabel: ref.tr('invoice.qr_label'),
+            loadingBuilder: (context, child, progress) {
+              if (progress == null) return child;
+              return const Center(child: CircularProgressIndicator());
+            },
+            errorBuilder: (context, error, stackTrace) => Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.qr_code_2, size: 48, color: scheme.error),
+                  const SizedBox(height: 8),
+                  Text(
+                    ref.tr('invoice.qr_unavailable'),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 16),
         Text(
-          'Scan to pay',
+          ref.tr('invoice.scan'),
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: scheme.onSurface,
-          ),
+                fontWeight: FontWeight.w600,
+                color: scheme.onSurface,
+              ),
         ),
         const SizedBox(height: 4),
         Text(
           reference,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontFamily: 'monospace',
-            color: scheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Valid for 24 hours',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: scheme.onSurfaceVariant,
-          ),
+                fontFamily: 'monospace',
+                color: scheme.onSurfaceVariant,
+              ),
         ),
       ],
     );
   }
-}
-
-class _QrPainter extends CustomPainter {
-  final List<bool> pattern;
-  final double cellSize;
-
-  _QrPainter({required this.pattern, required this.cellSize});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = AppColors.navy;
-    for (int i = 0; i < pattern.length; i++) {
-      if (!pattern[i]) continue;
-      final row = i ~/ 25;
-      final col = i % 25;
-      final x = col * cellSize;
-      final y = row * cellSize;
-      canvas.drawRect(
-        Rect.fromLTWH(x, y, cellSize, cellSize),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _QrPainter old) => true;
 }

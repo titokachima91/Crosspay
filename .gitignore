@@ -49,6 +49,7 @@ app.*.map.json
 # Backend (Node.js) local state
 server/node_modules/
 server/.env
+server/.devdb/
 server/.tmp/
 server/coverage/
 

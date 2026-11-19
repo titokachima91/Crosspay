@@ -448,7 +448,7 @@ that blocked schema work on 2026-11-14:
 | Beneficiary `POST` / `PATCH` / `DELETE` shapes | Documented, including ownership and idempotency rules |
 | `GET /trades/{id}/invoice`, `POST /trades/{id}/share` | Documented, including expiry and error codes |
 | `GET /market/depth` | Documented with the exact fields the Flutter parser reads |
-| `POST /auth/refresh` | Shape final; token rotation and family revocation documented. The Flutter constant is added when F5.3 is wired |
+| `POST /auth/refresh` | Implemented; rotation, family revocation and reuse detection documented. The Flutter app stores the rotating token, refreshes single-flight and restores the session at boot |
 | `kycStatus` mapping | API returns `pending`, `verified` or `rejected`; `not_started` is internal and is never returned by `/me` because profile completion gates the pre-KYC state |
 | Idempotency conflicts | Same key and body replays with `Idempotency-Replay: true`; different body is `409 IDEMPOTENCY_KEY_REUSED`; a duplicate normally waits and replays, or returns `409 IDEMPOTENCY_IN_PROGRESS` with `Retry-After` when it cannot wait |
 

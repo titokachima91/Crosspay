@@ -46,15 +46,38 @@ class _ConfigGuardInterceptor extends Interceptor {
   }
 }
 
-/// Attaches the JWT and reports an expired session.
+/// Attaches the JWT and transparently renews it.
+///
+/// A 401 on a request that carried an access token asks the refresh callback
+/// for a new token and replays the request once. The callback is single-flight
+/// (see AuthNotifier), so a burst of expired requests triggers exactly one
+/// refresh call and all of them replay with the new token. Rejected or missing
+/// refresh tokens sign the session out; a network failure keeps it for retry.
 class AuthInterceptor extends Interceptor {
-  AuthInterceptor({required this.tokenReader, this.onUnauthorized});
+  AuthInterceptor({
+    required this.dio,
+    required this.tokenReader,
+    this.onUnauthorized,
+    this.refreshAccessToken,
+  });
 
+  /// Set on the refresh request itself so a rejected refresh is never retried
+  /// through the refresh path (which would recurse).
+  static const String skipRefreshKey = 'skipAuthRefresh';
+  static const String _replayedKey = 'authReplayed';
+
+  final Dio dio;
   final String? Function() tokenReader;
   final void Function()? onUnauthorized;
+  final Future<String?> Function()? refreshAccessToken;
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (options.extra[skipRefreshKey] == true) {
+      options.headers.remove('Authorization');
+      handler.next(options);
+      return;
+    }
     final token = tokenReader();
     if (token != null && token.isNotEmpty) {
       options.headers['Authorization'] = 'Bearer $token';
@@ -63,12 +86,44 @@ class AuthInterceptor extends Interceptor {
   }
 
   @override
-  void onError(DioException err, ErrorInterceptorHandler handler) {
-    final sentToken = err.requestOptions.headers.containsKey('Authorization');
-    if (err.response?.statusCode == 401 && sentToken) {
-      onUnauthorized?.call();
+  Future<void> onError(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
+    final options = err.requestOptions;
+    final isUnauthorized = err.response?.statusCode == 401;
+    final sentToken = options.headers.containsKey('Authorization');
+    final skipped = options.extra[skipRefreshKey] == true;
+    final refresh = refreshAccessToken;
+
+    if (!isUnauthorized || !sentToken || skipped || refresh == null) {
+      if (isUnauthorized && sentToken && !skipped) onUnauthorized?.call();
+      handler.next(err);
+      return;
     }
-    handler.next(err);
+
+    if (options.extra[_replayedKey] == true) {
+      // The fresh token was also rejected: the session is over.
+      onUnauthorized?.call();
+      handler.next(err);
+      return;
+    }
+
+    final token = await refresh();
+    if (token == null || token.isEmpty) {
+      // The refresh callback already signed out if the failure was terminal.
+      handler.next(err);
+      return;
+    }
+
+    options.extra[_replayedKey] = true;
+    options.headers['Authorization'] = 'Bearer $token';
+    try {
+      final response = await dio.fetch<dynamic>(options);
+      handler.resolve(response);
+    } on DioException catch (e) {
+      handler.next(e);
+    }
   }
 }
 
@@ -85,6 +140,10 @@ class RetryInterceptor extends Interceptor {
   final int maxRetries;
   final Duration baseDelay;
 
+  /// A server action that must not be replayed even when the request carries
+  /// an idempotency key (for example a refresh-token rotation).
+  static const String skipRetryKey = 'skipRetry';
+
   static const String _attemptKey = 'retryAttempt';
 
   @override
@@ -95,7 +154,9 @@ class RetryInterceptor extends Interceptor {
     final options = err.requestOptions;
     final attempt = (options.extra[_attemptKey] as int?) ?? 0;
 
-    if (attempt >= maxRetries || !_isRetryable(err)) {
+    if (attempt >= maxRetries ||
+        options.extra[skipRetryKey] == true ||
+        !_isRetryable(err)) {
       handler.next(err);
       return;
     }
@@ -147,6 +208,7 @@ Dio buildDio(
   ApiConfig config, {
   String? Function()? tokenReader,
   void Function()? onUnauthorized,
+  Future<String?> Function()? refreshAccessToken,
   HttpClientAdapter? adapter,
 }) {
   final dio = Dio(
@@ -167,8 +229,10 @@ Dio buildDio(
     _ConfigGuardInterceptor(config),
     IdempotencyInterceptor(),
     AuthInterceptor(
+      dio: dio,
       tokenReader: tokenReader ?? () => null,
       onUnauthorized: onUnauthorized,
+      refreshAccessToken: refreshAccessToken,
     ),
     RetryInterceptor(
       dio: dio,
@@ -188,6 +252,8 @@ final dioProvider = Provider<Dio>((ref) {
   return buildDio(
     ref.watch(apiConfigProvider),
     tokenReader: () => ref.read(authProvider).accessToken,
+    refreshAccessToken: () =>
+        ref.read(authProvider.notifier).refreshAccessToken(),
     onUnauthorized: () => ref.read(authProvider.notifier).signOut(),
   );
 });

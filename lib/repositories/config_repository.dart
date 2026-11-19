@@ -37,6 +37,22 @@ class ConfigRepository {
                 tradesPaused: service.boolean('tradesPaused'),
                 message: service.optionalString('message'),
               ),
+        banners: [
+          for (final b in root.optionalList('banners'))
+            AppBanner(
+              id: b.string('id'),
+              messageEn: b.string('messageEn'),
+              messageSw: b.string('messageSw'),
+              severity: switch (b.string('severity')) {
+                'info' => BannerSeverity.info,
+                'warning' => BannerSeverity.warning,
+                'critical' => BannerSeverity.critical,
+                _ => throw ApiException.invalidResponse('banners.severity'),
+              },
+              startsAt: _serverTime(b, 'startsAt'),
+              endsAt: _serverTime(b, 'endsAt'),
+            ),
+        ],
         currencies: [
           for (final c in root.list('currencies'))
             Currency(
@@ -91,6 +107,15 @@ class ConfigRepository {
       throw ApiException.fromDio(e);
     }
   }
+}
+
+/// Dates in `/config` are ISO-8601 from the server. Compare them as UTC; the
+/// screen decides how to display local time.
+DateTime _serverTime(JsonReader json, String key) {
+  final raw = json.string(key);
+  final parsed = DateTime.tryParse(raw);
+  if (parsed == null) throw ApiException.invalidResponse(key);
+  return parsed.toUtc();
 }
 
 final configRepositoryProvider = Provider<ConfigRepository>(

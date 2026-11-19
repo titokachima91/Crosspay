@@ -45,7 +45,34 @@ class AuthRepository {
       final root = JsonReader.of(response.data);
       return AuthSession(
         accessToken: root.string('accessToken'),
+        refreshToken: root.string('refreshToken'),
         profileComplete: root.boolean('profileComplete'),
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// Exchanges a refresh token for a new token pair. The server rotates the
+  /// refresh token on every use; the caller must store both new values.
+  Future<TokenPair> refresh(String refreshToken) async {
+    try {
+      final response = await _dio.post<dynamic>(
+        ApiEndpoints.authRefresh,
+        data: {'refreshToken': refreshToken},
+        options: Options(
+          extra: {
+            AuthInterceptor.skipRefreshKey: true,
+            // A rotated refresh token is single-use. Never replay a refresh
+            // over a dropped connection; the old token is already spent.
+            RetryInterceptor.skipRetryKey: true,
+          },
+        ),
+      );
+      final root = JsonReader.of(response.data);
+      return TokenPair(
+        accessToken: root.string('accessToken'),
+        refreshToken: root.string('refreshToken'),
       );
     } on DioException catch (e) {
       throw ApiException.fromDio(e);

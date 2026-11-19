@@ -1,10 +1,10 @@
 # CROSSPAY: MASTER PROGRESS REPORT
 
-**Updated**: 2026-11-17
+**Updated**: 2026-11-19
 **Project**: CrossPay
 **Package**: crosspay_app
 **Environment**: macOS Monterey | Flutter 3.24.5 | Dart 3.5.4 | Node 24 | PostgreSQL 17 for the API | SQLite for the sandbox
-**Progress**: Frontend complete except F5.3 partial · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 (matching, LP liquidity, exposure, app matching states, Phase A/B/C ops admin portal, read-only bookkeeping, configuration v1, reconciliation v1, KYC review, manual support workspace, recovery-code login and app pause banner) complete · market depth, analytics, CSV export and the reconciliation worker complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · B4.6 live statement feeds/config remainder/sanctions and B3 invoice/share remain
+**Progress**: Frontend complete (F5.3 included) · B1 complete · B2.0, B2.2, B2.3, B2.4 and B4 (matching, LP liquidity, exposure, app matching states, Phase A/B/C ops admin portal, read-only bookkeeping, configuration center with localized scheduled banners, reconciliation v1.1 with linked corrections, KYC review, manual support workspace, recovery-code login, app pause banner, invoice/share links and `LISTEN/NOTIFY` control room) complete · market depth, analytics, CSV export and the reconciliation worker complete · sandbox reference implementation complete · live collection, payout, signed-callback and two-leg P2P flow verified · B4.6 live statement feeds/sanctions, bank balance matching and the provider-owned fee editor remain
 
 ---
 
@@ -91,16 +91,16 @@ code 1234
 ### F5 Profile and security
 - [x] F5.1 Profile and limit bar
 - [x] F5.2 Saved recipients CRUD
-- [ ] F5.3 Security — **partial**: PIN lock, app-shell gate, language and theme
-  persistence shipped; biometrics not wired; app-side refresh-token handling
-  not implemented (the server endpoint exists)
+- [x] F5.3 Security — PIN lock, app-shell gate, language and theme persistence,
+  biometric unlock (fingerprint/face with PIN fallback) and stay-signed-in
+  refresh-token rotation with a single-flight 401 interceptor
 
 **Frontend verification**:
-- `dart analyze lib test preview` → **No issues found** (2026-11-15)
-- `flutter test` → **219 passed, 1 skipped** (2026-11-15); the skipped test is
+- `dart analyze lib test preview` → **No issues found** (2026-11-19)
+- `flutter test` → **231 passed, 1 skipped** (2026-11-19); the skipped test is
   the opt-in live sandbox contract test
-- The last full static/build check remains: `flutter build web --release -t
-  preview/main.dart` → **Built build/web** (2026-11-10)
+- `flutter build web --release -t preview/main.dart` → **Built build/web**
+  (2026-11-19)
 
 ---
 
@@ -365,12 +365,12 @@ The CrossPay API does not initiate or pay yet; that is B2.3/B2.4.
 
 | Suite | Result | Date |
 |---|---|---|
-| Flutter widget/unit | **219 passed, 1 skipped** | 2026-11-15 |
-| Flutter static analysis | **No issues found** | 2026-11-15 |
+| Flutter widget/unit | **231 passed, 1 skipped** | 2026-11-19 |
+| Flutter static analysis | **No issues found** | 2026-11-19 |
 | Live Flutter contract against sandbox | **passed** | 2026-11-15 |
-| CrossPay API `typecheck` | **clean** | 2026-11-15 |
-| CrossPay API `build` | **clean** | 2026-11-15 |
-| CrossPay API tests | **53/53, 12 suites** | 2026-11-15 |
+| CrossPay API `typecheck` | **clean** | 2026-11-19 |
+| CrossPay API `build` | **clean** | 2026-11-19 |
+| CrossPay API tests | **121/121, 21 suites** | 2026-11-19 |
 | Sandbox tests | **37/37** (14 facade + 9 simulator + 10 customers + 4 real-SMS) | 2026-11-15 |
 | B2.0 snapshot restore | `npm ci` + typecheck + build + **36/36** | 2026-11-15 |
 | B2.2 snapshot restore | `npm ci` + typecheck + build + **42/42** | 2026-11-15 |
@@ -509,7 +509,7 @@ Until then, embedded PostgreSQL remains the source of truth for tests.
 **Current phase**: PART 2 backend plus provider reference implementation.
 
 Completed:
-- Frontend plan items except F5.3 partial.
+- Frontend plan items including F5.3 biometrics and stay-signed-in refresh.
 - B1 database foundation.
 - B2.0 bootstrap and B2.1 idempotency.
 - B2.2 provider-backed rates, estimate and quote.
@@ -522,24 +522,24 @@ Completed:
 - CrossPay payment provider boundary and sandbox adapter: collections, payouts,
   refunds, bank accounts and transfers.
 - Full live flow through the sandbox and real Flutter repositories.
+- Admin portal through KYC review, reconciliation v1.1, localized scheduled
+  banners, invoice/share links and `LISTEN/NOTIFY` live activity.
 - Verified snapshots of both projects.
 
 Next, in order:
 1. **B4.6 configuration remainder** — provider settings/secrets, feature flags,
-   scheduled/localized banners, effective-date scheduling, fee editor after
-   provider reconciliation, analytics charts.
+   generic effective-date scheduling, analytics charts, and the fee editor only
+   after one reconciled provider-owned fee source exists.
 2. **B4.6 reconciliation remainder** — live provider/bank feeds, bank-side
-   missing-in-statement detection, fee-line matching, correction/re-open and
-   bank balance matching.
+   missing-in-statement detection, fee-line matching and bank balance matching.
 3. **B4.6 compliance remainder** — sanctions/watchlist and name-check provider
    queues, document capture; approvals beyond configuration.
 4. **Bank payouts and KYC/name-check adapters** — mobile-money payout, refunds,
    callbacks, matching and the reconciliation worker are built; bank rails need
    an approved partner account contract.
-5. **F5.3 remainder** — biometrics and app-side refresh-token handling.
-6. Replace the sandbox pricing/collection/payout adapters with approved real
+5. Replace the sandbox pricing/collection/payout adapters with approved real
    providers when contracts exist.
-7. Remove the sandbox testing-only `CROSSPAY` mirror after the admin books and
+6. Remove the sandbox testing-only `CROSSPAY` mirror after the admin books and
    reconciliation pass.
 
 Git: branch `fix/theme-system` is local. B2.3/B2.4/B4 and the named-admin portal

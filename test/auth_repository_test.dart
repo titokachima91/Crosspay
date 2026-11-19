@@ -11,6 +11,7 @@ class _BodyAdapter implements HttpClientAdapter {
 
   final String _body;
   Object? lastData;
+  RequestOptions? lastOptions;
 
   @override
   Future<ResponseBody> fetch(
@@ -19,6 +20,7 @@ class _BodyAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     lastData = options.data;
+    lastOptions = options;
     return ResponseBody.fromString(
       _body,
       200,
@@ -45,7 +47,8 @@ AuthRepository _repoFor(_BodyAdapter adapter) => AuthRepository(
 void main() {
   test('verifying sends phone and code and reads the session', () async {
     final adapter = _BodyAdapter(
-      '{"accessToken": "test-token", "profileComplete": false}',
+      '{"accessToken": "test-token", "refreshToken": "refresh-token", '
+      '"expiresInSeconds": 900, "profileComplete": false}',
     );
 
     final session = await _repoFor(adapter).verifyOtp(
@@ -55,7 +58,26 @@ void main() {
 
     expect(adapter.lastData, {'phone': '+999712345678', 'code': '1234'});
     expect(session.accessToken, 'test-token');
+    expect(session.refreshToken, 'refresh-token');
     expect(session.profileComplete, false);
+  });
+
+  test('refresh sends the token once and reads the rotated pair', () async {
+    final adapter = _BodyAdapter(
+      '{"accessToken": "new-access", "refreshToken": "new-refresh", '
+      '"expiresInSeconds": 900}',
+    );
+
+    final pair = await _repoFor(adapter).refresh('old-refresh');
+
+    expect(adapter.lastData, {'refreshToken': 'old-refresh'});
+    expect(
+      adapter.lastOptions?.extra[AuthInterceptor.skipRefreshKey],
+      true,
+    );
+    expect(adapter.lastOptions?.extra[RetryInterceptor.skipRetryKey], true);
+    expect(pair.accessToken, 'new-access');
+    expect(pair.refreshToken, 'new-refresh');
   });
 
   test('a reply without profileComplete is rejected clearly', () async {

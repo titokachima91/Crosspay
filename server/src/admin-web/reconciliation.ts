@@ -408,6 +408,9 @@ export interface ImportStatementInput {
   sourceLabel: string;
   currency: string;
   adminId: string;
+  /** Closed statement this import corrects, if any. */
+  correctsStatementId?: string | null;
+  correctionReason?: string | null;
 }
 
 export interface ImportedStatement {
@@ -548,6 +551,27 @@ export async function importStatement(
     );
   }
 
+  const correctsStatementId = input.correctsStatementId?.trim() || null;
+  const correctionReason = input.correctionReason?.trim() ?? '';
+  if (correctsStatementId !== null) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(correctsStatementId)) {
+      throw fail(422, 'STATEMENT_CORRECTION_INVALID', 'Choose a valid closed statement to correct');
+    }
+    if (correctionReason.length < 10 || correctionReason.length > 300) {
+      throw fail(
+        422,
+        'CORRECTION_REASON_INVALID',
+        'A correction reason of 10-300 characters is required',
+      );
+    }
+  } else if (correctionReason.length > 0) {
+    throw fail(
+      422,
+      'STATEMENT_CORRECTION_INVALID',
+      'Choose the closed statement this import corrects',
+    );
+  }
+
   const currencyRow = await ctx.pool.query(
     `SELECT 1 FROM currencies WHERE code = $1 AND active`,
     [currency],
@@ -563,6 +587,42 @@ export async function importStatement(
 
   try {
     return await withTransaction(ctx.pool, async (client) => {
+      if (correctsStatementId !== null) {
+        const original = await client.query<{
+          id: string;
+          status: 'imported' | 'closed';
+          source_kind: StatementSourceKind;
+          source_label: string;
+          provider: string | null;
+          currency_code: string;
+        }>(
+          `SELECT id, status, source_kind, source_label, provider, currency_code
+           FROM settlement_statements WHERE id = $1 FOR SHARE`,
+          [correctsStatementId],
+        );
+        const row = original.rows[0];
+        if (!row) throw fail(404, 'STATEMENT_NOT_FOUND', 'Statement to correct not found');
+        if (row.status !== 'closed') {
+          throw fail(
+            409,
+            'STATEMENT_CORRECTION_ORIGINAL_OPEN',
+            'Only a closed statement can be corrected',
+          );
+        }
+        if (
+          row.source_kind !== sourceKind ||
+          row.source_label !== sourceLabel ||
+          row.provider !== provider ||
+          row.currency_code !== currency
+        ) {
+          throw fail(
+            422,
+            'STATEMENT_CORRECTION_MISMATCH',
+            'A correction must use the same source, kind and currency as the closed statement',
+          );
+        }
+      }
+
       const seen = new Set<string>();
       const matches: MatchResult[] = [];
       for (const line of parsed.lines) {
@@ -587,8 +647,9 @@ export async function importStatement(
         `INSERT INTO settlement_statements
            (source_kind, source_label, provider, currency_code, period_start, period_end,
             file_name, file_sha256, line_count, matched_count, exception_count,
-            missing_count, imported_by_admin_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            missing_count, imported_by_admin_id, corrects_statement_id,
+            correction_reason)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
          RETURNING id`,
         [
           sourceKind,
@@ -604,6 +665,8 @@ export async function importStatement(
           exceptionCount,
           missing.length,
           input.adminId,
+          correctsStatementId,
+          correctsStatementId === null ? null : correctionReason,
         ],
       );
       const statementId = statement.rows[0]!.id;
@@ -706,10 +769,12 @@ export interface StatementListItem {
   importedBy: string | null;
   createdAt: string;
   closedAt: string | null;
+  correctsStatementId: string | null;
+  correctionReason: string | null;
 }
 
 export async function loadReconciliationCenter(pool: Pool) {
-  const [statements, summary] = await Promise.all([
+  const [statements, summary, closedStatements] = await Promise.all([
     pool.query<{
       id: string;
       source_kind: StatementSourceKind;
@@ -728,6 +793,8 @@ export async function loadReconciliationCenter(pool: Pool) {
       imported_by: string | null;
       created_at: Date;
       closed_at: Date | null;
+      corrects_statement_id: string | null;
+      correction_reason: string | null;
     }>(
       `SELECT s.id, s.source_kind, s.source_label, s.provider, s.currency_code,
               s.period_start, s.period_end, s.file_name, s.line_count,
@@ -735,7 +802,8 @@ export async function loadReconciliationCenter(pool: Pool) {
               s.missing_count,
               (SELECT count(*)::int FROM reconciliation_exceptions e
                WHERE e.statement_id = s.id AND e.status = 'open') AS open_exceptions,
-              s.status, importer.name AS imported_by, s.created_at, s.closed_at
+              s.status, importer.name AS imported_by, s.created_at, s.closed_at,
+              s.corrects_statement_id, s.correction_reason
        FROM settlement_statements s
        LEFT JOIN admin_users importer ON importer.id = s.imported_by_admin_id
        ORDER BY s.created_at DESC, s.id DESC
@@ -755,6 +823,22 @@ export async function loadReconciliationCenter(pool: Pool) {
          (SELECT count(*)::int FROM reconciliation_exceptions) AS total_exceptions,
          (SELECT count(*)::int FROM reconciliation_exceptions
           WHERE kind = 'missing_in_statement') AS missing_total`,
+    ),
+    pool.query<{
+      id: string;
+      source_kind: StatementSourceKind;
+      source_label: string;
+      currency_code: string;
+      period_start: Date;
+      period_end: Date;
+      closed_at: Date;
+    }>(
+      `SELECT id, source_kind, source_label, currency_code, period_start,
+              period_end, closed_at
+       FROM settlement_statements
+       WHERE status = 'closed'
+       ORDER BY closed_at DESC, id DESC
+       LIMIT 100`,
     ),
   ]);
 
@@ -777,7 +861,18 @@ export async function loadReconciliationCenter(pool: Pool) {
       importedBy: row.imported_by,
       createdAt: new Date(row.created_at).toISOString(),
       closedAt: row.closed_at ? new Date(row.closed_at).toISOString() : null,
+      correctsStatementId: row.corrects_statement_id,
+      correctionReason: row.correction_reason,
     })) satisfies StatementListItem[],
+    closedStatements: closedStatements.rows.map((row) => ({
+      id: row.id,
+      sourceKind: row.source_kind,
+      sourceLabel: row.source_label,
+      currency: row.currency_code,
+      periodStart: new Date(row.period_start).toISOString(),
+      periodEnd: new Date(row.period_end).toISOString(),
+      closedAt: new Date(row.closed_at).toISOString(),
+    })),
     summary: {
       openStatements: Number(summary.rows[0]?.open_statements ?? 0),
       closedStatements: Number(summary.rows[0]?.closed_statements ?? 0),
@@ -838,6 +933,10 @@ export async function loadStatement(pool: Pool, id: string) {
     closed_by: string | null;
     created_at: Date;
     closed_at: Date | null;
+    corrects_statement_id: string | null;
+    correction_reason: string | null;
+    corrects_label: string | null;
+    corrects_currency: string | null;
   }>(
     `SELECT s.id, s.source_kind, s.source_label, s.provider, s.currency_code,
             s.period_start, s.period_end, s.file_name, s.line_count,
@@ -846,10 +945,14 @@ export async function loadStatement(pool: Pool, id: string) {
             (SELECT count(*)::int FROM reconciliation_exceptions e
              WHERE e.statement_id = s.id AND e.status = 'open') AS open_exceptions,
             s.status, importer.name AS imported_by, closer.name AS closed_by,
-            s.created_at, s.closed_at
+            s.created_at, s.closed_at,
+            s.corrects_statement_id, s.correction_reason,
+            original.source_label AS corrects_label,
+            original.currency_code AS corrects_currency
      FROM settlement_statements s
      LEFT JOIN admin_users importer ON importer.id = s.imported_by_admin_id
      LEFT JOIN admin_users closer ON closer.id = s.closed_by_admin_id
+     LEFT JOIN settlement_statements original ON original.id = s.corrects_statement_id
      WHERE s.id = $1`,
     [id],
   );
@@ -918,6 +1021,21 @@ export async function loadStatement(pool: Pool, id: string) {
     [id],
   );
 
+  const corrections = await pool.query<{
+    id: string;
+    source_label: string;
+    currency_code: string;
+    correction_reason: string;
+    status: 'imported' | 'closed';
+    created_at: Date;
+  }>(
+    `SELECT id, source_label, currency_code, correction_reason, status, created_at
+     FROM settlement_statements
+     WHERE corrects_statement_id = $1
+     ORDER BY created_at, id`,
+    [id],
+  );
+
   return {
     statement: {
       id: header.id,
@@ -938,7 +1056,19 @@ export async function loadStatement(pool: Pool, id: string) {
       closedBy: header.closed_by,
       createdAt: new Date(header.created_at).toISOString(),
       closedAt: header.closed_at ? new Date(header.closed_at).toISOString() : null,
+      correctsStatementId: header.corrects_statement_id,
+      correctsSourceLabel: header.corrects_label,
+      correctsCurrency: header.corrects_currency,
+      correctionReason: header.correction_reason,
     },
+    corrections: corrections.rows.map((row) => ({
+      id: row.id,
+      sourceLabel: row.source_label,
+      currency: row.currency_code,
+      reason: row.correction_reason,
+      status: row.status,
+      createdAt: new Date(row.created_at).toISOString(),
+    })),
     lines: lines.rows.map((row) => ({
       id: row.id,
       lineNo: row.line_no,

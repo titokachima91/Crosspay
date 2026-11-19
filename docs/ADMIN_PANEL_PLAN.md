@@ -74,7 +74,7 @@ customer's full PII without a permissioned, audited reveal.
 | A. Ops read + narrow controls | Overview, queue, matches, payouts, refunds, corridors, LP orders; env admin key; audit writes | Built |
 | B. Admin identity and RBAC | Admin users, passwords + TOTP, sessions, roles, CSRF, IP allowlist, audit log UI | Built for local accounts; SSO/IP allowlist are deployment follow-ups |
 | C. Control room and analytics | Real-time redacted activity feed, SLOs, funnel/corridor/provider/liquidity/support analytics, saved views, exports | Built for feed/windows/funnel/revenue; saved views and charts remain |
-| D. Configuration center | Services, fees, spreads, tiers/limits, provider settings, feature flags, maintenance, staged rollout/rollback | Versioned approval for support contacts/tier limits, emergency quote/trade pauses and the app pause/message banner built; fee editor, provider secrets, flags, scheduled banners and effective dates remain |
+| D. Configuration center | Services, fees, spreads, tiers/limits, provider settings, feature flags, maintenance, staged rollout/rollback | Versioned approval for support contacts/tier limits/localized scheduled banners, emergency quote/trade pauses and the app pause/message banner built; fee editor, provider secrets, flags and generic effective dates remain |
 | E. Bookkeeping | Chart approval, journal browser, trial balance, revenue/cost reports, operating-cash transfers | Read-only journal browser/trial balance built; chart approval and reports remain |
 | F. Settlement and reconciliation | Provider statements, bank/PSP statement import or API, matching, exceptions, daily close | Manual CSV import, exact reference/journal matching, provider missing-in-statement detection, exceptions and final close built; live feeds, bank balance matching and bank-side missing detection remain |
 | G. Support and compliance | Customer-safe support workspace, cases/notes, KYC queue, sanctions hits, PII reveal workflow | Manual cases/notes/SMS/PII reveal and manual KYC metadata review built; sanctions and name-check provider queues remain |
@@ -727,7 +727,8 @@ provider_settings (id, provider, kind, enabled, mode, timeout_ms, retry_policy,
                    callback_url, secret_ref, version, approved_by, updated_at)
 feature_flags (key, value, scope, enabled, version, effective_from,
                updated_by, updated_at)
-app_banners (id, locale, severity, message, starts_at, ends_at, enabled)
+app_banners (id, message_en, message_sw, severity, starts_at, ends_at,
+             updated_by_admin_id, updated_at, created_at)
 ```
 
 ### Support
@@ -1036,14 +1037,13 @@ manual support workspace are built:**
 **Not built yet:**
 
 - SSO; local accounts + TOTP or a recovery code.
-- `LISTEN/NOTIFY` transport (polling + SSE is live); analytics charts, saved
-  views and scheduled exports.
-- Configuration remainder: provider secrets/endpoints, feature flags, scheduled
-  localized banners, effective-date scheduling, per-corridor fee overrides and
-  a fee editor pending provider reconciliation.
+- Analytics charts, saved views and scheduled exports.
+- Configuration remainder: provider secrets/endpoints, feature flags, generic
+  effective-date scheduling, per-corridor fee overrides and a fee editor
+  pending provider reconciliation.
 - Reconciliation remainder: live provider/bank feeds, automatic bank-side
-  missing-in-statement detection, fee-line matching, correction/re-open and bank
-  balance matching.
+  missing-in-statement detection, fee-line matching and bank balance matching.
+  Corrections are linked new statements; a closed statement is never reopened.
 - KYC/sanctions remainder: document images/OCR, name-check provider, sanctions
   watchlists and compliance case linkage; approvals beyond configuration, SPA,
   IP allowlist deployment. Support has no customer-facing chat, email or

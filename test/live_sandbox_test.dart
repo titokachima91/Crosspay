@@ -32,8 +32,8 @@ void main() {
   test(
     'the app repositories speak the live sandbox contract end to end',
     () async {
-      final baseUrl = Platform.environment['LIVE_SANDBOX_URL'] ??
-          'http://127.0.0.1:8080';
+      final baseUrl =
+          Platform.environment['LIVE_SANDBOX_URL'] ?? 'http://127.0.0.1:8080';
       final apiKey =
           Platform.environment['LIVE_SANDBOX_KEY'] ?? 'live-sandbox-key';
 
@@ -64,7 +64,8 @@ void main() {
       final snapshot = await RatesRepository(dio).fetch(config);
       expect(snapshot.rates, isNotEmpty);
       expect(
-        snapshot.rates.any((rate) => rate.from.code == 'KES' && rate.to.code == 'TZS'),
+        snapshot.rates
+            .any((rate) => rate.from.code == 'KES' && rate.to.code == 'TZS'),
         isTrue,
       );
 
@@ -144,7 +145,9 @@ void main() {
       );
       expect(saved.rail.id, rail.id);
       expect(saved.kycVerified, isTrue);
-      expect((await beneficiaries.list(config)).any((item) => item.id == saved.id), isTrue);
+      expect(
+          (await beneficiaries.list(config)).any((item) => item.id == saved.id),
+          isTrue);
 
       // 4. Price, start, collect and pay out a real trade.
       final trades = TradeRepository(dio);
@@ -164,7 +167,8 @@ void main() {
         receiveCurrency: receive,
         sendAmountMinor: 100000,
       );
-      final p2p = quote.routes.firstWhere((item) => item.route == RouteType.p2p);
+      final p2p =
+          quote.routes.firstWhere((item) => item.route == RouteType.p2p);
       expect(p2p.isAvailable, isTrue);
       expect(p2p.totalDebitMinor, greaterThan(quote.sendAmountMinor));
       expect(p2p.payoutMinor, greaterThan(0));
@@ -187,6 +191,15 @@ void main() {
       expect(initiated.collection.pushSent, isTrue);
       expect(initiated.collection.amountMinor, p2p.totalDebitMinor);
       expect(initiated.collection.currency.code, 'KES');
+
+      // 5. Invoice links exist only while the trade is active.
+      final invoice =
+          await trades.getInvoice(initiated.trade.id, config: config);
+      expect(invoice.tradeId, initiated.trade.id);
+      expect(invoice.amountMinor, p2p.totalDebitMinor);
+      expect(invoice.currency, 'KES');
+      expect(invoice.qrCodeUrl, endsWith('/qr.png'));
+      expect(invoice.shareUrl, contains('/pay/'));
 
       final collected = await admin.post<dynamic>(
         '/api/v1/sandbox/trades/${initiated.trade.id}/collect',
@@ -221,14 +234,6 @@ void main() {
 
       final list = await trades.getTrades(config);
       expect(list.any((trade) => trade.id == finished.id), isTrue);
-
-      // 5. Invoice links the app opens or shares.
-      final invoice = await trades.getInvoice(finished.id, config: config);
-      expect(invoice.tradeId, finished.id);
-      expect(invoice.amount, p2p.totalDebitMinor);
-      expect(invoice.currency, 'KES');
-      expect(invoice.qrCodeUrl, endsWith('/qr.png'));
-      expect(invoice.shareUrl, contains('/pay/'));
     },
     skip: live
         ? false

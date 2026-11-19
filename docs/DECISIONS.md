@@ -230,9 +230,9 @@ Configuration center
   and one pending change per setting. Approval applies the value and publishes
   the next config version in one transaction; rejection/cancellation never
   applies it.
-- Two named admins are required for support contacts and tier limits. The
-  proposer cannot approve their own change. Rollback is a new proposal, not a
-  silent write.
+- Two named admins are required for support contacts, tier limits and
+  `app_banner:<uuid>` changes. The proposer cannot approve their own change.
+  Rollback is a new proposal, not a silent write.
 - Emergency service controls are the deliberate exception: a superadmin can
   pause new quotes/trades immediately because incidents cannot wait for a second
   approver. They are audited, emitted to the control room and do not stop
@@ -244,9 +244,10 @@ Configuration center
 - Fees remain provider-owned. The admin observes provider `feeBps` and compares
   it with the declared 150/250 policy but does not override it. A fee editor
   would need one reconciled source in the quote path first.
-- The optional `/config.service` block is additive and ignored by the current
-  Flutter parser; the app maintenance banner is a follow-up, not a claim that the
-  UI is connected.
+- The optional `/config.service` block is parsed by the Flutter `AppConfig` and
+  rendered as an emergency maintenance banner above the signed-in tabs. It stays
+  separate from scheduled `app_banner:<uuid>` messages, which require two-person
+  approval.
 
 Reconciliation v1
 - Statements are manual CSV evidence, imported by finance/superadmin, one
@@ -261,7 +262,11 @@ Reconciliation v1
   investigated, not written off. No resolution edits a journal or creates a
   journal.
 - A statement closes only when every exception is resolved, and a close note is
-  required. Closing is final; corrections require a new statement import.
+  required. Closing is final; corrections are new linked statements with their
+  own file, lines and decision. The original is never reopened or mutated.
+- A correction must name a closed statement with the same source kind, source
+  label, provider and currency, and carry a 10-300 character reason. Both
+  statements cross-link and the control room emits `statement.corrected`.
 - Closing does not assert a bank balance matched. Provider statements check both
   directions, including provider rows absent from the statement; bank-side
   missing detection is not built because bank lines have no provider reference
@@ -298,6 +303,27 @@ Recovery, upload and app banner
 - The app parses `/config.service` and renders the operator maintenance message
   or pause reason above the signed-in tabs. The banner is server-controlled; the
   app never invents a maintenance state.
+
+Scheduled banners, invoices, sessions and live activity
+- A scheduled banner stores English and Swahili text, severity and a UTC window.
+  It uses the versioned two-person config workflow; updates keep the banner id,
+  removal is a proposal, and rollback restores or deletes. The app shows the
+  selected language and re-checks the window; expired banners disappear without
+  a server write.
+- Each trade has one server-issued invoice link, valid for 72 hours and only
+  while the trade is active. The token is encrypted at rest and only its hash is
+  stored for lookup. The app displays the server QR and copies the server share
+  URL; it never builds or extends a link.
+- The refresh token lives only in platform-secure storage and rotates on every
+  use. Refreshes are single-flight: concurrent 401s share one rotation, then
+  each request is replayed once. A terminal refresh rejection clears both
+  tokens; a network failure keeps them for the next launch. The refresh request
+  itself is never retried, because the token is single-use.
+- Stay signed in is always behind the local PIN/biometric gate. Biometrics are
+  attempted first when available; the PIN dialog is always the fallback.
+- The control room consumes PostgreSQL `LISTEN admin_activity` on a dedicated
+  pooled connection, with the interval poll retained as fallback and reconnect
+  path. A notification during an in-flight poll schedules one more poll.
 - `.dart_tool` is regenerable. Removing it for snapshot space requires
   `flutter pub get` before analysis; otherwise the analyzer reports thousands of
   false missing-package errors.

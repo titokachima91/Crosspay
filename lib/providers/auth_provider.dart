@@ -2,7 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crosspay_app/core/network/api_exception.dart';
 import 'package:crosspay_app/core/storage/token_storage.dart';
 import 'package:crosspay_app/models/user_model.dart';
+import 'package:crosspay_app/providers/config_provider.dart';
 import 'package:crosspay_app/repositories/auth_repository.dart';
+import 'package:crosspay_app/repositories/profile_repository.dart';
 
 enum AuthStatus {
   signedOut,
@@ -11,6 +13,21 @@ enum AuthStatus {
   verifyingOtp,
   signedIn,
   submittingKyc,
+}
+
+/// What the splash screen should do after checking the device for a session.
+enum SessionRestore {
+  /// No stored refresh token (or it is already revoked): ask for a code.
+  noSession,
+
+  /// A live session was restored and the profile was validated.
+  restored,
+
+  /// The token is valid, but business KYC was never completed.
+  profileIncomplete,
+
+  /// The server could not be reached. Keep the stored session for next time.
+  unavailable,
 }
 
 class AuthState {
@@ -76,8 +93,129 @@ class AuthState {
 }
 
 class AuthNotifier extends Notifier<AuthState> {
+  /// One shared refresh call. Concurrent 401s await the same future.
+  Future<String?>? _refreshing;
+
+  /// Bumped by sign-out so a refresh that finishes late cannot revive the
+  /// session.
+  int _sessionEpoch = 0;
+
   @override
   AuthState build() => const AuthState();
+
+  /// Exchanges the stored refresh token for a new token pair. Exactly one
+  /// network call runs even when several requests hit a 401 together.
+  Future<String?> refreshAccessToken() {
+    final existing = _refreshing;
+    if (existing != null) return existing;
+    final future = _performRefresh();
+    _refreshing = future;
+    return future.whenComplete(() {
+      if (identical(_refreshing, future)) _refreshing = null;
+    });
+  }
+
+  Future<String?> _performRefresh() async {
+    final epoch = _sessionEpoch;
+    String? refreshToken;
+    try {
+      refreshToken = await ref.read(tokenStorageProvider).readRefreshToken();
+    } catch (_) {
+      return null;
+    }
+    if (refreshToken == null || refreshToken.isEmpty) {
+      // A signed-in session without a stored refresh token cannot be renewed.
+      if (state.status != AuthStatus.signedOut) await signOut();
+      return null;
+    }
+
+    try {
+      final tokens =
+          await ref.read(authRepositoryProvider).refresh(refreshToken);
+      if (epoch != _sessionEpoch) return null;
+      try {
+        await ref
+            .read(tokenStorageProvider)
+            .writeAccessToken(tokens.accessToken);
+        await ref
+            .read(tokenStorageProvider)
+            .writeRefreshToken(tokens.refreshToken);
+      } catch (_) {
+        // The session still works for this run; the next launch asks for a
+        // code because the rotated refresh token could not be stored.
+      }
+      state = state.copyWith(
+        status: AuthStatus.signedIn,
+        accessToken: tokens.accessToken,
+        clearError: true,
+      );
+      return tokens.accessToken;
+    } on ApiException catch (e) {
+      // Only a rejected refresh token is terminal. A network drop keeps the
+      // session for the next attempt.
+      if (e.statusCode == 401 && epoch == _sessionEpoch) {
+        await signOut();
+      }
+      return null;
+    }
+  }
+
+  /// F5.3 — called once at boot after `/config` is ready. Reads the stored
+  /// refresh token, rotates it, and validates the profile so the splash can
+  /// send a returning merchant straight to Home (or back to KYC).
+  Future<SessionRestore> restoreSession() async {
+    String? refreshToken;
+    try {
+      refreshToken = await ref.read(tokenStorageProvider).readRefreshToken();
+    } catch (_) {
+      return SessionRestore.noSession;
+    }
+    if (refreshToken == null || refreshToken.isEmpty) {
+      return SessionRestore.noSession;
+    }
+
+    final accessToken = await refreshAccessToken();
+    if (accessToken == null) {
+      // Terminal failures clear the stored refresh token; network failures
+      // leave it in place for the next launch.
+      String? remaining;
+      try {
+        remaining = await ref.read(tokenStorageProvider).readRefreshToken();
+      } catch (_) {
+        remaining = null;
+      }
+      return remaining == null
+          ? SessionRestore.noSession
+          : SessionRestore.unavailable;
+    }
+
+    final config = ref.read(appConfigProvider).config;
+    if (config.isEmpty) return SessionRestore.restored;
+
+    try {
+      final profile = await ref.read(profileRepositoryProvider).fetch(config);
+      state = state.copyWith(
+        user: profile,
+        profileComplete: true,
+        kycStatus: profile.kycStatus,
+      );
+      return SessionRestore.restored;
+    } on ApiException catch (e) {
+      if (e.code == 'PROFILE_INCOMPLETE') {
+        state = state.copyWith(
+          profileComplete: false,
+          kycStatus: KycStatus.notStarted,
+        );
+        return SessionRestore.profileIncomplete;
+      }
+      if (e.statusCode == 401) {
+        await signOut();
+        return SessionRestore.noSession;
+      }
+      // The session is valid; the profile call can be retried by Home.
+      return SessionRestore.restored;
+    }
+  }
 
   /// Asks the server to send a code (also used for "resend").
   /// Returns true when the code was sent.
@@ -92,7 +230,8 @@ class AuthNotifier extends Notifier<AuthState> {
     );
 
     try {
-      final challenge = await ref.read(authRepositoryProvider).requestOtp(phone);
+      final challenge =
+          await ref.read(authRepositoryProvider).requestOtp(phone);
       state = AuthState(
         status: AuthStatus.otpPending,
         phone: phone,
@@ -124,10 +263,15 @@ class AuthNotifier extends Notifier<AuthState> {
           .verifyOtp(phone: phone, code: code);
 
       try {
-        await ref.read(tokenStorageProvider).write(session.accessToken);
+        await ref
+            .read(tokenStorageProvider)
+            .writeAccessToken(session.accessToken);
+        await ref
+            .read(tokenStorageProvider)
+            .writeRefreshToken(session.refreshToken);
       } catch (_) {
         // The user stays signed in for this session even if the device
-        // refuses to store the token.
+        // refuses to store the tokens.
       }
 
       state = AuthState(
@@ -188,6 +332,7 @@ class AuthNotifier extends Notifier<AuthState> {
   void clearError() => state = state.copyWith(clearError: true);
 
   Future<void> signOut() async {
+    _sessionEpoch++;
     state = const AuthState();
     try {
       await ref.read(tokenStorageProvider).delete();

@@ -1,5 +1,10 @@
 <%- include('partials/header', { title: 'Configuration', user, csrf, active: 'config', notice, error, can }) %>
 <% const fmtMinor = (value) => { try { return BigInt(value).toLocaleString('en-US'); } catch { return String(value); } }; %>
+<% const bannerState = (banner) => banner.active ? 'active' : new Date(banner.startsAt).getTime() > Date.now() ? 'upcoming' : 'ended'; %>
+<% const datetimeInput = (iso) => iso.replace('T', ' ').slice(0, 16).replace(' ', 'T'); %>
+<% const editing = typeof editBanner !== 'undefined' ? editBanner : null; %>
+<% const defaultStart = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16); %>
+<% const defaultEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16); %>
 
 <div class="grid two">
   <div class="panel">
@@ -74,6 +79,68 @@
       <% } %>
     </tbody>
   </table>
+  <% } %>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <div class="panel-head">
+    <h2>App banners</h2>
+    <span class="tag">localized · scheduled · UTC</span>
+    <span class="pill"><%= data.banners.filter((banner) => banner.active).length %> active</span>
+  </div>
+  <p class="tag">Banners follow the same versioned two-person approval as other configuration. A published banner appears in <span class="mono">GET /config.banners</span> only inside its window. Emergency service controls above remain separate and apply immediately.</p>
+  <% if (data.banners.length === 0) { %><div class="empty">No published banners.</div><% } else { %>
+  <table>
+    <thead><tr><th>Message</th><th>Severity</th><th>Window (UTC)</th><th>State</th><th></th></tr></thead>
+    <tbody>
+      <% for (const banner of data.banners) { %>
+      <% const state = bannerState(banner); %>
+      <tr>
+        <td><strong><%= banner.messageEn %></strong><div class="tag"><%= banner.messageSw %></div></td>
+        <td><span class="pill <%= banner.severity === 'critical' ? 'bad' : banner.severity === 'warning' ? 'warn' : 'info' %>"><%= banner.severity %></span></td>
+        <td class="mono tag"><%= banner.startsAt.replace('T', ' ').slice(0, 16) %> →<br><%= banner.endsAt.replace('T', ' ').slice(0, 16) %></td>
+        <td><span class="pill <%= state === 'active' ? 'ok' : state === 'upcoming' ? 'warn' : '' %>"><%= state %></span></td>
+        <td>
+          <% if (can.configPropose) { %>
+          <a class="button small" href="/config?edit=<%= banner.id %>">Edit</a>
+          <form method="post" action="/config/banners/<%= banner.id %>/remove" style="margin-top:8px" data-confirm="Propose removing this banner? A different finance/superadmin must approve it.">
+            <input type="hidden" name="_csrf" value="<%= csrf %>">
+            <input name="reason" required minlength="10" maxlength="300" placeholder="Why remove it?">
+            <button class="danger small">Propose removal</button>
+          </form>
+          <% } %>
+        </td>
+      </tr>
+      <% } %>
+    </tbody>
+  </table>
+  <% } %>
+  <% if (can.configPropose) { %>
+  <div class="divider"></div>
+  <h3><%= editing ? 'Propose banner update' : 'Propose a new banner' %></h3>
+  <form method="post" action="/config/changes">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <input type="hidden" name="kind" value="app_banner">
+    <% if (editing) { %><input type="hidden" name="bannerId" value="<%= editing.id %>"><% } %>
+    <div class="row">
+      <div><label for="bannerMessageEn">Message (English)</label><input id="bannerMessageEn" name="bannerMessageEn" required minlength="5" maxlength="200" value="<%= editing ? editing.messageEn : '' %>" placeholder="Scheduled maintenance on Saturday"></div>
+      <div><label for="bannerMessageSw">Message (Swahili)</label><input id="bannerMessageSw" name="bannerMessageSw" required minlength="5" maxlength="200" value="<%= editing ? editing.messageSw : '' %>" placeholder="Matengenezo yaliyopangwa Jumamosi"></div>
+    </div>
+    <div class="row">
+      <div><label for="bannerSeverity">Severity</label>
+        <select id="bannerSeverity" name="bannerSeverity">
+          <% for (const severity of ['info', 'warning', 'critical']) { %><option value="<%= severity %>" <%= editing && editing.severity === severity ? 'selected' : '' %>><%= severity %></option><% } %>
+        </select>
+      </div>
+      <div><label for="bannerStartsAt">Starts (UTC)</label><input id="bannerStartsAt" name="bannerStartsAt" type="datetime-local" required value="<%= editing ? datetimeInput(editing.startsAt) : defaultStart %>"></div>
+      <div><label for="bannerEndsAt">Ends (UTC)</label><input id="bannerEndsAt" name="bannerEndsAt" type="datetime-local" required value="<%= editing ? datetimeInput(editing.endsAt) : defaultEnd %>"></div>
+    </div>
+    <label for="banner-reason">Reason for change</label>
+    <input id="banner-reason" name="reason" required minlength="10" maxlength="300" placeholder="Planned maintenance, incident notice, policy update">
+    <p class="tag">Messages must be 5–200 characters in both languages. A window must be longer than zero and at most 90 days, start no more than 180 days ahead, and end in the future. The app shows the message for the user's selected language. Updates keep the same banner id; removal is a proposal like any other change.</p>
+    <button class="primary"><%= editing ? 'Propose banner update' : 'Propose banner' %></button>
+    <% if (editing) { %><a class="button small" href="/config">Cancel edit</a><% } %>
+  </form>
   <% } %>
 </div>
 

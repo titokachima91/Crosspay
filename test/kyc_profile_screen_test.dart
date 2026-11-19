@@ -19,7 +19,9 @@ import 'package:crosspay_app/repositories/config_repository.dart';
 
 // Test stand-ins and inputs only. Not app code or app data.
 const _testConfig = AppConfig(
-  currencies: [Currency(code: 'AAA', name: 'Alpha', countryCode: 'ZZ', decimals: 2)],
+  currencies: [
+    Currency(code: 'AAA', name: 'Alpha', countryCode: 'ZZ', decimals: 2)
+  ],
   hubs: [
     TradingHub(id: 'h1', name: 'Hub One', countryCode: 'ZZ'),
     TradingHub(id: 'h2', name: 'Hub Two', countryCode: 'ZZ'),
@@ -68,7 +70,11 @@ class _FakeAuthRepository extends AuthRepository {
     required String phone,
     required String code,
   }) async =>
-      const AuthSession(accessToken: 'test-token', profileComplete: false);
+      const AuthSession(
+        accessToken: 'test-token',
+        refreshToken: 'test-refresh',
+        profileComplete: false,
+      );
 
   @override
   Future<KycStatus> submitKyc({
@@ -82,15 +88,25 @@ class _FakeAuthRepository extends AuthRepository {
 
 class _MemoryTokenStorage implements TokenStorage {
   String? token;
+  String? refreshToken;
 
   @override
-  Future<String?> read() async => token;
+  Future<String?> readAccessToken() async => token;
 
   @override
-  Future<void> write(String value) async => token = value;
+  Future<void> writeAccessToken(String value) async => token = value;
 
   @override
-  Future<void> delete() async => token = null;
+  Future<String?> readRefreshToken() async => refreshToken;
+
+  @override
+  Future<void> writeRefreshToken(String value) async => refreshToken = value;
+
+  @override
+  Future<void> delete() async {
+    token = null;
+    refreshToken = null;
+  }
 }
 
 void main() {
@@ -158,7 +174,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('a person is the default: no market field, submit needs name and ID', (tester) async {
+  testWidgets(
+      'a person is the default: no market field, submit needs name and ID',
+      (tester) async {
     final container = await signedInContainer(
       onSubmit: (_, __, ___, ____) async => KycStatus.verified,
     );
@@ -170,7 +188,8 @@ void main() {
     expect(find.text('Verify your identity'), findsOneWidget);
     expect(find.byType(DropdownButtonFormField<TradingHub>), findsNothing);
     expect(
-      find.text('We use this only to verify your business with regulated partners.'),
+      find.text(
+          'We use this only to verify your business with regulated partners.'),
       findsOneWidget,
     );
     expect(submitButton(tester).onPressed, isNull);
@@ -179,7 +198,8 @@ void main() {
     expect(submitButton(tester).onPressed, isNotNull);
   });
 
-  testWidgets('a person sends trimmed values and no market, then opens Home', (tester) async {
+  testWidgets('a person sends trimmed values and no market, then opens Home',
+      (tester) async {
     AccountType? sentType;
     String? sentName;
     String? sentHub = 'unset';
@@ -208,7 +228,8 @@ void main() {
     expect(container.read(authProvider).kycStatus, KycStatus.verified);
   });
 
-  testWidgets('a business must also choose a market from the server list', (tester) async {
+  testWidgets('a business must also choose a market from the server list',
+      (tester) async {
     final container = await signedInContainer(
       onSubmit: (_, __, ___, ____) async => KycStatus.verified,
     );
@@ -266,7 +287,8 @@ void main() {
     expect(container.read(authProvider).kycStatus, KycStatus.pending);
   });
 
-  testWidgets('a rejected ID shows a clear message and stays on the form', (tester) async {
+  testWidgets('a rejected ID shows a clear message and stays on the form',
+      (tester) async {
     final container = await signedInContainer(
       onSubmit: (_, __, ___, ____) async => throw const ApiException(
         kind: ApiErrorKind.client,
@@ -282,13 +304,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('That ID or TIN number is not valid. Please check and try again.'),
+      find.text(
+          'That ID or TIN number is not valid. Please check and try again.'),
       findsOneWidget,
     );
     expect(find.text('home-screen'), findsNothing);
   });
 
-  testWidgets('a person can still register when the market list cannot load', (tester) async {
+  testWidgets('a person can still register when the market list cannot load',
+      (tester) async {
     final container = await signedInContainer(
       onSubmit: (_, __, ___, ____) async => KycStatus.verified,
       config: () async => throw const ApiException(kind: ApiErrorKind.network),

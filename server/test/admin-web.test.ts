@@ -460,11 +460,21 @@ describe('admin portal identity and pages', () => {
     assert.match(journalPage.body, /250,000/);
   });
 
-  it('streams newly committed activity to subscribers', async () => {
-    const stream = new ActivityStream(db.pool, 100, 5_000);
+  it('delivers activity as soon as PostgreSQL notifies, not on the fallback tick', async () => {
+    // The fallback interval is a minute: only LISTEN can deliver this quickly.
+    const stream = new ActivityStream(db.pool, 60_000, 5_000);
     const received: Array<{ source: string; summary: string }> = [];
     const unsubscribe = stream.subscribe((event) => received.push(event));
+    const waitFor = async (predicate: () => boolean, timeoutMs = 5_000) => {
+      const deadline = Date.now() + timeoutMs;
+      while (!predicate() && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    };
     try {
+      await waitFor(() => stream.listening);
+      assert.equal(stream.listening, true, 'LISTEN admin_activity must connect');
+
       const user = await createUser(db.pool, {
         phone: '+255755980002',
         displayName: 'Stream Customer',
@@ -483,15 +493,41 @@ describe('admin portal identity and pages', () => {
          VALUES ($1, 'escrowed', 'server', 'stream_test')`,
         [tradeId],
       );
-      const deadline = Date.now() + 5_000;
       const hasStreamEvent = () =>
         received.some(
           (event) => event.source === 'trade' && event.summary.includes('CP-STREAM001'),
         );
-      while (!hasStreamEvent() && Date.now() < deadline) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
+      await waitFor(hasStreamEvent);
       assert.ok(hasStreamEvent(), 'the stream must deliver the new event');
+    } finally {
+      unsubscribe();
+      stream.stop();
+    }
+  });
+
+  it('falls back to polling when the notification listener cannot connect', async () => {
+    const stream = new ActivityStream(db.pool, 100, 5_000, () => {
+      throw new Error('LISTEN is unavailable in this test');
+    });
+    const received: string[] = [];
+    const unsubscribe = stream.subscribe((event) => received.push(event.summary));
+    try {
+      // Let the failed connect settle; the polling fallback keeps working.
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      assert.equal(stream.listening, false);
+      await db.pool.query(
+        `INSERT INTO admin_activity_events
+           (source, event_type, severity, summary, payload)
+         VALUES ('admin', 'test.fallback', 'info', 'Fallback poll event', '{}'::jsonb)`,
+      );
+      const deadline = Date.now() + 5_000;
+      while (!received.includes('Fallback poll event') && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      assert.ok(
+        received.includes('Fallback poll event'),
+        'polling must deliver when LISTEN is down',
+      );
     } finally {
       unsubscribe();
       stream.stop();
@@ -1254,6 +1290,282 @@ describe('admin portal identity and pages', () => {
     assert.equal((await loadAppConfig(db.pool)).service, undefined);
   });
 
+  it('publishes localized banners only inside their approved window', async () => {
+    const ops = await createRoleUser('ops-banner@crosspay.test', 'ops');
+    const opsLogin = await login(ops.email, PASSWORD, ops.secret);
+    const superLogin = await login();
+    const localTime = (offsetMs: number) =>
+      new Date(Date.now() + offsetMs).toISOString().slice(0, 16);
+    const hour = 60 * 60 * 1000;
+
+    const tooShort = await postForm(
+      '/config/changes',
+      {
+        _csrf: opsLogin.csrf,
+        kind: 'app_banner',
+        bannerMessageEn: 'Hi',
+        bannerMessageSw: 'Habari',
+        bannerSeverity: 'info',
+        bannerStartsAt: localTime(-hour),
+        bannerEndsAt: localTime(48 * hour),
+        reason: 'A banner message that is too short to publish',
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(tooShort.statusCode, 422, tooShort.body);
+    assert.match(tooShort.body, /banner message must be 5-200 characters/i);
+
+    const pastWindow = await postForm(
+      '/config/changes',
+      {
+        _csrf: opsLogin.csrf,
+        kind: 'app_banner',
+        bannerMessageEn: 'Scheduled maintenance on Saturday',
+        bannerMessageSw: 'Matengenezo yaliyopangwa Jumamosi',
+        bannerSeverity: 'warning',
+        bannerStartsAt: localTime(-48 * hour),
+        bannerEndsAt: localTime(-hour),
+        reason: 'A banner window that has already ended',
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(pastWindow.statusCode, 422, pastWindow.body);
+    assert.match(pastWindow.body, /end must be in the future/i);
+
+    const tooLong = await postForm(
+      '/config/changes',
+      {
+        _csrf: opsLogin.csrf,
+        kind: 'app_banner',
+        bannerMessageEn: 'Scheduled maintenance on Saturday',
+        bannerMessageSw: 'Matengenezo yaliyopangwa Jumamosi',
+        bannerSeverity: 'warning',
+        bannerStartsAt: localTime(-hour),
+        bannerEndsAt: localTime(91 * 24 * hour),
+        reason: 'A banner window that is longer than the policy allows',
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(tooLong.statusCode, 422, tooLong.body);
+    assert.match(tooLong.body, /cannot exceed 90 days/i);
+
+    const proposed = await postForm(
+      '/config/changes',
+      {
+        _csrf: opsLogin.csrf,
+        kind: 'app_banner',
+        bannerMessageEn: 'Scheduled maintenance on Saturday',
+        bannerMessageSw: 'Matengenezo yaliyopangwa Jumamosi',
+        bannerSeverity: 'warning',
+        bannerStartsAt: localTime(-hour),
+        bannerEndsAt: localTime(48 * hour),
+        reason: 'Tell customers about the announced Saturday maintenance',
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(proposed.statusCode, 303, proposed.body);
+    const changeId = /\/config\/changes\/([0-9a-f-]{36})/.exec(
+      String(proposed.headers.location ?? ''),
+    )?.[1];
+    assert.ok(changeId);
+
+    const changePage = await app.inject({
+      method: 'GET',
+      url: `/config/changes/${changeId}`,
+      headers: { cookie: `cp_admin_session=${opsLogin.session}` },
+    });
+    assert.equal(changePage.statusCode, 200, changePage.body);
+    assert.match(changePage.body, /Message \(English\)/);
+    assert.match(changePage.body, /Scheduled maintenance on Saturday/);
+    assert.match(changePage.body, /Matengenezo yaliyopangwa Jumamosi/);
+
+    const selfApproval = await postForm(
+      `/config/changes/${changeId}/approve`,
+      { _csrf: opsLogin.csrf },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(selfApproval.statusCode, 403, selfApproval.body);
+
+    const approved = await postForm(
+      `/config/changes/${changeId}/approve`,
+      { _csrf: superLogin.csrf },
+      { cookie: `cp_admin_session=${superLogin.session}` },
+    );
+    assert.equal(approved.statusCode, 303, approved.body);
+
+    const stored = await db.pool.query<{
+      id: string;
+      message_en: string;
+      message_sw: string;
+      severity: string;
+    }>(`SELECT id, message_en, message_sw, severity FROM app_banners`);
+    assert.equal(stored.rows.length, 1);
+    const bannerId = stored.rows[0]!.id;
+    assert.equal(stored.rows[0]!.severity, 'warning');
+
+    const config = await loadAppConfig(db.pool);
+    assert.equal(config.banners?.length, 1);
+    assert.equal(config.banners?.[0]?.id, bannerId);
+    assert.equal(config.banners?.[0]?.messageEn, 'Scheduled maintenance on Saturday');
+    assert.equal(config.banners?.[0]?.messageSw, 'Matengenezo yaliyopangwa Jumamosi');
+
+    const page = await app.inject({
+      method: 'GET',
+      url: '/config',
+      headers: { cookie: `cp_admin_session=${superLogin.session}` },
+    });
+    assert.equal(page.statusCode, 200, page.body);
+    assert.match(page.body, /Scheduled maintenance on Saturday/);
+    assert.match(page.body, new RegExp(`/config\\?edit=${bannerId}`));
+
+    // Editing keeps the same banner id, so a published banner is updated
+    // in place rather than duplicated.
+    const editProposal = await postForm(
+      '/config/changes',
+      {
+        _csrf: opsLogin.csrf,
+        kind: 'app_banner',
+        bannerId,
+        bannerMessageEn: 'Maintenance moved to Sunday',
+        bannerMessageSw: 'Matengenezo yamehamishwa hadi Jumapili',
+        bannerSeverity: 'critical',
+        bannerStartsAt: localTime(-hour),
+        bannerEndsAt: localTime(48 * hour),
+        reason: 'The maintenance window moved to Sunday',
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(editProposal.statusCode, 303, editProposal.body);
+    const editId = /\/config\/changes\/([0-9a-f-]{36})/.exec(
+      String(editProposal.headers.location ?? ''),
+    )?.[1];
+    assert.ok(editId);
+    const editApproved = await postForm(
+      `/config/changes/${editId}/approve`,
+      { _csrf: superLogin.csrf },
+      { cookie: `cp_admin_session=${superLogin.session}` },
+    );
+    assert.equal(editApproved.statusCode, 303, editApproved.body);
+
+    const edited = await db.pool.query<{
+      count: number;
+      message_en: string;
+      severity: string;
+    }>(
+      `SELECT count(*)::int AS count,
+              min(message_en) AS message_en,
+              min(severity) AS severity
+       FROM app_banners`,
+    );
+    assert.equal(edited.rows[0]?.count, 1);
+    assert.equal(edited.rows[0]?.message_en, 'Maintenance moved to Sunday');
+    assert.equal(edited.rows[0]?.severity, 'critical');
+
+    // A banner scheduled for later is stored and visible to admins, but not
+    // exposed to the app until its window opens.
+    const upcomingProposal = await postForm(
+      '/config/changes',
+      {
+        _csrf: opsLogin.csrf,
+        kind: 'app_banner',
+        bannerMessageEn: 'New limits start next week',
+        bannerMessageSw: 'Vikomo vipya vinaanza wiki ijayo',
+        bannerSeverity: 'info',
+        bannerStartsAt: localTime(24 * hour),
+        bannerEndsAt: localTime(96 * hour),
+        reason: 'Announce the new limits before they take effect',
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(upcomingProposal.statusCode, 303, upcomingProposal.body);
+    const upcomingId = /\/config\/changes\/([0-9a-f-]{36})/.exec(
+      String(upcomingProposal.headers.location ?? ''),
+    )?.[1];
+    assert.ok(upcomingId);
+    const upcomingApproved = await postForm(
+      `/config/changes/${upcomingId}/approve`,
+      { _csrf: superLogin.csrf },
+      { cookie: `cp_admin_session=${superLogin.session}` },
+    );
+    assert.equal(upcomingApproved.statusCode, 303, upcomingApproved.body);
+
+    const upcomingConfig = await loadAppConfig(db.pool);
+    assert.equal(upcomingConfig.banners?.length, 1);
+    assert.equal(upcomingConfig.banners?.[0]?.id, bannerId);
+
+    const upcomingPage = await app.inject({
+      method: 'GET',
+      url: '/config',
+      headers: { cookie: `cp_admin_session=${superLogin.session}` },
+    });
+    assert.equal(upcomingPage.statusCode, 200, upcomingPage.body);
+    assert.match(upcomingPage.body, /upcoming/);
+    assert.match(upcomingPage.body, /New limits start next week/);
+
+    // Removal is a proposal, not a silent delete. Approval removes it from
+    // the app; rollback of the removal restores the same banner.
+    const shortReason = await postForm(
+      `/config/banners/${bannerId}/remove`,
+      { _csrf: opsLogin.csrf, reason: 'too short' },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(shortReason.statusCode, 422, shortReason.body);
+
+    const removal = await postForm(
+      `/config/banners/${bannerId}/remove`,
+      {
+        _csrf: opsLogin.csrf,
+        reason: 'The maintenance has been completed early',
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(removal.statusCode, 303, removal.body);
+    const removalId = /\/config\/changes\/([0-9a-f-]{36})/.exec(
+      String(removal.headers.location ?? ''),
+    )?.[1];
+    assert.ok(removalId);
+    const removalApproved = await postForm(
+      `/config/changes/${removalId}/approve`,
+      { _csrf: superLogin.csrf },
+      { cookie: `cp_admin_session=${superLogin.session}` },
+    );
+    assert.equal(removalApproved.statusCode, 303, removalApproved.body);
+    const remaining = await db.pool.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM app_banners WHERE id = $1`,
+      [bannerId],
+    );
+    assert.equal(remaining.rows[0]?.count, 0);
+    assert.equal((await loadAppConfig(db.pool)).banners, undefined);
+
+    const restore = await postForm(
+      `/config/changes/${removalId}/rollback`,
+      {
+        _csrf: opsLogin.csrf,
+        reason: 'The maintenance window is back on the schedule',
+      },
+      { cookie: `cp_admin_session=${opsLogin.session}` },
+    );
+    assert.equal(restore.statusCode, 303, restore.body);
+    const restoreId = /\/config\/changes\/([0-9a-f-]{36})/.exec(
+      String(restore.headers.location ?? ''),
+    )?.[1];
+    assert.ok(restoreId);
+    const restoreApproved = await postForm(
+      `/config/changes/${restoreId}/approve`,
+      { _csrf: superLogin.csrf },
+      { cookie: `cp_admin_session=${superLogin.session}` },
+    );
+    assert.equal(restoreApproved.statusCode, 303, restoreApproved.body);
+    assert.equal((await loadAppConfig(db.pool)).banners?.[0]?.id, bannerId);
+
+    const bannerAudit = await db.pool.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM admin_audit_log
+       WHERE action = 'config.change.propose' AND reason = $1`,
+      ['The maintenance has been completed early'],
+    );
+    assert.equal(bannerAudit.rows[0]?.count, 1);
+  });
+
   it('imports a provider statement, matches exact references and closes only after exceptions are resolved', async () => {
     const finance = await createRoleUser('finance-recon@crosspay.test', 'finance');
     const ops = await createRoleUser('ops-recon@crosspay.test', 'ops');
@@ -1438,6 +1750,144 @@ describe('admin portal identity and pages', () => {
         ['reconciliation.statement.import', 1],
       ],
     );
+
+    // A correction is a new statement linked to the closed one. The closed
+    // evidence stays exactly as it was.
+    const correctionCsv = [
+      'occurred_at,reference,kind,amount_minor,currency,posting_key,description',
+      '2026-11-18T10:00:00Z,RECON-CORRECTION-1,transfer,12345,KES,,Corrected restatement',
+    ].join('\n');
+    const correctionReason = 'Provider restated the 2026-11-18 payout total';
+    const corrected = await postForm(
+      '/reconciliation/statements',
+      {
+        _csrf: financeLogin.csrf,
+        sourceKind: 'provider',
+        sourceLabel: 'fake',
+        currency: 'KES',
+        fileName: 'fake-2026-11-18-correction.csv',
+        correctsStatementId: statementId!,
+        correctionReason,
+        csv: correctionCsv,
+      },
+      { cookie: `cp_admin_session=${financeLogin.session}` },
+    );
+    assert.equal(corrected.statusCode, 303, corrected.body);
+    const correctionId = /\/reconciliation\/statements\/([0-9a-f-]{36})/.exec(
+      String(corrected.headers.location ?? ''),
+    )?.[1];
+    assert.ok(correctionId);
+
+    const correctionRow = await db.pool.query<{
+      corrects_statement_id: string;
+      correction_reason: string;
+      status: string;
+    }>(
+      `SELECT corrects_statement_id, correction_reason, status
+       FROM settlement_statements WHERE id = $1`,
+      [correctionId],
+    );
+    assert.deepEqual(correctionRow.rows[0], {
+      corrects_statement_id: statementId,
+      correction_reason: correctionReason,
+      status: 'imported',
+    });
+
+    const originalAfter = await db.pool.query<{
+      status: string;
+      correction_reason: string | null;
+    }>(
+      `SELECT status, correction_reason FROM settlement_statements WHERE id = $1`,
+      [statementId],
+    );
+    assert.deepEqual(originalAfter.rows[0], { status: 'closed', correction_reason: null });
+
+    const correctionDetail = await app.inject({
+      method: 'GET',
+      url: `/reconciliation/statements/${correctionId}`,
+      headers: { cookie: `cp_admin_session=${financeLogin.session}` },
+    });
+    assert.equal(correctionDetail.statusCode, 200, correctionDetail.body);
+    assert.match(correctionDetail.body, /Correction of/);
+    assert.match(correctionDetail.body, new RegExp(correctionReason));
+
+    const originalDetail = await app.inject({
+      method: 'GET',
+      url: `/reconciliation/statements/${statementId}`,
+      headers: { cookie: `cp_admin_session=${financeLogin.session}` },
+    });
+    assert.equal(originalDetail.statusCode, 200, originalDetail.body);
+    assert.match(originalDetail.body, /This statement was corrected by/);
+
+    const correctionActivity = await db.pool.query<{
+      event_type: string;
+      payload: Record<string, unknown>;
+    }>(
+      `SELECT event_type, payload FROM admin_activity_events
+       WHERE source = 'reconciliation' AND event_type = 'statement.corrected'`,
+    );
+    assert.equal(correctionActivity.rows.length, 1);
+    assert.equal(correctionActivity.rows[0]?.payload['correctsStatementId'], statementId);
+    assert.equal(correctionActivity.rows[0]?.payload['correctionReason'], correctionReason);
+
+    const openOriginal = await postForm(
+      '/reconciliation/statements',
+      {
+        _csrf: financeLogin.csrf,
+        sourceKind: 'provider',
+        sourceLabel: 'fake',
+        currency: 'KES',
+        fileName: 'fake-correction-of-open.csv',
+        correctsStatementId: correctionId!,
+        correctionReason: 'Trying to correct a statement that is still open',
+        csv: [
+          'occurred_at,reference,kind,amount_minor,currency,posting_key,description',
+          '2026-11-18T10:05:00Z,RECON-CORRECTION-2,transfer,999,KES,,Still open',
+        ].join('\n'),
+      },
+      { cookie: `cp_admin_session=${financeLogin.session}` },
+    );
+    assert.equal(openOriginal.statusCode, 409, openOriginal.body);
+    assert.match(openOriginal.body, /Only a closed statement can be corrected/);
+
+    const wrongSource = await postForm(
+      '/reconciliation/statements',
+      {
+        _csrf: financeLogin.csrf,
+        sourceKind: 'provider',
+        sourceLabel: 'otherprovider',
+        currency: 'KES',
+        fileName: 'fake-wrong-source.csv',
+        correctsStatementId: statementId!,
+        correctionReason: 'Trying to correct from a different source',
+        csv: [
+          'occurred_at,reference,kind,amount_minor,currency,posting_key,description',
+          '2026-11-18T10:10:00Z,RECON-CORRECTION-3,transfer,888,KES,,Wrong source',
+        ].join('\n'),
+      },
+      { cookie: `cp_admin_session=${financeLogin.session}` },
+    );
+    assert.equal(wrongSource.statusCode, 422, wrongSource.body);
+    assert.match(
+      wrongSource.body,
+      /same source, kind and currency as the closed statement/,
+    );
+
+    const missingReason = await postForm(
+      '/reconciliation/statements',
+      {
+        _csrf: financeLogin.csrf,
+        sourceKind: 'provider',
+        sourceLabel: 'fake',
+        currency: 'KES',
+        fileName: 'fake-missing-reason.csv',
+        correctsStatementId: statementId!,
+        csv: correctionCsv,
+      },
+      { cookie: `cp_admin_session=${financeLogin.session}` },
+    );
+    assert.equal(missingReason.statusCode, 422, missingReason.body);
+    assert.match(missingReason.body, /correction reason/i);
 
     const opsDenied = await app.inject({
       method: 'GET',

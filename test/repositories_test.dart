@@ -90,6 +90,37 @@ void main() {
     final config = await repo.fetch();
 
     expect(config.support, isNull);
+    expect(config.banners, isEmpty);
+  });
+
+  test('published banners keep both languages and their UTC window', () async {
+    final repo = ConfigRepository(_dioReturning('''
+      {
+        "currencies": [], "hubs": [], "payoutRails": [],
+        "countries": [], "carriers": [],
+        "banners": [
+          {"id": "b1", "messageEn": "Scheduled maintenance",
+           "messageSw": "Matengenezo yaliyopangwa", "severity": "warning",
+           "startsAt": "2026-11-20T08:00:00.000Z",
+           "endsAt": "2026-11-20T12:00:00.000Z"}
+        ]
+      }
+    '''));
+
+    final config = await repo.fetch();
+    final banner = config.banners.single;
+
+    expect(banner.id, 'b1');
+    expect(banner.severity, BannerSeverity.warning);
+    expect(banner.startsAt, DateTime.utc(2026, 11, 20, 8));
+    expect(banner.endsAt, DateTime.utc(2026, 11, 20, 12));
+    expect(banner.messageFor('en'), 'Scheduled maintenance');
+    expect(banner.messageFor('sw'), 'Matengenezo yaliyopangwa');
+    // Unknown languages fall back to English rather than showing a blank.
+    expect(banner.messageFor('fr'), 'Scheduled maintenance');
+    expect(banner.isActiveAt(DateTime.utc(2026, 11, 20, 9)), isTrue);
+    expect(banner.isActiveAt(DateTime.utc(2026, 11, 20, 12)), isFalse);
+    expect(banner.isActiveAt(DateTime.utc(2026, 11, 20, 7, 59)), isFalse);
   });
 
   test('rates are read, unknown currencies skipped, status parsed', () async {

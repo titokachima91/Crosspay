@@ -43,6 +43,16 @@
       </div>
       <label for="fileName">File / export name (optional)</label>
       <input id="fileName" name="fileName" maxlength="200" placeholder="mpesa-2026-11-18.csv">
+      <label for="correctsStatementId">Corrects a closed statement (optional)</label>
+      <select id="correctsStatementId" name="correctsStatementId">
+        <option value="">No — this is a new statement</option>
+        <% for (const original of data.closedStatements) { %>
+        <option value="<%= original.id %>"><%= original.sourceLabel %> · <%= original.currency %> · <%= original.periodStart.replace('T', ' ').slice(0, 10) %> → <%= original.periodEnd.replace('T', ' ').slice(0, 10) %></option>
+        <% } %>
+      </select>
+      <label for="correctionReason">Correction reason</label>
+      <input id="correctionReason" name="correctionReason" minlength="10" maxlength="300" placeholder="Required only when correcting a closed statement">
+      <p class="tag">A correction is a new linked statement, not a re-open. It must use the same source, kind and currency as the closed statement; the closed evidence stays unchanged.</p>
       <label for="file">CSV file</label>
       <input id="file" name="file" type="file" accept=".csv,text/csv">
       <label for="csv">Or paste CSV</label>
@@ -78,7 +88,9 @@
     <tbody>
       <% for (const statement of data.statements) { %>
       <tr>
-        <td><strong><%= statement.sourceLabel %></strong><div class="tag"><%= statement.sourceKind %></div></td>
+        <td><strong><%= statement.sourceLabel %></strong><div class="tag"><%= statement.sourceKind %></div>
+          <% if (statement.correctsStatementId) { %><a class="tag" href="/reconciliation/statements/<%= statement.correctsStatementId %>">correction · view original</a><% } %>
+        </td>
         <td><%= statement.currency %></td>
         <td><%= statement.periodStart.replace('T', ' ').slice(0, 10) %> → <%= statement.periodEnd.replace('T', ' ').slice(0, 10) %></td>
         <td class="num"><%= statement.lineCount %></td>

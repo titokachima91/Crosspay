@@ -17,6 +17,10 @@ import { registerPaymentRoutes } from './routes/payments.js';
 import { registerMatchingRoutes } from './routes/matching.js';
 import { registerMarketRoutes } from './routes/market.js';
 import { registerInsightRoutes } from './routes/insights.js';
+import {
+  registerInvoiceRoutes,
+  registerPublicInvoiceRoutes,
+} from './routes/invoices.js';
 import { registerAdminRoutes, adminDashboardHtml } from './routes/admin.js';
 import { registerWebhookRoutes } from './routes/webhooks.js';
 import { registerUnavailableRoutes } from './routes/unavailable.js';
@@ -89,6 +93,8 @@ export async function buildServer(
     const path = requestPath(request.url);
     if (PUBLIC_PATHS.has(path)) return;
     if (path.startsWith('/api/v1/webhooks/payments/')) return;
+    if (path.startsWith('/api/v1/invoices/')) return;
+    if (path.startsWith('/pay/')) return;
     if (path.startsWith('/api/v1/admin/')) return;
 
     const token = bearerToken(request);
@@ -171,6 +177,7 @@ export async function buildServer(
     registerBeneficiaryRoutes(api, ctx);
     registerPricingRoutes(api, ctx);
     registerTradeRoutes(api, ctx);
+    registerInvoiceRoutes(api, ctx);
     registerPaymentRoutes(api, ctx);
     registerMatchingRoutes(api, ctx);
     registerMarketRoutes(api, ctx);
@@ -179,6 +186,8 @@ export async function buildServer(
     registerWebhookRoutes(api, ctx);
     registerUnavailableRoutes(api, ctx);
   }, { prefix: '/api/v1' });
+
+  registerPublicInvoiceRoutes(app, ctx);
 
   return app;
 }

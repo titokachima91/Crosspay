@@ -85,18 +85,32 @@ class OtpChallenge {
   DateTime get resendAvailableAt =>
       requestedAt.add(Duration(seconds: resendAfterSeconds));
 
-  DateTime get expiresAt => requestedAt.add(Duration(seconds: expiresInSeconds));
+  DateTime get expiresAt =>
+      requestedAt.add(Duration(seconds: expiresInSeconds));
 }
 
 /// The server's answer to a correct verification code.
 class AuthSession {
   const AuthSession({
     required this.accessToken,
+    required this.refreshToken,
     required this.profileComplete,
   });
 
   final String accessToken;
 
+  /// Long-lived, rotated by `POST /auth/refresh` on every use. Stored in
+  /// platform-secure storage; never put in app state, logs or analytics.
+  final String refreshToken;
+
   /// False for a new merchant who still has to complete business KYC.
   final bool profileComplete;
+}
+
+/// A rotated token pair from `POST /auth/refresh`.
+class TokenPair {
+  const TokenPair({required this.accessToken, required this.refreshToken});
+
+  final String accessToken;
+  final String refreshToken;
 }

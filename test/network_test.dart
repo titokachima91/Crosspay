@@ -26,7 +26,8 @@ class _ScriptedAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
-    final reply = _replies[calls < _replies.length ? calls : _replies.length - 1];
+    final reply =
+        _replies[calls < _replies.length ? calls : _replies.length - 1];
     calls++;
     keys.add(options.headers[IdempotencyInterceptor.headerName]);
     auth.add(options.headers['Authorization']);
@@ -112,7 +113,25 @@ void main() {
     expect(adapter.calls, 1);
   });
 
-  test('without a server address, requests fail clearly and send nothing', () async {
+  test('a request marked no-retry is sent once even with an idempotency key',
+      () async {
+    final adapter = _ScriptedAdapter([const _Reply(503)]);
+    final dio = buildDio(_config, adapter: adapter);
+
+    await expectLater(
+      dio.post<dynamic>(
+        '/auth/refresh',
+        data: {'refreshToken': 'single-use'},
+        options: Options(extra: {RetryInterceptor.skipRetryKey: true}),
+      ),
+      throwsA(isA<DioException>()),
+    );
+
+    expect(adapter.calls, 1);
+  });
+
+  test('without a server address, requests fail clearly and send nothing',
+      () async {
     final adapter = _ScriptedAdapter([const _Reply(200)]);
     final dio = buildDio(const ApiConfig(baseUrl: ''), adapter: adapter);
 
@@ -125,7 +144,8 @@ void main() {
     expect(adapter.calls, 0);
   });
 
-  test('the token is attached when present and a 401 reports sign-out', () async {
+  test('the token is attached when present and a 401 reports sign-out',
+      () async {
     final adapter = _ScriptedAdapter([const _Reply(401)]);
     var signedOut = false;
     final dio = buildDio(
@@ -141,4 +161,112 @@ void main() {
     expect(signedOut, true);
     expect(adapter.calls, 1);
   });
+
+  test('concurrent 401s replay with the refreshed token', () async {
+    final adapter = _RefreshAdapter();
+    var token = 'old-token';
+    Future<String?>? inFlight;
+    var refreshCalls = 0;
+    var signedOut = false;
+    final dio = buildDio(
+      _config,
+      adapter: adapter,
+      tokenReader: () => token,
+      refreshAccessToken: () {
+        // Mirrors AuthNotifier.refreshAccessToken: one shared rotation.
+        final existing = inFlight;
+        if (existing != null) return existing;
+        final future = () async {
+          refreshCalls++;
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          token = 'new-token';
+          return token;
+        }();
+        inFlight = future;
+        return future;
+      },
+      onUnauthorized: () => signedOut = true,
+    );
+
+    final replies = await Future.wait([
+      dio.get<dynamic>('/one'),
+      dio.get<dynamic>('/two'),
+    ]);
+
+    expect(replies.every((reply) => reply.statusCode == 200), true);
+    expect(refreshCalls, 1);
+    expect(signedOut, false);
+    expect(adapter.authFor('/one'), ['Bearer old-token', 'Bearer new-token']);
+    expect(adapter.authFor('/two'), ['Bearer old-token', 'Bearer new-token']);
+  });
+
+  test('a refresh that yields no token leaves the original 401 intact',
+      () async {
+    final adapter = _RefreshAdapter();
+    var signedOut = false;
+    final dio = buildDio(
+      _config,
+      adapter: adapter,
+      tokenReader: () => 'old-token',
+      refreshAccessToken: () async => null,
+      onUnauthorized: () => signedOut = true,
+    );
+
+    await expectLater(
+      dio.get<dynamic>('/one'),
+      throwsA(
+        isA<DioException>()
+            .having((e) => e.response?.statusCode, 'status', 401),
+      ),
+    );
+
+    // The refresh callback owns sign-out on terminal refresh failures.
+    expect(signedOut, false);
+    expect(adapter.refreshCalls, 0);
+    expect(adapter.authFor('/one'), ['Bearer old-token']);
+  });
+}
+
+/// Answers protected paths with 401 until the bearer token is `new-token`,
+/// and always accepts the refresh path.
+class _RefreshAdapter implements HttpClientAdapter {
+  int refreshCalls = 0;
+  final Map<String, List<String?>> authByPath = {};
+
+  List<String?> authFor(String path) => authByPath[path] ?? const [];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final path = options.path;
+    final auth = options.headers['Authorization'] as String?;
+    if (path.endsWith('/auth/refresh')) {
+      refreshCalls++;
+      return ResponseBody.fromString(
+        '{"accessToken":"new-token","refreshToken":"new-refresh",'
+        '"expiresInSeconds":900}',
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      );
+    }
+    authByPath.putIfAbsent(path, () => []).add(auth);
+    final refreshed = auth == 'Bearer new-token';
+    return ResponseBody.fromString(
+      refreshed
+          ? '{"ok":true}'
+          : '{"error":{"code":"UNAUTHORIZED","message":"expired"}}',
+      refreshed ? 200 : 401,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
 }

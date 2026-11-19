@@ -95,6 +95,40 @@ class ServiceStatus {
       (message != null && message!.trim().isNotEmpty);
 }
 
+enum BannerSeverity { info, warning, critical }
+
+/// A published, scheduled message from the server. Both languages are
+/// authored and approved in the admin portal; the app only chooses which one
+/// to show and never writes banner text itself.
+class AppBanner {
+  const AppBanner({
+    required this.id,
+    required this.messageEn,
+    required this.messageSw,
+    required this.severity,
+    required this.startsAt,
+    required this.endsAt,
+  });
+
+  final String id;
+  final String messageEn;
+  final String messageSw;
+  final BannerSeverity severity;
+
+  /// Start of the published window, inclusive.
+  final DateTime startsAt;
+
+  /// End of the published window, exclusive.
+  final DateTime endsAt;
+
+  bool isActiveAt(DateTime now) =>
+      !now.isBefore(startsAt) && now.isBefore(endsAt);
+
+  /// Falls back to English for any language the server did not provide.
+  String messageFor(String localeCode) =>
+      localeCode == 'sw' && messageSw.trim().isNotEmpty ? messageSw : messageEn;
+}
+
 /// Reference data the server controls. Empty until the server has answered.
 class AppConfig {
   const AppConfig({
@@ -104,6 +138,7 @@ class AppConfig {
     this.countries = const [],
     this.carriers = const [],
     this.support,
+    this.banners = const [],
     this.service,
   });
 
@@ -116,6 +151,10 @@ class AppConfig {
   /// Support channels, when the server publishes them. Null means the support
   /// block has not been configured yet.
   final SupportInfo? support;
+
+  /// Published banners whose window was open when `/config` was fetched. The
+  /// server filters by window; the app checks the window again before showing.
+  final List<AppBanner> banners;
 
   /// Emergency quote/trade pause or maintenance message, when active.
   final ServiceStatus? service;

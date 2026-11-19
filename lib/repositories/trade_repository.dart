@@ -103,10 +103,12 @@ class TradeRepository {
             'railId': recipient.rail.id,
             'account': recipient.account,
             'name': recipient.name,
-            if (recipient.reference.isNotEmpty) 'reference': recipient.reference,
+            if (recipient.reference.isNotEmpty)
+              'reference': recipient.reference,
           },
         },
-        options: Options(extra: {IdempotencyInterceptor.extraKey: idempotencyKey}),
+        options:
+            Options(extra: {IdempotencyInterceptor.extraKey: idempotencyKey}),
       );
       final root = JsonReader.of(response.data);
       final trade = _parseTrade(root.object('trade'), config);
@@ -259,9 +261,11 @@ class TradeRepository {
   /// Claim manual payment for a trade
   /// [idempotencyKey] is the ONE key for this authorization attempt: the server
   /// must return the same result for a repeated key and never collect twice.
-  Future<void> claimPayment(String tradeId, {required String idempotencyKey}) async {
+  Future<void> claimPayment(String tradeId,
+      {required String idempotencyKey}) async {
     try {
-      await _dio.post<dynamic>(ApiEndpoints.tradePaymentClaim(tradeId),
+      await _dio.post<dynamic>(
+        ApiEndpoints.tradePaymentClaim(tradeId),
         data: {'idempotencyKey': idempotencyKey},
       );
       // Server response handled by trade status stream
@@ -271,9 +275,11 @@ class TradeRepository {
   }
 
   /// Cancel a trade
-  Future<Trade> cancelTrade(String tradeId, {required String idempotencyKey, required AppConfig config}) async {
+  Future<Trade> cancelTrade(String tradeId,
+      {required String idempotencyKey, required AppConfig config}) async {
     try {
-      final response = await _dio.post<dynamic>(ApiEndpoints.tradeCancel(tradeId),
+      final response = await _dio.post<dynamic>(
+        ApiEndpoints.tradeCancel(tradeId),
         data: {'idempotencyKey': idempotencyKey},
       );
       return _parseTrade(JsonReader.of(response.data), config);
@@ -322,7 +328,8 @@ class TradeRepository {
   }
 
   /// Generates a shareable invoice with QR code for the trade.
-  Future<Invoice> getInvoice(String tradeId, {required AppConfig config}) async {
+  Future<Invoice> getInvoice(String tradeId,
+      {required AppConfig config}) async {
     try {
       final response = await _dio.get<dynamic>(
         ApiEndpoints.tradeInvoice(tradeId),
@@ -333,20 +340,8 @@ class TradeRepository {
         qrCodeUrl: root.string('qrCodeUrl'),
         shareUrl: root.string('shareUrl'),
         validUntil: _time(root, 'validUntil'),
-        amount: root.integer('amount'),
+        amountMinor: root.integer('amountMinor'),
         currency: root.string('currency'),
-      );
-    } on DioException catch (e) {
-      throw ApiException.fromDio(e);
-    }
-  }
-
-  /// Creates a shareable invoice link for the trade.
-  Future<void> shareTrade(String tradeId, {required String idempotencyKey, required AppConfig config}) async {
-    try {
-      await _dio.post<dynamic>(
-        ApiEndpoints.tradeShare(tradeId),
-        data: {'idempotencyKey': idempotencyKey},
       );
     } on DioException catch (e) {
       throw ApiException.fromDio(e);

@@ -7,9 +7,11 @@ workspace with audited PII reveal built 2026-11-17. Phase D configuration center
 2026-11-18. Phase F reconciliation v1 (manual statements, exact matching,
 exceptions, daily close) built 2026-11-18. Compliance KYC review queue built
 2026-11-19. Recovery-code login, statement file upload and the app maintenance
-banner were added 2026-11-19. Named local admins, TOTP, sessions, CSRF, RBAC,
-ops pages and audit are live. SSO, live statement feeds, sanctions screening and
-deployment-level IP allowlist remain.
+banner were added 2026-11-19. The same day added linked reconciliation
+corrections, localized scheduled app banners and a `LISTEN/NOTIFY` control-room
+transport. Named local admins, TOTP, sessions, CSRF, RBAC, ops pages and audit
+are live. SSO, live statement feeds, sanctions screening and deployment-level
+IP allowlist remain.
 **Code**: `server/src/admin-web/`, `server/scripts/create-admin.ts`
 **Tests**: `server/test/admin-web.test.ts`
 **Migrations**: `server/db/migrations/0012_admin_identity.sql`,
@@ -18,7 +20,10 @@ deployment-level IP allowlist remain.
 `server/db/migrations/0015_configuration_center.sql`,
 `server/db/migrations/0016_settlement_reconciliation.sql`,
 `server/db/migrations/0017_reconciliation_missing_lines.sql`,
-`server/db/migrations/0018_kyc_review.sql`
+`server/db/migrations/0018_kyc_review.sql`,
+`server/db/migrations/0019_trade_invoices.sql`,
+`server/db/migrations/0020_reconciliation_corrections.sql`,
+`server/db/migrations/0021_app_banners.sql`
 **Plan**: `docs/ADMIN_PANEL_PLAN.md`
 
 ---
@@ -203,16 +208,22 @@ The control room:
 - loads the latest 60 events for the initial snapshot;
 - opens `GET /control-room/stream?after=<snapshot id>` (SSE) and resumes from
   `Last-Event-ID` or `after`; a fresh stream never replays the whole outbox;
-- shares one 2-second database poller across all connected browsers, with a
-  monotonic id cursor, a 10-second overlap and id deduplication so a late commit
-  is not skipped;
+- shares one database poller across all connected browsers, with a monotonic id
+  cursor, a 10-second overlap and id deduplication so a late commit is not
+  skipped;
+- keeps a dedicated `LISTEN admin_activity` connection while any stream is
+  open. The outbox trigger's `pg_notify` wakes the poller immediately; the
+  2-second interval remains as the fallback for missed notifications,
+  reconnects and late commits. The listener reconnects after 5 seconds and
+  holds one pool connection, not one per browser;
 - sends a heartbeat every 15 seconds and asks the browser to reconnect after
   10 minutes;
 - falls back to the 5-second `/control-room/data` snapshot if SSE fails;
 - supports source filtering and pause, with a buffered count while paused.
 
-The `pg_notify('admin_activity', id)` trigger is installed for a later
-`LISTEN/NOTIFY` transport; the current transport is bounded polling.
+The tests prove both paths: a one-minute fallback interval still delivers a new
+event immediately through `LISTEN`, and a deliberately broken listener still
+delivers through the polling fallback.
 
 Analytics counts completed trades only, exposes a funnel by send currency, and
 reads revenue from ledger accounts `3000` (fee) and `3100` (spread). Provider
@@ -281,6 +292,29 @@ Nothing here edits source code or writes a journal directly.
   a drain switch, not a full stop.
 - `GET /config` includes an optional `service` block while a pause or message is
   active. The Flutter app renders it as a banner above the signed-in tabs.
+
+**Localized scheduled banners**
+
+- Published banners live in `app_banners`; every change is an
+  `admin_config_changes` row with key `app_banner:<uuid>`, so the same
+  proposer/approver rule and append-only history apply. An update keeps the
+  banner id; approval updates the row in place.
+- Each banner carries English and Swahili text (5–200 characters each), an
+  `info | warning | critical` severity, and a UTC window. A window must be
+  positive and at most 90 days, may start at most 180 days ahead, and must end
+  in the future.
+- `GET /config.banners` includes only banners whose window contains the current
+  server time (`startsAt` inclusive, `endsAt` exclusive). The Flutter shell
+  re-checks the window, chooses the selected language and falls back to English
+  if the Swahili text is blank.
+- Removal is also a proposal (`POST /config/banners/:id/remove`): approval
+  deletes the banner. A rollback of the creating or removal change restores the
+  previous published payload.
+- The admin page lists active/upcoming/ended state, supports editing a banner
+  without changing its id, and shows human-readable before/after values instead
+  of raw JSON.
+- This is not the emergency drain switch. Emergency pauses stay immediate and
+  superadmin-only; scheduled banners always need a second approver.
 
 **Fees stay provider-owned**
 
@@ -380,6 +414,23 @@ ledger editor and not a bank feed.
 - Compliance can read statements and exceptions; only finance/superadmin can
   import, resolve or close.
 
+**Corrections (v1.1)**
+
+Migration `0020` adds linked corrections. A closed statement is never reopened,
+mutated or deleted.
+
+- The import form can name a closed statement to correct and requires a
+  10-300 character reason. The original must be closed and have the same source
+  kind, source label, provider and currency; otherwise the import is rejected
+  (`STATEMENT_CORRECTION_ORIGINAL_OPEN` 409, `STATEMENT_CORRECTION_MISMATCH`
+  422, `CORRECTION_REASON_INVALID` 422).
+- The correction is a new statement with its own file hash, lines, exceptions
+  and close decision. `corrects_statement_id` and the reason are immutable.
+- Both statements are cross-linked: the correction shows the original, and the
+  original shows every statement that corrects it.
+- The control room gets a `statement.corrected` event with the link and reason;
+  audit records the same linkage. It carries no customer data.
+
 **Not connected in v1**
 
 - No live provider API or bank feed; CSV file upload/paste is manual.
@@ -387,7 +438,7 @@ ledger editor and not a bank feed.
   journal, and internal record missing from the statement. Bank statements only
   check the posting-key direction; bank-side missing detection is not built.
 - No automatic fee-line matching without a posting key, no manual journal
-  posting, no correction/re-open flow and no statement-level CSV export.
+  posting and no statement-level CSV export.
 - Closing does not assert a bank balance matched.
 
 ---
@@ -419,18 +470,16 @@ Migration `0018` adds a manual compliance queue over the existing
 ## 13. Current limitations
 
 - No SSO yet; local accounts + TOTP or a one-time recovery code.
-- The control room transport is 2-second polling + SSE, not database
-  `LISTEN/NOTIFY` consumption. The notify trigger is ready for that change.
 - Analytics is server-rendered tables; charts and saved views are later.
-- Configuration center v1 covers support contacts, tier daily limits and
-  emergency quote/trade pauses. Fee bps, provider secrets/endpoints, feature
-  flags, general banners, effective-date scheduling and per-corridor fee
-  overrides are not editable yet.
+- Configuration center v1 covers support contacts, tier daily limits, localized
+  scheduled app banners and emergency quote/trade pauses. Fee bps, provider
+  secrets/endpoints, feature flags, generic effective-date scheduling and
+  per-corridor fee overrides are not editable yet.
 - Reconciliation is manual. Provider statements check both directions; bank
   statements only check lines with a posting key, and bank-side missing
   detection is not built. No provider API, bank feed, automatic fee matching
-  without a posting key or correction/re-open flow. Closing does not assert a
-  bank balance matched.
+  without a posting key or bank balance matching. Corrections are linked new
+  statements, never re-opens.
 - Support is a manual case workspace: no customer-facing chat, no email/WhatsApp
   outbound, no attachments, no CSAT survey and no automated replies. SMS is the
   only outbound channel and requires a configured provider.
@@ -455,8 +504,9 @@ Migration `0018` adds a manual compliance queue over the existing
 - CSRF rejection and successful corridor update;
 - RBAC: viewer cannot write;
 - control-room data and trade search;
-- trigger-fed activity visible in the control-room snapshot and delivered by a
-  short-interval `ActivityStream` poller;
+- trigger-fed activity visible in the control-room snapshot, delivered
+  immediately through `LISTEN admin_activity` with a one-minute fallback
+  interval, and still delivered through polling when the listener is broken;
 - SSE resume from `after`/`Last-Event-ID` without replaying older activity;
 - analytics window tabs, revenue and funnel sections;
 - bookkeeping trial balance and journal detail with a posted opening journal;
@@ -466,12 +516,18 @@ Migration `0018` adds a manual compliance queue over the existing
 - configuration proposals for support contacts and tier limits, two-person
   approval, self-approval denial, one-pending-change conflict, rollback,
   published config versions and config activity without payload values;
+- localized scheduled banners: validation, readable change pages, same-id
+  edits, two-person approval, active-only `/config.banners`, upcoming/expired
+  filtering, removal proposals and rollback restore;
 - emergency service controls, `SERVICE_PAUSED` enforcement on quote and trade
   initiation, and the optional `/config.service` block;
 - reconciliation import, exact payout matching, unmatched/amount/duplicate
   exceptions, bank posting-key matching, mixed-currency rejection,
   missing-in-statement detection, blocked close, exception resolution, final
   close, duplicate-file rejection and reconciliation activity without notes;
+- linked corrections of closed statements: the original stays closed and
+  unchanged, mismatched source/kind/currency is rejected, the reason is
+  required, and both statements show the link;
 - KYC queue RBAC, masked identity, no full identity number in HTML, approval
   updating the customer, repeat-decision rejection, rejection code/note
   validation and redacted compliance activity;
@@ -485,7 +541,7 @@ Migration `0018` adds a manual compliance queue over the existing
 - first-login TOTP enrolment and recovery-code display;
 - audit rows with the acting admin id.
 
-Suite after this phase: **115/115**, 20 suites, typecheck clean.
+Suite after this phase: **121/121**, 21 suites, typecheck clean.
 
 ---
 

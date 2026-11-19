@@ -18,8 +18,23 @@
     <div class="detail"><div class="k">Missing from statement</div><div class="v"><%= detail.statement.missingCount %></div></div>
     <div class="detail"><div class="k">Imported by</div><div class="v"><%= detail.statement.importedBy || '—' %><div class="tag"><%= detail.statement.createdAt.replace('T', ' ').slice(0, 16) %></div></div></div>
   </div>
+  <% if (detail.statement.correctsStatementId) { %>
+    <div class="notice">
+      Correction of <a href="/reconciliation/statements/<%= detail.statement.correctsStatementId %>"><%= detail.statement.correctsSourceLabel || 'the original statement' %> · <%= detail.statement.correctsCurrency || detail.statement.currency %></a>.
+      Reason: <%= detail.statement.correctionReason %>. The original statement stays closed and unchanged.
+    </div>
+  <% } %>
+  <% if (detail.corrections.length > 0) { %>
+    <div class="notice">
+      This statement was corrected by
+      <% for (const correction of detail.corrections) { %>
+        <a href="/reconciliation/statements/<%= correction.id %>"><%= correction.createdAt.replace('T', ' ').slice(0, 16) %> · <%= correction.status %></a><%= correction === detail.corrections[detail.corrections.length - 1] ? '.' : ',' %>
+      <% } %>
+      The correction is a separate statement; this evidence is unchanged.
+    </div>
+  <% } %>
   <% if (detail.statement.status === 'closed') { %>
-    <div class="notice ok">Closed by <%= detail.statement.closedBy || '—' %> at <%= detail.statement.closedAt ? detail.statement.closedAt.replace('T', ' ').slice(0, 16) : '—' %>. Evidence is retained and cannot be rewritten.</div>
+    <div class="notice ok">Closed by <%= detail.statement.closedBy || '—' %> at <%= detail.statement.closedAt ? detail.statement.closedAt.replace('T', ' ').slice(0, 16) : '—' %>. Evidence is retained and cannot be rewritten. Corrections are imported as new linked statements.</div>
   <% } else if (can.reconciliationClose) { %>
     <% if (detail.statement.openExceptions > 0) { %>
       <div class="notice error">Resolve all <%= detail.statement.openExceptions %> open exception(s) before closing. Resolving records a note; it does not write off the difference.</div>

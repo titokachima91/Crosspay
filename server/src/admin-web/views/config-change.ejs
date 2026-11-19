@@ -16,14 +16,38 @@
   <p><%= change.reason %></p>
   <% if (change.decisionNote) { %><h3>Decision note</h3><p><%= change.decisionNote %></p><% } %>
 
+<% const isBanner = change.configKey.startsWith('app_banner:'); %>
+<% const bannerFields = (value) => value ? [
+  ['Message (English)', value.messageEn],
+  ['Message (Swahili)', value.messageSw],
+  ['Severity', value.severity],
+  ['Starts (UTC)', String(value.startsAt || '').replace('T', ' ').slice(0, 16)],
+  ['Ends (UTC)', String(value.endsAt || '').replace('T', ' ').slice(0, 16)],
+] : []; %>
   <div class="grid two" style="margin-top:16px">
     <div>
       <h3>Before</h3>
+      <% if (isBanner) { %>
+        <% if (!change.before) { %><p class="tag">Not published. This change introduces the banner.</p><% } else { %>
+        <table><tbody>
+          <% for (const [label, value] of bannerFields(change.before)) { %><tr><th><%= label %></th><td><%= value %></td></tr><% } %>
+        </tbody></table>
+        <% } %>
+      <% } else { %>
       <pre class="code-block"><%= JSON.stringify(change.before, null, 2) %></pre>
+      <% } %>
     </div>
     <div>
       <h3>After</h3>
+      <% if (isBanner) { %>
+        <% if (!change.after) { %><p class="tag">Removed from the app. The banner record is deleted on approval.</p><% } else { %>
+        <table><tbody>
+          <% for (const [label, value] of bannerFields(change.after)) { %><tr><th><%= label %></th><td><%= value %></td></tr><% } %>
+        </tbody></table>
+        <% } %>
+      <% } else { %>
       <pre class="code-block"><%= JSON.stringify(change.after, null, 2) %></pre>
+      <% } %>
     </div>
   </div>
 </div>

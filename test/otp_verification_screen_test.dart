@@ -23,7 +23,9 @@ class _FakeConfigRepository extends ConfigRepository {
 
   @override
   Future<AppConfig> fetch() async => const AppConfig(
-        currencies: [Currency(code: 'AAA', name: 'Alpha', countryCode: 'ZZ', decimals: 2)],
+        currencies: [
+          Currency(code: 'AAA', name: 'Alpha', countryCode: 'ZZ', decimals: 2)
+        ],
         countries: [
           Country(
             code: 'ZZ',
@@ -64,15 +66,25 @@ class _FakeAuthRepository extends AuthRepository {
 
 class _MemoryTokenStorage implements TokenStorage {
   String? token;
+  String? refreshToken;
 
   @override
-  Future<String?> read() async => token;
+  Future<String?> readAccessToken() async => token;
 
   @override
-  Future<void> write(String value) async => token = value;
+  Future<void> writeAccessToken(String value) async => token = value;
 
   @override
-  Future<void> delete() async => token = null;
+  Future<String?> readRefreshToken() async => refreshToken;
+
+  @override
+  Future<void> writeRefreshToken(String value) async => refreshToken = value;
+
+  @override
+  Future<void> delete() async {
+    token = null;
+    refreshToken = null;
+  }
 }
 
 void main() {
@@ -124,7 +136,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   }
 
-  testWidgets('shows the number, a countdown and enables verify at full length', (tester) async {
+  testWidgets('shows the number, a countdown and enables verify at full length',
+      (tester) async {
     final container = await readyContainer(
       _FakeAuthRepository(firstRequestedAt: DateTime.now()),
       _MemoryTokenStorage(),
@@ -151,13 +164,16 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('a correct code stores the token and opens KYC for a new merchant', (tester) async {
+  testWidgets(
+      'a correct code stores the token and opens KYC for a new merchant',
+      (tester) async {
     final storage = _MemoryTokenStorage();
     final container = await readyContainer(
       _FakeAuthRepository(
         firstRequestedAt: DateTime.now(),
         onVerify: (phone, code) async => const AuthSession(
           accessToken: 'test-token',
+          refreshToken: 'test-refresh',
           profileComplete: false,
         ),
       ),
@@ -176,12 +192,14 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('a correct code opens Home when the profile is complete', (tester) async {
+  testWidgets('a correct code opens Home when the profile is complete',
+      (tester) async {
     final container = await readyContainer(
       _FakeAuthRepository(
         firstRequestedAt: DateTime.now(),
         onVerify: (phone, code) async => const AuthSession(
           accessToken: 'test-token',
+          refreshToken: 'test-refresh',
           profileComplete: true,
         ),
       ),
@@ -199,7 +217,8 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('a wrong code shows a clear message and clears the boxes', (tester) async {
+  testWidgets('a wrong code shows a clear message and clears the boxes',
+      (tester) async {
     final container = await readyContainer(
       _FakeAuthRepository(
         firstRequestedAt: DateTime.now(),
@@ -227,7 +246,8 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('resend appears when the wait is over and restarts the countdown', (tester) async {
+  testWidgets('resend appears when the wait is over and restarts the countdown',
+      (tester) async {
     final auth = _FakeAuthRepository(
       firstRequestedAt: DateTime.now().subtract(const Duration(seconds: 40)),
     );

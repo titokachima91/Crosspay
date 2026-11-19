@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import { withTransaction } from '../db/pool.js';
 import type { AppContext } from '../http/context.js';
@@ -43,6 +44,16 @@ export interface ConfigChangeDetail extends ConfigChangeSummary {
 export interface ConfigCenterData {
   controls: ServiceControls;
   support: SupportContacts;
+  banners: Array<{
+    id: string;
+    messageEn: string;
+    messageSw: string;
+    severity: BannerSeverity;
+    startsAt: string;
+    endsAt: string;
+    active: boolean;
+    updatedAt: string;
+  }>;
   tiers: Array<{ code: string; name: string }>;
   currencies: Array<{ code: string; name: string }>;
   limits: Array<{
@@ -169,8 +180,208 @@ function parseTierLimitKey(key: string): { tierCode: string; currency: string } 
   return { tierCode: match[1]!, currency: match[2]! };
 }
 
+export const BANNER_SEVERITIES = ['info', 'warning', 'critical'] as const;
+export type BannerSeverity = (typeof BANNER_SEVERITIES)[number];
+
+/** The immutable payload stored in an `app_banner:<uuid>` config change. */
+export interface BannerPayload {
+  id: string;
+  messageEn: string;
+  messageSw: string;
+  severity: BannerSeverity;
+  startsAt: string;
+  endsAt: string;
+}
+
+const BANNER_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const BANNER_MAX_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
+const BANNER_MAX_LEAD_MS = 180 * 24 * 60 * 60 * 1000;
+
+function bannerKey(id: string): string {
+  return `app_banner:${id}`;
+}
+
+function parseBannerKey(key: string): { id: string } {
+  const match = /^app_banner:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(
+    key,
+  );
+  if (!match) throw fail(500, 'CONFIG_KEY_INVALID', 'Stored banner key is invalid');
+  return { id: match[1]! };
+}
+
+function bannerMessage(value: unknown, label: string): string {
+  const result = text(value);
+  if (result.length < 5 || result.length > 200) {
+    throw fail(
+      422,
+      'BANNER_MESSAGE_INVALID',
+      `${label} banner message must be 5-200 characters`,
+    );
+  }
+  return result;
+}
+
+function bannerTime(value: unknown, label: string): Date {
+  const raw = text(value);
+  // `datetime-local` sends no timezone. Treat it as UTC; the admin form says so.
+  const normalized = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw)
+    ? `${raw}:00Z`
+    : raw;
+  const date = new Date(normalized);
+  if (!raw || Number.isNaN(date.getTime())) {
+    throw fail(422, 'BANNER_WINDOW_INVALID', `${label} must be a date and time`);
+  }
+  return date;
+}
+
+export function normalizeBanner(input: {
+  id?: unknown;
+  messageEn: unknown;
+  messageSw: unknown;
+  severity: unknown;
+  startsAt: unknown;
+  endsAt: unknown;
+}): BannerPayload {
+  const id = text(input.id) || randomUUID();
+  if (!BANNER_ID_PATTERN.test(id)) {
+    throw fail(422, 'BANNER_ID_INVALID', 'Banner id is not valid');
+  }
+  const severity = text(input.severity) as BannerSeverity;
+  if (!BANNER_SEVERITIES.includes(severity)) {
+    throw fail(422, 'BANNER_SEVERITY_INVALID', 'Choose info, warning or critical');
+  }
+  const messageEn = bannerMessage(input.messageEn, 'English');
+  const messageSw = bannerMessage(input.messageSw, 'Swahili');
+  const startsAt = bannerTime(input.startsAt, 'Start');
+  const endsAt = bannerTime(input.endsAt, 'End');
+  const now = Date.now();
+  if (startsAt.getTime() >= endsAt.getTime()) {
+    throw fail(422, 'BANNER_WINDOW_INVALID', 'The banner end must be after its start');
+  }
+  if (endsAt.getTime() <= now) {
+    throw fail(422, 'BANNER_WINDOW_INVALID', 'The banner end must be in the future');
+  }
+  if (endsAt.getTime() - startsAt.getTime() > BANNER_MAX_WINDOW_MS) {
+    throw fail(422, 'BANNER_WINDOW_INVALID', 'A banner window cannot exceed 90 days');
+  }
+  if (startsAt.getTime() > now + BANNER_MAX_LEAD_MS) {
+    throw fail(422, 'BANNER_WINDOW_INVALID', 'A banner cannot start more than 180 days ahead');
+  }
+  return {
+    id,
+    messageEn,
+    messageSw,
+    severity,
+    startsAt: startsAt.toISOString(),
+    endsAt: endsAt.toISOString(),
+  };
+}
+
+function bannerFromRow(row: {
+  id: string;
+  message_en: string;
+  message_sw: string;
+  severity: BannerSeverity;
+  starts_at: Date;
+  ends_at: Date;
+  updated_at: Date;
+}) {
+  return {
+    id: row.id,
+    messageEn: row.message_en,
+    messageSw: row.message_sw,
+    severity: row.severity,
+    startsAt: new Date(row.starts_at).toISOString(),
+    endsAt: new Date(row.ends_at).toISOString(),
+    updatedAt: new Date(row.updated_at).toISOString(),
+  };
+}
+
+function bannerPayloadFromRow(row: {
+  id: string;
+  message_en: string;
+  message_sw: string;
+  severity: BannerSeverity;
+  starts_at: Date;
+  ends_at: Date;
+  updated_at: Date;
+}): BannerPayload {
+  const { updatedAt: _updatedAt, ...payload } = bannerFromRow(row);
+  return payload;
+}
+
+function storedBannerPayload(id: string, after: unknown): BannerPayload {
+  if (after === null) {
+    throw fail(500, 'CONFIG_VALUE_INVALID', 'Stored banner value is invalid');
+  }
+  const raw = after as Partial<BannerPayload>;
+  const severity = text(raw.severity) as BannerSeverity;
+  if (!BANNER_SEVERITIES.includes(severity)) {
+    throw fail(500, 'CONFIG_VALUE_INVALID', 'Stored banner severity is invalid');
+  }
+  if (raw.id !== undefined && raw.id !== id) {
+    throw fail(500, 'CONFIG_VALUE_INVALID', 'Stored banner id does not match its key');
+  }
+  const startsAt = new Date(text(raw.startsAt));
+  const endsAt = new Date(text(raw.endsAt));
+  if (
+    Number.isNaN(startsAt.getTime()) ||
+    Number.isNaN(endsAt.getTime()) ||
+    endsAt.getTime() <= startsAt.getTime()
+  ) {
+    throw fail(500, 'CONFIG_VALUE_INVALID', 'Stored banner window is invalid');
+  }
+  return {
+    id,
+    messageEn: bannerMessage(raw.messageEn, 'English'),
+    messageSw: bannerMessage(raw.messageSw, 'Swahili'),
+    severity,
+    startsAt: startsAt.toISOString(),
+    endsAt: endsAt.toISOString(),
+  };
+}
+
+async function applyBanner(
+  client: PoolClient,
+  configKey: string,
+  after: unknown,
+  adminId: string,
+): Promise<void> {
+  const { id } = parseBannerKey(configKey);
+  if (after === null) {
+    await client.query(`DELETE FROM app_banners WHERE id = $1`, [id]);
+    return;
+  }
+  const payload = storedBannerPayload(id, after);
+  await client.query(
+    `INSERT INTO app_banners
+       (id, message_en, message_sw, severity, starts_at, ends_at, updated_by_admin_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (id) DO UPDATE
+       SET message_en = EXCLUDED.message_en,
+           message_sw = EXCLUDED.message_sw,
+           severity = EXCLUDED.severity,
+           starts_at = EXCLUDED.starts_at,
+           ends_at = EXCLUDED.ends_at,
+           updated_by_admin_id = EXCLUDED.updated_by_admin_id,
+           updated_at = now()`,
+    [
+      payload.id,
+      payload.messageEn,
+      payload.messageSw,
+      payload.severity,
+      payload.startsAt,
+      payload.endsAt,
+      adminId,
+    ],
+  );
+}
+
+
+
 export async function loadConfigCenter(pool: Pool): Promise<ConfigCenterData> {
-  const [controls, support, tiers, currencies, limits, pending, recent, versions, observed] =
+  const [controls, support, banners, tiers, currencies, limits, pending, recent, versions, observed] =
     await Promise.all([
       loadServiceControls(pool),
       pool.query<{
@@ -179,6 +390,22 @@ export async function loadConfigCenter(pool: Pool): Promise<ConfigCenterData> {
         whatsapp: string | null;
         hours: string | null;
       }>(`SELECT email, phone, whatsapp, hours FROM support_settings WHERE id = 1`),
+      pool.query<{
+        id: string;
+        message_en: string;
+        message_sw: string;
+        severity: BannerSeverity;
+        starts_at: Date;
+        ends_at: Date;
+        updated_at: Date;
+        active: boolean;
+      }>(
+        `SELECT id, message_en, message_sw, severity, starts_at, ends_at,
+                updated_at, (now() >= starts_at AND now() < ends_at) AS active
+         FROM app_banners
+         ORDER BY starts_at DESC, id DESC
+         LIMIT 50`,
+      ),
       pool.query<{ code: string; name: string }>(
         `SELECT code, name FROM tiers WHERE active ORDER BY sort_order, code`,
       ),
@@ -226,6 +453,10 @@ export async function loadConfigCenter(pool: Pool): Promise<ConfigCenterData> {
   return {
     controls,
     support: supportContacts(support.rows[0]),
+    banners: banners.rows.map((row) => ({
+      ...bannerFromRow(row),
+      active: row.active,
+    })),
     tiers: tiers.rows,
     currencies: currencies.rows,
     limits: limits.rows.map((row) => ({
@@ -460,6 +691,76 @@ export async function proposeTierLimit(
   });
 }
 
+export async function proposeBanner(
+  ctx: AppContext,
+  input: { banner: BannerPayload; reason: string; adminId: string },
+): Promise<{ id: string }> {
+  const why = reason(input.reason);
+  const payload = input.banner;
+  return withTransaction(ctx.pool, async (client) => {
+    await client.query(`LOCK TABLE app_banners IN SHARE ROW EXCLUSIVE MODE`);
+    const current = await client.query<{
+      id: string;
+      message_en: string;
+      message_sw: string;
+      severity: BannerSeverity;
+      starts_at: Date;
+      ends_at: Date;
+      updated_at: Date;
+    }>(
+      `SELECT id, message_en, message_sw, severity, starts_at, ends_at, updated_at
+       FROM app_banners WHERE id = $1`,
+      [payload.id],
+    );
+    const before = current.rows[0] ? bannerPayloadFromRow(current.rows[0]) : null;
+    if (sameValue(before, payload)) {
+      throw fail(422, 'CONFIG_NO_CHANGE', 'The proposed banner is already current');
+    }
+    return insertChange(client, {
+      configKey: bannerKey(payload.id),
+      before,
+      after: payload,
+      reason: why,
+      adminId: input.adminId,
+    });
+  });
+}
+
+export async function proposeBannerRemoval(
+  ctx: AppContext,
+  input: { bannerId: string; reason: string; adminId: string },
+): Promise<{ id: string }> {
+  const why = reason(input.reason);
+  if (!BANNER_ID_PATTERN.test(input.bannerId)) {
+    throw fail(404, 'BANNER_NOT_FOUND', 'Banner not found');
+  }
+  return withTransaction(ctx.pool, async (client) => {
+    await client.query(`LOCK TABLE app_banners IN SHARE ROW EXCLUSIVE MODE`);
+    const current = await client.query<{
+      id: string;
+      message_en: string;
+      message_sw: string;
+      severity: BannerSeverity;
+      starts_at: Date;
+      ends_at: Date;
+      updated_at: Date;
+    }>(
+      `SELECT id, message_en, message_sw, severity, starts_at, ends_at, updated_at
+       FROM app_banners WHERE id = $1`,
+      [input.bannerId],
+    );
+    const row = current.rows[0];
+    if (!row) throw fail(404, 'BANNER_NOT_FOUND', 'Banner not found');
+    return insertChange(client, {
+      configKey: bannerKey(row.id),
+      before: bannerPayloadFromRow(row),
+      after: null,
+      reason: why,
+      adminId: input.adminId,
+    });
+  });
+}
+
 async function applySupportContacts(
   client: PoolClient,
   after: SupportContacts,
@@ -592,6 +893,8 @@ export async function decideConfigChange(
         change.config_key,
         change.after as { tierCode?: string; currency?: string; dailyLimitMinor?: string | null },
       );
+    } else if (change.config_key.startsWith('app_banner:')) {
+      await applyBanner(client, change.config_key, change.after, input.adminId);
     } else {
       throw fail(500, 'CONFIG_KEY_INVALID', 'Stored config key is invalid');
     }
@@ -687,6 +990,49 @@ export async function proposeRollback(
       };
       if (sameValue(before, after)) {
         throw fail(422, 'CONFIG_NO_CHANGE', 'The previous daily limit is already current');
+      }
+      return insertChange(client, {
+        configKey: source.configKey,
+        before,
+        after,
+        reason: why,
+        adminId: input.adminId,
+      });
+    });
+  }
+
+  if (source.configKey.startsWith('app_banner:')) {
+    const { id } = parseBannerKey(source.configKey);
+    const target = source.before as BannerPayload | null;
+    return withTransaction(ctx.pool, async (client) => {
+      await client.query(`LOCK TABLE app_banners IN SHARE ROW EXCLUSIVE MODE`);
+      const current = await client.query<{
+        id: string;
+        message_en: string;
+        message_sw: string;
+        severity: BannerSeverity;
+        starts_at: Date;
+        ends_at: Date;
+        updated_at: Date;
+      }>(
+        `SELECT id, message_en, message_sw, severity, starts_at, ends_at, updated_at
+         FROM app_banners WHERE id = $1`,
+        [id],
+      );
+      const before = current.rows[0] ? bannerPayloadFromRow(current.rows[0]) : null;
+      const after =
+        target === null
+          ? null
+          : {
+              id,
+              messageEn: target.messageEn,
+              messageSw: target.messageSw,
+              severity: target.severity,
+              startsAt: target.startsAt,
+              endsAt: target.endsAt,
+            };
+      if (sameValue(before, after)) {
+        throw fail(422, 'CONFIG_NO_CHANGE', 'The previous banner value is already current');
       }
       return insertChange(client, {
         configKey: source.configKey,

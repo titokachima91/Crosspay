@@ -68,7 +68,11 @@ class _FakeAuthRepository extends AuthRepository {
     required String phone,
     required String code,
   }) async =>
-      const AuthSession(accessToken: 'test-token', profileComplete: false);
+      const AuthSession(
+        accessToken: 'test-token',
+        refreshToken: 'test-refresh',
+        profileComplete: false,
+      );
 
   @override
   Future<KycStatus> submitKyc({
@@ -82,15 +86,25 @@ class _FakeAuthRepository extends AuthRepository {
 
 class _MemoryTokenStorage implements TokenStorage {
   String? token;
+  String? refreshToken;
 
   @override
-  Future<String?> read() async => token;
+  Future<String?> readAccessToken() async => token;
 
   @override
-  Future<void> write(String value) async => token = value;
+  Future<void> writeAccessToken(String value) async => token = value;
 
   @override
-  Future<void> delete() async => token = null;
+  Future<String?> readRefreshToken() async => refreshToken;
+
+  @override
+  Future<void> writeRefreshToken(String value) async => refreshToken = value;
+
+  @override
+  Future<void> delete() async {
+    token = null;
+    refreshToken = null;
+  }
 }
 
 Future<void> _signIn(ProviderContainer container) async {
@@ -154,7 +168,8 @@ void main() {
   });
 
   group('KYC state', () {
-    test('accepted details keep the user signed in with the KYC status', () async {
+    test('accepted details keep the user signed in with the KYC status',
+        () async {
       final container = ProviderContainer(overrides: [
         authRepositoryProvider.overrideWithValue(
           _FakeAuthRepository(() async => KycStatus.pending),
@@ -207,7 +222,8 @@ void main() {
       expect(state.profileComplete, false);
     });
 
-    test('if the session ends during submission, the sign-out is kept', () async {
+    test('if the session ends during submission, the sign-out is kept',
+        () async {
       late final ProviderContainer container;
       container = ProviderContainer(overrides: [
         authRepositoryProvider.overrideWithValue(

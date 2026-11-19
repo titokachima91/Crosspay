@@ -104,15 +104,21 @@ class Invoice {
     required this.qrCodeUrl,
     required this.shareUrl,
     required this.validUntil,
-    required this.amount,
+    required this.amountMinor,
     required this.currency,
   });
 
   final String tradeId;
+
+  /// Server-issued PNG URL. The app never draws its own QR code.
   final String qrCodeUrl;
+
+  /// Server-issued public payer link. The app never builds or extends it.
   final String shareUrl;
   final DateTime validUntil;
-  final int amount;
+
+  /// Total the payer owes, in [currency] minor units (amount + fee).
+  final int amountMinor;
   final String currency;
 
   bool get isExpired => DateTime.now().isAfter(validUntil);

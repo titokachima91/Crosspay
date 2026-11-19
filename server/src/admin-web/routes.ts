@@ -68,6 +68,9 @@ import {
   loadConfigChange,
   normalizeDailyLimit,
   normalizeSupportContacts,
+  normalizeBanner,
+  proposeBanner,
+  proposeBannerRemoval,
   proposeRollback,
   proposeSupportContacts,
   proposeTierLimit,
@@ -151,6 +154,8 @@ async function reconciliationImportForm(request: FastifyRequest): Promise<{
   sourceKind: string;
   sourceLabel: string;
   currency: string;
+  correctsStatementId: string;
+  correctionReason: string;
   csrf: string;
 }> {
   if (request.isMultipart()) {
@@ -172,6 +177,8 @@ async function reconciliationImportForm(request: FastifyRequest): Promise<{
       sourceKind: fields['sourceKind'] ?? '',
       sourceLabel: fields['sourceLabel'] ?? '',
       currency: fields['currency'] ?? '',
+      correctsStatementId: fields['correctsStatementId'] ?? '',
+      correctionReason: fields['correctionReason'] ?? '',
       csrf: fields['_csrf'] ?? '',
     };
   }
@@ -181,6 +188,8 @@ async function reconciliationImportForm(request: FastifyRequest): Promise<{
     sourceKind: formValue(request.body, 'sourceKind'),
     sourceLabel: formValue(request.body, 'sourceLabel'),
     currency: formValue(request.body, 'currency'),
+    correctsStatementId: formValue(request.body, 'correctsStatementId'),
+    correctionReason: formValue(request.body, 'correctionReason'),
     csrf: formValue(request.body, '_csrf'),
   };
 }
@@ -1320,10 +1329,15 @@ export function registerAdminWebRoutes(
     const session = request.adminSession as AdminSession;
     requirePermission(session.user.roles, 'config:read');
     const data = await loadConfigCenter(ctx.pool);
+    const editId = queryValue(request, 'edit');
+    const editBanner = editId
+      ? data.banners.find((banner) => banner.id === editId) ?? null
+      : null;
     return view(reply, 'config-center', session, {
       title: 'Configuration',
       active: 'config',
       data,
+      editBanner,
       declaredFees: DECLARED_FEE_BPS,
       notice: queryValue(request, 'ok') || null,
       error: queryValue(request, 'error') || null,
@@ -1381,6 +1395,20 @@ export function registerAdminWebRoutes(
         reason: why,
         adminId: session.user.id,
       });
+    } else if (kind === 'app_banner') {
+      const banner = normalizeBanner({
+        id: formValue(request.body, 'bannerId') || undefined,
+        messageEn: formValue(request.body, 'bannerMessageEn'),
+        messageSw: formValue(request.body, 'bannerMessageSw'),
+        severity: formValue(request.body, 'bannerSeverity'),
+        startsAt: formValue(request.body, 'bannerStartsAt'),
+        endsAt: formValue(request.body, 'bannerEndsAt'),
+      });
+      created = await proposeBanner(ctx, {
+        banner,
+        reason: why,
+        adminId: session.user.id,
+      });
     } else {
       throw errorWith(422, 'CONFIG_KIND_INVALID', 'Choose a configuration setting');
     }
@@ -1392,6 +1420,26 @@ export function registerAdminWebRoutes(
       after: { kind },
     });
     return redirect(reply, `/config/changes/${created.id}`, 'Change proposed for approval');
+  });
+
+  app.post('/config/banners/:id/remove', async (request, reply) => {
+    const session = request.adminSession as AdminSession;
+    requirePermission(session.user.roles, 'config:propose');
+    const id = uuidParam(request, 'BANNER_NOT_FOUND', 'Banner not found');
+    const why = formValue(request.body, 'reason');
+    const created = await proposeBannerRemoval(ctx, {
+      bannerId: id,
+      reason: why,
+      adminId: session.user.id,
+    });
+    await audit(ctx, request, session, {
+      action: 'config.change.propose',
+      resourceType: 'config_change',
+      resourceId: created.id,
+      reason: why,
+      after: { kind: 'app_banner_removal', bannerId: id },
+    });
+    return redirect(reply, `/config/changes/${created.id}`, 'Banner removal proposed for approval');
   });
 
   app.post('/config/changes/:id/approve', async (request, reply) => {
@@ -1847,6 +1895,8 @@ export function registerAdminWebRoutes(
       sourceLabel: form.sourceLabel,
       currency: form.currency,
       adminId: session.user.id,
+      correctsStatementId: form.correctsStatementId || null,
+      correctionReason: form.correctionReason,
     });
     await audit(ctx, request, session, {
       action: 'reconciliation.statement.import',
@@ -1860,12 +1910,14 @@ export function registerAdminWebRoutes(
         matchedCount: imported.matchedCount,
         exceptionCount: imported.exceptionCount,
         missingCount: imported.missingCount,
+        correctsStatementId: form.correctsStatementId || null,
+        correctionReason: form.correctionReason || null,
       },
     });
     return redirect(
       reply,
       `/reconciliation/statements/${imported.id}`,
-      `Imported ${imported.lineCount} lines · ${imported.matchedCount} matched · ${imported.exceptionCount} exceptions · ${imported.missingCount} missing`,
+      `${form.correctsStatementId ? 'Correction imported' : 'Imported'} ${imported.lineCount} lines · ${imported.matchedCount} matched · ${imported.exceptionCount} exceptions · ${imported.missingCount} missing`,
     );
   });
 

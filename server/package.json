@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "tsx src/http/start.ts",
+    "dev:db": "tsx scripts/dev-db.ts",
     "admin:dev": "tsx src/admin-web/server.ts",
     "admin:create": "tsx scripts/create-admin.ts",
     "build": "tsc -p tsconfig.build.json && node -e \"const fs=require('node:fs'); for (const name of ['views','public']) fs.rmSync('dist/admin-web/'+name,{recursive:true,force:true}); fs.cpSync('src/admin-web/views','dist/admin-web/views',{recursive:true}); fs.cpSync('src/admin-web/public','dist/admin-web/public',{recursive:true})\"",

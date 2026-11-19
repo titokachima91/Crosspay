@@ -4,6 +4,7 @@ import 'package:crosspay_app/core/constants/app_colors.dart';
 import 'package:crosspay_app/core/constants/app_constants.dart';
 import 'package:crosspay_app/core/constants/app_routes.dart';
 import 'package:crosspay_app/features/onboarding/widgets/corridor_health_card.dart';
+import 'package:crosspay_app/providers/auth_provider.dart';
 import 'package:crosspay_app/providers/config_provider.dart';
 import 'package:crosspay_app/providers/localization_provider.dart';
 import 'package:crosspay_app/providers/rates_provider.dart';
@@ -31,6 +32,26 @@ class _SplashLanguageScreenState extends ConsumerState<SplashLanguageScreen> {
     if (!mounted) return;
     if (ref.read(appConfigProvider).status == ConfigStatus.ready) {
       await ref.read(ratesProvider.notifier).load();
+      if (!mounted) return;
+      // F5.3 — a stored refresh token sends a returning merchant straight
+      // into the app. No token means the normal sign-in flow.
+      final restored = await ref.read(authProvider.notifier).restoreSession();
+      if (!mounted) return;
+      switch (restored) {
+        case SessionRestore.restored:
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            AppRoutes.home,
+            (route) => false,
+          );
+        case SessionRestore.profileIncomplete:
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            AppRoutes.kyc,
+            (route) => false,
+          );
+        case SessionRestore.noSession:
+        case SessionRestore.unavailable:
+          break;
+      }
     }
   }
 

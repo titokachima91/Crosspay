@@ -37,7 +37,11 @@ Conventions
   "support":     { "email": "<address>", "phone": "<number>", "whatsapp": "<number>",
                    "hours": "<free text>" },   (optional, every field optional)
   "service":     { "quotesPaused": <bool>, "tradesPaused": <bool>,
-                   "message": "<short operator message>" }   (optional)
+                   "message": "<short operator message>" },   (optional)
+  "banners":     [ { "id": "<uuid>", "messageEn": "<text>", "messageSw": "<text>",
+                     "severity": "info | warning | critical",
+                     "startsAt": "<ISO-8601 UTC>", "endsAt": "<ISO-8601 UTC>" } ]
+                                                   (optional, active windows only)
 }
 All five lists are required (they may be empty). The first country listed is
 the default on the phone screen. Carrier matching is a suggestion only.
@@ -49,6 +53,12 @@ today; in-app message submission is not connected.
 message is active. The Flutter app renders it as a maintenance banner above the
 signed-in tabs. The pause itself is enforced by the quote and trade endpoints
 with `503 SERVICE_PAUSED`.
+`banners` is optional and contains only published banners whose window includes
+the server's current time (`startsAt` inclusive, `endsAt` exclusive). Both
+language texts and the window are approved and stored in the admin portal; the
+app shows `messageSw` when the selected language is Swahili and `messageEn`
+otherwise, and re-checks the window before rendering. The server never derives
+a banner from a template, and an expired banner is not extended automatically.
 
 ## GET /api/v1/rates   (no login)
 {
@@ -107,9 +117,9 @@ Response: { "accessToken": "<JWT>", "refreshToken": "<token>",
             "expiresInSeconds": <int>, "profileComplete": <true | false> }
 - profileComplete = false sends the merchant to business KYC; true goes Home.
 - Wrong or expired codes must be 4xx (not 401) with an error code (below).
-- The reply also carries "refreshToken" and "expiresInSeconds" (access token
-  lifetime). The app reads them from F5.3 (stay signed in); until then an
-  expired token (401 on a request that carried a token) signs the user out.
+- The app stores the refresh token in platform-secure storage (Keychain /
+  Android Keystore) at sign-in. It is never kept in app state, logs or
+  analytics. The access token stays in memory and is attached to requests.
 
 ## Error codes the app already translates (error.code.<lowercase code>)
 OTP_INVALID, OTP_EXPIRED, OTP_TOO_MANY_ATTEMPTS, RATE_LIMITED
@@ -150,10 +160,18 @@ Response: { "kycStatus": "verified" | "pending" }
 Request:  { "refreshToken": "<token>" }
 Response: { "accessToken": "<JWT>", "refreshToken": "<token>", "expiresInSeconds": <int> }
 Used from F5.3 (stay signed in). Refresh tokens rotate on every use.
-- The Flutter endpoint constant is added when F5.3 is wired; the shape above is
-  final and the backend stores only a hash of the refresh token.
+- The backend stores only a hash of the refresh token.
+- The app calls this from one shared single-flight future: a burst of 401s
+  produces exactly one rotation, then every waiting request is replayed once
+  with the new access token.
+- At boot the app reads the stored refresh token, rotates it, and validates the
+  profile with `GET /me`; a complete profile opens Home, `PROFILE_INCOMPLETE`
+  opens KYC. A network failure keeps the tokens for the next launch.
 - Reuse of a rotated token revokes the token family and returns 401 with
-  `REFRESH_TOKEN_REUSED`.
+  `REFRESH_TOKEN_REUSED`. `REFRESH_TOKEN_INVALID` and `REFRESH_TOKEN_EXPIRED`
+  are terminal too: the app clears both stored tokens and asks for a code.
+- The app never retries the refresh request itself. The token is single-use, so
+  replaying a request whose response was lost would be treated as reuse.
 
 ## GET /api/v1/me   (login required)
 {
@@ -466,6 +484,7 @@ authentication; a missing, stale or invalid signature is `401`.
 
 ## GET /api/v1/trades/{id}/invoice   (login required)
 {
+  "tradeId": "<trade id>",
   "qrCodeUrl": "<https URL for the invoice QR image>",
   "shareUrl": "<https URL a payer can open>",
   "validUntil": "<ISO-8601 UTC>",
@@ -473,8 +492,23 @@ authentication; a missing, stale or invalid signature is `401`.
   "currency": "<ISO currency code of amountMinor>"
 }
 - The server issues both URLs and controls `validUntil`; the app never builds
-  or extends an invoice link.
+  or extends an invoice link. One trade has one invoice; repeated calls return
+  the same link while it is valid.
+- Links live for 72 hours and are available only while the trade is active
+  (pending deposit through disbursing).
+- `amountMinor` is the total debit in the send currency (amount + fee); the app
+  formats it with the currency's `decimals` from `/config`.
 - 4xx codes: TRADE_NOT_FOUND, INVOICE_NOT_AVAILABLE, INVOICE_EXPIRED.
+- 503 `INVOICE_NOT_CONFIGURED` means the server has no `PUBLIC_API_URL`.
+
+## GET /pay/{token}   (no login; public payer page)
+Human-readable HTML page with the amount, currency, trade reference and expiry.
+It states plainly when a link is expired or not found. It does not accept card
+details or move money.
+
+## GET /api/v1/invoices/{token}/qr.png   (no login)
+PNG QR code encoding the public `shareUrl`. 404 `INVOICE_NOT_FOUND`,
+410 `INVOICE_EXPIRED`, 503 `INVOICE_NOT_CONFIGURED`.
 
 ## POST /api/v1/trades/{id}/share   (login required)
 Header: X-Idempotency-Key

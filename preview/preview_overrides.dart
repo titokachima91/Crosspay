@@ -244,6 +244,7 @@ class _PreviewAuthRepository extends AuthRepository {
     }
     return const AuthSession(
       accessToken: 'preview-token',
+      refreshToken: 'preview-refresh',
       profileComplete: false,
     );
   }
@@ -269,7 +270,8 @@ class _PreviewAuthRepository extends AuthRepository {
     _session
       ..displayName = legalName
       ..accountType = accountType
-      ..kycStatus = id.contains('wait') ? KycStatus.pending : KycStatus.verified;
+      ..kycStatus =
+          id.contains('wait') ? KycStatus.pending : KycStatus.verified;
     return _session.kycStatus;
   }
 }
@@ -411,7 +413,8 @@ class _PreviewBeneficiaryRepository extends BeneficiaryRepository {
       final lower = name.toLowerCase();
       if (lower.contains('mismatch')) {
         match = NameMatch.mismatch;
-      } else if (lower.contains('unverifiable') || rail.kind == PayoutKind.bank) {
+      } else if (lower.contains('unverifiable') ||
+          rail.kind == PayoutKind.bank) {
         match = NameMatch.unavailable;
       } else {
         match = NameMatch.match;
@@ -649,7 +652,8 @@ class _PreviewTradeRepository extends TradeRepository {
   }
 
   @override
-  Future<Trade> cancelTrade(String tradeId, {required String idempotencyKey, required AppConfig config}) async {
+  Future<Trade> cancelTrade(String tradeId,
+      {required String idempotencyKey, required AppConfig config}) async {
     await _wait(_latency);
     final trade = _trade;
     if (trade == null) {
@@ -664,7 +668,8 @@ class _PreviewTradeRepository extends TradeRepository {
   }
 
   @override
-  Future<Invoice> getInvoice(String tradeId, {required AppConfig config}) async {
+  Future<Invoice> getInvoice(String tradeId,
+      {required AppConfig config}) async {
     await _wait(_latency);
     final trade = _trade;
     if (trade == null) {
@@ -679,23 +684,9 @@ class _PreviewTradeRepository extends TradeRepository {
       qrCodeUrl: 'preview://qr/${trade.id}',
       shareUrl: 'preview://trade/${trade.id}',
       validUntil: DateTime.now().add(const Duration(hours: 24)),
-      amount: trade.sendAmountMinor,
+      amountMinor: trade.sendAmountMinor,
       currency: trade.sendCurrency.code,
     );
-  }
-
-  @override
-  Future<void> shareTrade(String tradeId, {required String idempotencyKey, required AppConfig config}) async {
-    await _wait(_latency);
-    final trade = _trade;
-    if (trade == null) {
-      throw const ApiException(
-        kind: ApiErrorKind.client,
-        statusCode: 404,
-        code: 'TRADE_NOT_FOUND',
-      );
-    }
-    _shared = true;
   }
 
   /// F4.1 — simulated trade history, newest first.
@@ -815,21 +806,30 @@ class _PreviewTradeRepository extends TradeRepository {
     );
   }
 
-  bool get shared => _shared;
-  bool _shared = false;
+  bool get shared => false;
 }
 
 class _PreviewTokenStorage implements TokenStorage {
-  String? _token;
+  String? _accessToken;
+  String? _refreshToken;
 
   @override
-  Future<String?> read() async => _token;
+  Future<String?> readAccessToken() async => _accessToken;
 
   @override
-  Future<void> write(String token) async => _token = token;
+  Future<void> writeAccessToken(String token) async => _accessToken = token;
 
   @override
-  Future<void> delete() async => _token = null;
+  Future<String?> readRefreshToken() async => _refreshToken;
+
+  @override
+  Future<void> writeRefreshToken(String token) async => _refreshToken = token;
+
+  @override
+  Future<void> delete() async {
+    _accessToken = null;
+    _refreshToken = null;
+  }
 }
 
 /// Everything the preview swaps in. Pass Duration.zero in tests.
@@ -838,7 +838,8 @@ List<Override> previewOverrides({
 }) {
   final session = _PreviewSession();
   return [
-    configRepositoryProvider.overrideWithValue(_PreviewConfigRepository(latency)),
+    configRepositoryProvider
+        .overrideWithValue(_PreviewConfigRepository(latency)),
     ratesRepositoryProvider.overrideWithValue(_PreviewRatesRepository(latency)),
     authRepositoryProvider
         .overrideWithValue(_PreviewAuthRepository(latency, session)),

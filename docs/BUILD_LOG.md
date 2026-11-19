@@ -883,4 +883,93 @@ remainder and sanctions/name-check queues.
 
 ---
 
+## 2026-11-19 - invoice links, linked corrections, scheduled banners, stay signed in and LISTEN/NOTIFY
+
+**Session rule followed**: server is the source of truth, no invented
+operational data in `lib/`, money stays in currency-minor units, nothing pushed.
+
+### 1 - server-issued invoice links in the app
+- Migration `0019` stores one invoice per trade: a 72-hour window, token hash
+  for lookup, encrypted token at rest, and a `verification_hash`.
+- `GET /trades/:id/invoice` returns `tradeId`, `amountMinor`, `currency`,
+  `validUntil`, `qrCodeUrl` and `shareUrl`; `POST /trades/:id/share` reuses the
+  same invoice behind an idempotency key. Public `/pay/:token` renders the payer
+  page and `/api/v1/invoices/:token/qr.png` renders the QR.
+- The Flutter invoice screen now loads that payload, formats `amountMinor` with
+  the currency's decimals, displays the server expiry, copies the server
+  `shareUrl` and shows the real network QR image. The fake QR painter and the
+  fake "link shared" snackbar were removed.
+- 503 `INVOICE_NOT_CONFIGURED` and 410 `INVOICE_EXPIRED` have honest UI states.
+- Tests: `server/test/invoices.test.ts` 4/4, `test/invoice_screen_test.dart`
+  2/2.
+
+### 2 - reconciliation corrections are linked statements
+- Migration `0020` adds `corrects_statement_id` and a required 10-300 character
+  `correction_reason`, both immutable. The original must be closed and share
+  source kind, source label, provider and currency.
+- The import form offers closed statements, requires the reason, and both
+  statements cross-link. The control room emits `statement.corrected`; audit
+  records the same link. The original stays closed and unchanged.
+- Errors: `STATEMENT_CORRECTION_ORIGINAL_OPEN` (409),
+  `STATEMENT_CORRECTION_MISMATCH` (422), `CORRECTION_REASON_INVALID` (422).
+- Tests: admin-web correction flow, original immutability and activity payload.
+
+### 3 - localized scheduled app banners
+- Migration `0021` adds `app_banners` and allows `app_banner:<uuid>` config keys.
+  Banners use the existing versioned two-person proposal/approval flow; updates
+  keep the id, removal is a proposal, and rollback restores or deletes.
+- Validation: both messages 5-200 characters, severity
+  `info|warning|critical`, window longer than zero and at most 90 days, start at
+  most 180 days ahead, end in the future.
+- `/config.banners` contains only windows open at request time. The Flutter
+  shell re-checks the window, chooses English or Swahili, and schedules a
+  rebuild for the next start/end boundary while it stays mounted.
+- Admin: banner list with active/upcoming/ended state, same-id edit form,
+  removal proposal, and human-readable before/after values.
+- Tests: admin-web validation/approval/edit/upcoming/removal/rollback; Flutter
+  `repositories_test.dart` parsing and `main_shell_screen_test.dart` language +
+  expired filtering.
+
+### 4 - stay signed in and biometric unlock (F5.3)
+- `TokenStorage` now separates the access token from the rotating refresh token
+  and clears both on sign-out. The refresh token is only read by the auth
+  provider; it never enters app state, logs or analytics.
+- `AuthNotifier.refreshAccessToken()` is single-flight: a burst of 401s shares
+  one rotation, and the Dio `AuthInterceptor` replays each failed request once
+  with the new access token. A rejected refresh clears both tokens; a network
+  failure keeps them for the next launch. The refresh request itself is marked
+  no-retry because its token is single-use.
+- Splash restores the session after `/config`: rotate, then `GET /me`; a
+  complete profile opens Home, `PROFILE_INCOMPLETE` opens KYC.
+- `PinManager.ensureUnlocked` offers biometrics first when available, with the
+  PIN dialog always as fallback. Security settings shows real availability and
+  signs out through the auth provider. Android `USE_BIOMETRIC` and iOS
+  `NSFaceIDUsageDescription` were added.
+- Tests: `test/network_test.dart` concurrent-401 replay and no-token case;
+  `test/auth_repository_test.dart` refresh request shape;
+  `test/auth_provider_test.dart` restore, terminal failure, network failure and
+  shared rotation.
+
+### 5 - LISTEN/NOTIFY control-room transport
+- `ActivityStream` keeps one pooled connection checked out while any SSE stream
+  is open, runs `LISTEN admin_activity`, and polls immediately on a
+  notification. The 2-second interval remains as the fallback; a failed
+  listener reconnects after 5 seconds and polling continues.
+- A notification that arrives during an in-flight poll schedules one more poll,
+  so a burst is not missed until the next tick.
+- Tests: a one-minute fallback interval still delivers immediately; a
+  deliberately broken listener still delivers through polling.
+
+### Verification
+- Node: **121/121**, 21 suites, `tsc --noEmit` clean.
+- Flutter: **231 passed, 1 skipped**, `flutter analyze` clean. The skip is the
+  opt-in live sandbox contract test.
+- Docs updated: API contract, admin implementation, this log and the master
+  progress report.
+
+Next: live provider/bank feeds, bank-side missing detection, fee-line matching,
+bank balance matching, sanctions/watchlist and document capture. Nothing pushed.
+
+---
+
 ## Report End - No fluff. Just facts.
