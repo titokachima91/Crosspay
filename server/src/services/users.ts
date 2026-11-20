@@ -15,7 +15,7 @@ export interface UserRow {
 export async function findOrCreateUserByPhone(
   client: PoolClient,
   phone: string,
-): Promise<UserRow> {
+): Promise<{ user: UserRow; created: boolean }> {
   const result = await client.query(
     `INSERT INTO users (phone, phone_verified_at)
      VALUES ($1, now())
@@ -23,22 +23,25 @@ export async function findOrCreateUserByPhone(
        SET phone_verified_at = COALESCE(users.phone_verified_at, now())
        WHERE users.deleted_at IS NULL
      RETURNING id, phone, display_name, account_type, hub_id, kyc_status,
-               tier_code, limit_currency_code`,
+               tier_code, limit_currency_code, (xmax = 0) AS created`,
     [phone],
   );
 
   const row = result.rows[0];
   if (!row) throw new AppError(403, 'ACCOUNT_DISABLED', 'This account is not available');
   return {
-    id: String(row['id']),
-    phone: String(row['phone']),
-    display_name: row['display_name'] === null ? null : String(row['display_name']),
-    account_type: row['account_type'] as UserRow['account_type'],
-    hub_id: row['hub_id'] === null ? null : String(row['hub_id']),
-    kyc_status: row['kyc_status'] as UserRow['kyc_status'],
-    tier_code: String(row['tier_code']),
-    limit_currency_code:
-      row['limit_currency_code'] === null ? null : String(row['limit_currency_code']),
+    user: {
+      id: String(row['id']),
+      phone: String(row['phone']),
+      display_name: row['display_name'] === null ? null : String(row['display_name']),
+      account_type: row['account_type'] as UserRow['account_type'],
+      hub_id: row['hub_id'] === null ? null : String(row['hub_id']),
+      kyc_status: row['kyc_status'] as UserRow['kyc_status'],
+      tier_code: String(row['tier_code']),
+      limit_currency_code:
+        row['limit_currency_code'] === null ? null : String(row['limit_currency_code']),
+    },
+    created: Boolean(row['created']),
   };
 }
 

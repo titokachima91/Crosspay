@@ -12,6 +12,9 @@ class ApiEndpoints {
 
   /// F5.3 — rotates the refresh token and issues a fresh access token.
   static const String authRefresh = '$_v1/auth/refresh';
+
+  /// Revokes the current refresh-token family on explicit sign-out.
+  static const String authLogout = '$_v1/auth/logout';
   static const String kyc = '$_v1/me/kyc';
   static const String me = '$_v1/me';
   static const String beneficiaries = '$_v1/beneficiaries';

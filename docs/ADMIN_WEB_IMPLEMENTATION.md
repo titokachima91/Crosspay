@@ -560,7 +560,7 @@ Migration `0018` adds a manual compliance queue over the existing
 - first-login TOTP enrolment and recovery-code display;
 - audit rows with the acting admin id.
 
-Suite after this phase: **122/122**, 21 suites, typecheck clean.
+Suite after this phase: **123/123**, 21 suites, typecheck clean.
 
 ---
 

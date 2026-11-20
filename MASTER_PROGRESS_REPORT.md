@@ -93,7 +93,9 @@ code 1234
 - [x] F5.2 Saved recipients CRUD
 - [x] F5.3 Security — PIN lock, app-shell gate, language and theme persistence,
   opt-in biometric unlock with PIN fallback, and stay-signed-in refresh-token
-  rotation with a single-flight 401 interceptor. Android uses a
+  rotation with a single-flight 401 interceptor. Locking (manual or on
+  background) keeps the session and uses biometrics/PIN; explicit sign-out
+  revokes the refresh-token family and needs a new OTP. Android uses a
   `FlutterFragmentActivity` host and compiles against SDK 35; a debug APK
   builds and is available for sideloading. Real-device fingerprint/Face ID
   still needs a physical device test; iOS is unverified because Xcode is
@@ -101,7 +103,7 @@ code 1234
 
 **Frontend verification**:
 - `dart analyze lib test preview` → **No issues found** (2026-11-19)
-- `flutter test` → **236 passed, 1 skipped** (2026-11-20); the skipped test is
+- `flutter test` → **237 passed, 1 skipped** (2026-11-20); the skipped test is
   the opt-in live sandbox contract test
 - `LIVE_SANDBOX=1 flutter test test/live_sandbox_test.dart` → **passed** against
   an isolated dev-OTP sandbox instance (2026-11-19)
@@ -373,13 +375,13 @@ The CrossPay API does not initiate or pay yet; that is B2.3/B2.4.
 
 | Suite | Result | Date |
 |---|---|---|
-| Flutter widget/unit | **236 passed, 1 skipped** | 2026-11-20 |
+| Flutter widget/unit | **237 passed, 1 skipped** | 2026-11-20 |
 | Flutter static analysis | **No issues found** | 2026-11-19 |
 | Live Flutter contract against sandbox | **passed** | 2026-11-19 |
 | Android debug APK build | **Built app-debug.apk** | 2026-11-20 |
 | CrossPay API `typecheck` | **clean** | 2026-11-20 |
 | CrossPay API `build` | **clean** | 2026-11-20 |
-| CrossPay API tests | **122/122, 21 suites** | 2026-11-20 |
+| CrossPay API tests | **123/123, 21 suites** | 2026-11-20 |
 | Sandbox tests | **37/37** (14 facade + 9 simulator + 10 customers + 4 real-SMS) | 2026-11-15 |
 | B2.0 snapshot restore | `npm ci` + typecheck + build + **36/36** | 2026-11-15 |
 | B2.2 snapshot restore | `npm ci` + typecheck + build + **42/42** | 2026-11-15 |
@@ -547,6 +549,9 @@ Completed:
 - Operator runbook covering topology/ports, sandbox real-SMS vs dev-OTP modes,
   compile-time `API_BASE_URL`, APK serving/install, biometric smoke test,
   database backup/restore, incident recovery and release/snapshot steps.
+- One-phone-one-account auth flow: Sign in / Create account entry, `isNewUser`,
+  use-a-different-number, switch account clearing the local lock, and the
+  reserved-phone deleted-account policy (`docs/AUTH_FLOWS.md`).
 - Verified snapshots of both projects.
 
 Next, in order:

@@ -8,6 +8,7 @@ import {
   issueRefreshToken,
   RefreshTokenExpiredError,
   RefreshTokenInvalidError,
+  revokeRefreshFamily,
   rotateRefreshToken,
 } from '../../auth/refresh-tokens.js';
 import { signAccessToken } from '../auth.js';
@@ -30,6 +31,7 @@ const otpVerifySchema = z.object({
   code: z.string().regex(/^[0-9]{4,10}$/),
 });
 const refreshSchema = z.object({ refreshToken: z.string().min(1).max(512) });
+const logoutSchema = z.object({ refreshToken: z.string().min(1).max(512) });
 
 export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void {
   app.post('/auth/otp/request', async (request, reply) => {
@@ -133,13 +135,19 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
         return { kind: 'failed' as const, verification };
       }
 
-      const user = await findOrCreateUserByPhone(client, phone);
+      const account = await findOrCreateUserByPhone(client, phone);
+      const user = account.user;
       const refresh = await issueRefreshToken(client, {
         userId: user.id,
         crypto: ctx.crypto,
         ttlSeconds: ctx.refreshTokenTtlSeconds,
       });
-      return { kind: 'ok' as const, user, refresh };
+      return {
+        kind: 'ok' as const,
+        user,
+        refresh,
+        isNewUser: account.created,
+      };
     });
 
     if (result.kind === 'failed') {
@@ -168,6 +176,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
       refreshToken: result.refresh.token,
       expiresInSeconds: ctx.accessTokenTtlSeconds,
       profileComplete: isProfileComplete(result.user),
+      isNewUser: result.isNewUser,
     });
   });
 
@@ -226,5 +235,38 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
       refreshToken: result.token,
       expiresInSeconds: ctx.accessTokenTtlSeconds,
     });
+  });
+
+  app.post('/auth/logout', async (request, reply) => {
+    const { refreshToken } = parseBody(logoutSchema, request.body);
+
+    const ipLimit = await consumeRateLimit(ctx.pool, {
+      scope: 'auth.logout.ip',
+      key: request.ip,
+      limit: 120,
+      windowSeconds: 900,
+      crypto: ctx.crypto,
+    });
+    if (!ipLimit.allowed) {
+      throw tooManyRequests(
+        'RATE_LIMITED',
+        'Too many sign-out attempts; try again later',
+        ipLimit.retryAfterSeconds,
+      );
+    }
+
+    // The refresh token is the credential. Revoke its family and answer 204
+    // even when it is unknown or already revoked: sign-out is idempotent and
+    // must not reveal whether a token exists.
+    await withTransaction(ctx.pool, async (client) => {
+      const row = await client.query<{ family_id: string }>(
+        `SELECT family_id FROM refresh_tokens WHERE token_hash = $1`,
+        [ctx.crypto.hashToken(refreshToken)],
+      );
+      const familyId = row.rows[0]?.family_id;
+      if (familyId) await revokeRefreshFamily(client, familyId);
+    });
+
+    return reply.code(204).send();
   });
 }

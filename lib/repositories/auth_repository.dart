@@ -47,6 +47,7 @@ class AuthRepository {
         accessToken: root.string('accessToken'),
         refreshToken: root.string('refreshToken'),
         profileComplete: root.boolean('profileComplete'),
+        isNewUser: root.optionalBool('isNewUser') ?? false,
       );
     } on DioException catch (e) {
       throw ApiException.fromDio(e);
@@ -73,6 +74,22 @@ class AuthRepository {
       return TokenPair(
         accessToken: root.string('accessToken'),
         refreshToken: root.string('refreshToken'),
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// Revokes the current refresh-token family. Best-effort on sign-out; the
+  /// local session is cleared even if the server cannot be reached.
+  Future<void> logout(String refreshToken) async {
+    try {
+      await _dio.post<dynamic>(
+        ApiEndpoints.authLogout,
+        data: {'refreshToken': refreshToken},
+        options: Options(
+          extra: {AuthInterceptor.skipRefreshKey: true},
+        ),
       );
     } on DioException catch (e) {
       throw ApiException.fromDio(e);

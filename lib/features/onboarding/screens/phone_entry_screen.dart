@@ -5,6 +5,7 @@ import 'package:crosspay_app/core/constants/app_routes.dart';
 import 'package:crosspay_app/core/utils/country_flag.dart';
 import 'package:crosspay_app/core/utils/national_number_formatter.dart';
 import 'package:crosspay_app/core/utils/phone_utils.dart';
+import 'package:crosspay_app/features/onboarding/auth_entry_mode.dart';
 import 'package:crosspay_app/features/onboarding/widgets/carrier_badge_chip.dart';
 import 'package:crosspay_app/models/app_config_model.dart';
 import 'package:crosspay_app/providers/auth_provider.dart';
@@ -21,6 +22,10 @@ class PhoneEntryScreen extends ConsumerStatefulWidget {
 }
 
 class _PhoneEntryScreenState extends ConsumerState<PhoneEntryScreen> {
+  AuthEntryMode get _mode => AuthEntryMode.fromArguments(
+        ModalRoute.of(context)?.settings.arguments,
+      );
+
   @override
   void initState() {
     super.initState();
@@ -40,19 +45,21 @@ class _PhoneEntryScreenState extends ConsumerState<PhoneEntryScreen> {
     final Widget body;
     if (config.status == ConfigStatus.ready &&
         config.config.countries.isNotEmpty) {
-      body = _PhoneForm(config: config.config);
+      body = _PhoneForm(config: config.config, mode: _mode);
     } else if (config.status == ConfigStatus.ready) {
       body = _UnavailableBody(
+        mode: _mode,
         message: ref.tr('phone.no_countries'),
         onRetry: () => ref.read(appConfigProvider.notifier).load(),
       );
     } else if (config.status == ConfigStatus.error) {
       body = _UnavailableBody(
+        mode: _mode,
         message: ref.tr(config.errorKey ?? 'error.unknown'),
         onRetry: () => ref.read(appConfigProvider.notifier).load(),
       );
     } else {
-      body = const _UnavailableBody(); // still loading
+      body = _UnavailableBody(mode: _mode); // still loading
     }
 
     return Scaffold(
@@ -76,7 +83,9 @@ class _PhoneEntryScreenState extends ConsumerState<PhoneEntryScreen> {
 }
 
 class _Header extends ConsumerWidget {
-  const _Header();
+  const _Header({required this.mode});
+
+  final AuthEntryMode mode;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -84,12 +93,12 @@ class _Header extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          ref.tr('phone.title'),
+          ref.tr(mode.titleKey),
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 8),
         Text(
-          ref.tr('phone.subtitle'),
+          ref.tr(mode.subtitleKey),
           style: Theme.of(context).textTheme.bodyMedium,
         ),
       ],
@@ -99,8 +108,9 @@ class _Header extends ConsumerWidget {
 
 /// Shown while the server data is loading or when it cannot be reached.
 class _UnavailableBody extends ConsumerWidget {
-  const _UnavailableBody({this.message, this.onRetry});
+  const _UnavailableBody({required this.mode, this.message, this.onRetry});
 
+  final AuthEntryMode mode;
   final String? message;
   final VoidCallback? onRetry;
 
@@ -111,7 +121,7 @@ class _UnavailableBody extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _Header(),
+          _Header(mode: mode),
           const SizedBox(height: 32),
           if (message == null)
             const Center(child: CircularProgressIndicator())
@@ -133,9 +143,10 @@ class _UnavailableBody extends ConsumerWidget {
 }
 
 class _PhoneForm extends ConsumerStatefulWidget {
-  const _PhoneForm({required this.config});
+  const _PhoneForm({required this.config, required this.mode});
 
   final AppConfig config;
+  final AuthEntryMode mode;
 
   @override
   ConsumerState<_PhoneForm> createState() => _PhoneFormState();
@@ -178,11 +189,15 @@ class _PhoneFormState extends ConsumerState<_PhoneForm> {
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
-    final phone = PhoneUtils.toInternational(_selectedCountry, _controller.text);
+    final phone =
+        PhoneUtils.toInternational(_selectedCountry, _controller.text);
     final sent = await ref.read(authProvider.notifier).requestOtp(phone);
     if (!mounted) return;
     if (sent) {
-      Navigator.of(context).pushNamed(AppRoutes.otp);
+      Navigator.of(context).pushNamed(
+        AppRoutes.otp,
+        arguments: {'mode': widget.mode.name},
+      );
     }
   }
 
@@ -208,7 +223,7 @@ class _PhoneFormState extends ConsumerState<_PhoneForm> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const _Header(),
+                _Header(mode: widget.mode),
                 const SizedBox(height: 24),
                 Text(
                   ref.tr('phone.label').toUpperCase(),
@@ -236,7 +251,9 @@ class _PhoneFormState extends ConsumerState<_PhoneForm> {
                         controller: _controller,
                         enabled: !sending,
                         keyboardType: TextInputType.phone,
-                        autofillHints: const [AutofillHints.telephoneNumberNational],
+                        autofillHints: const [
+                          AutofillHints.telephoneNumberNational
+                        ],
                         inputFormatters: [
                           NationalNumberFormatter(
                             maxDigits: country.nationalNumberLength,
@@ -329,7 +346,8 @@ class _CountryDropdown extends StatelessWidget {
             for (final c in countries)
               DropdownMenuItem<Country>(
                 value: c,
-                child: Text('${countryFlag(c.code)} ${c.name} (+${c.dialCode})'),
+                child:
+                    Text('${countryFlag(c.code)} ${c.name} (+${c.dialCode})'),
               ),
           ],
           selectedItemBuilder: (context) => [

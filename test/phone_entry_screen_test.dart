@@ -43,7 +43,9 @@ class _FakeAuthRepository extends AuthRepository {
 }
 
 const _testConfig = AppConfig(
-  currencies: [Currency(code: 'AAA', name: 'Alpha', countryCode: 'ZZ', decimals: 2)],
+  currencies: [
+    Currency(code: 'AAA', name: 'Alpha', countryCode: 'ZZ', decimals: 2)
+  ],
   countries: [
     Country(
       code: 'ZZ',
@@ -95,7 +97,8 @@ void main() {
     );
   }
 
-  testWidgets('shows the form, suggests a network, enables continue', (tester) async {
+  testWidgets('shows the form, suggests a network, enables continue',
+      (tester) async {
     final container = containerWith(config: () async => _testConfig);
     addTearDown(container.dispose);
     await container.read(appConfigProvider.notifier).load();
@@ -103,7 +106,7 @@ void main() {
     await tester.pumpWidget(appFor(container));
     await tester.pump();
 
-    expect(find.text('Enter your phone number'), findsOneWidget);
+    expect(find.text('Sign in with your phone'), findsOneWidget);
     expect(find.textContaining('+999'), findsWidgets);
 
     ElevatedButton button() =>
@@ -117,9 +120,11 @@ void main() {
     expect(button().onPressed, isNotNull);
   });
 
-  testWidgets('sends the international number and opens the next screen', (tester) async {
+  testWidgets('sends the international number and opens the next screen',
+      (tester) async {
     final auth = _FakeAuthRepository();
-    final container = containerWith(config: () async => _testConfig, auth: auth);
+    final container =
+        containerWith(config: () async => _testConfig, auth: auth);
     addTearDown(container.dispose);
     await container.read(appConfigProvider.notifier).load();
 

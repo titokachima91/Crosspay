@@ -323,6 +323,31 @@ Scheduled banners, invoices, sessions and live activity
   opt-in per device: the person enables them from Security settings after a
   successful device check; a denied or cancelled prompt falls back to the PIN.
   Disabling the PIN clears the biometric preference.
+- **Lock and sign-out are different.** Lock now (or backgrounding the app) hides
+  the signed-in surface and asks for biometrics/PIN; the refresh token and OTP
+  state are untouched. Sign out revokes the refresh-token family on the server,
+  clears the device tokens and therefore needs a new OTP next time. OTP is for
+  first sign-in, a new device, or an explicit sign-out/revocation, not for every
+  app open.
+- **One phone = one account.** OTP verification signs in to an existing number
+  or creates the account for a new number. There is no separate registration
+  identity and no duplicate account on the same phone. The verify response
+  carries `isNewUser` for the UI message; routing still follows
+  `profileComplete`.
+- "Sign in" and "Create account" are entry labels, not two identity systems.
+  A valid OTP on a new number creates the account; an existing number always
+  resumes its own account.
+- **Switch account** revokes the current refresh family, clears local tokens,
+  clears the device PIN/biometric preference, and requires OTP for the other
+  number. Clearing the local lock prevents the next account from being unlocked
+  by the previous person's fingerprint/PIN. A later per-account local-lock
+  design can preserve the same person's setup across switches.
+- **Deletion is a support/compliance action**, not an app button. The account is
+  soft-deleted and disabled, all sessions are revoked, the phone stays bound for
+  the KYC/AML retention period, and a 30-day restore window lets the same phone
+  recover it with OTP and normal identity checks. After that, phone reuse needs
+  compliance approval and fresh KYC. A recycled SIM cannot take over the old
+  account by OTP alone.
 - Support can revoke all refresh-token families for one customer with a
   5-300 character reason. It audits the reason and emits redacted activity.
   Access tokens expire on their own; KYC, trades, cases and money are untouched.

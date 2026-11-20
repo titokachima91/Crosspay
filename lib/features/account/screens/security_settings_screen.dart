@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crosspay_app/core/constants/app_colors.dart';
 import 'package:crosspay_app/core/constants/app_routes.dart';
+import 'package:crosspay_app/core/security/app_lock_provider.dart';
 import 'package:crosspay_app/core/security/biometric_manager.dart';
 import 'package:crosspay_app/core/security/pin_manager.dart';
 import 'package:crosspay_app/providers/auth_provider.dart';
+import 'package:crosspay_app/providers/localization_provider.dart';
 
 /// F5.3 Security settings — app-lock PIN, biometric unlock, sign out.
 ///
@@ -125,6 +127,50 @@ class _SecuritySettingsScreenState
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
+    );
+  }
+
+  void _lockNow() {
+    // Pop back to the signed-in shell first, then ask it to hide its content
+    // and run the biometric/PIN gate. The session is not ended.
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    Future<void>.microtask(() {
+      if (!mounted) return;
+      ref.read(appLockProvider.notifier).lock();
+    });
+  }
+
+  Future<void> _switchAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(ref.tr('account.switch_confirm')),
+        content: Text(ref.tr('account.switch_body')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(ref.tr('common.cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(ref.tr('common.continue')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    // A different phone must not inherit the previous account's local lock.
+    try {
+      await _pin.clear();
+    } catch (_) {
+      // The session still ends even if the local lock cannot be cleared.
+    }
+    await ref.read(authProvider.notifier).signOut();
+    if (!mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      AppRoutes.splash,
+      (route) => false,
     );
   }
 
@@ -300,6 +346,18 @@ class _SecuritySettingsScreenState
                         ),
                       ),
                     ),
+                    if (_hasPin)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: _lockNow,
+                            icon: const Icon(Icons.lock_outline, size: 18),
+                            label: const Text('Lock app now'),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -320,6 +378,21 @@ class _SecuritySettingsScreenState
                       icon: Icons.language,
                       label: 'Remembered language',
                       trailing: 'This device',
+                    ),
+                    Divider(
+                      height: 1,
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: _switchAccount,
+                          icon: const Icon(Icons.swap_horiz, size: 18),
+                          label: Text(ref.tr('account.switch')),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -345,6 +418,20 @@ class _SecuritySettingsScreenState
                   ],
                 ),
                 const SizedBox(height: 24),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Signing out ends the saved session and revokes it on the '
+                    'server, so the next sign-in needs a new code. Use Lock '
+                    'app now above to keep the session and unlock with '
+                    'biometrics or your PIN.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.4,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
                 SizedBox(
                   height: 52,
                   child: OutlinedButton.icon(
@@ -358,6 +445,11 @@ class _SecuritySettingsScreenState
                     icon: const Icon(Icons.logout, size: 18),
                     label: const Text('Sign out'),
                     onPressed: () async {
+                      try {
+                        await _pin.clear();
+                      } catch (_) {
+                        // The session still ends if the local lock cannot be cleared.
+                      }
                       await ref.read(authProvider.notifier).signOut();
                       if (!context.mounted) return;
                       Navigator.of(context).pushNamedAndRemoveUntil(

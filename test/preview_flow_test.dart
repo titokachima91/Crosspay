@@ -17,7 +17,8 @@ void main() {
     translations = await AppLocalizations.loadAll();
   });
 
-  testWidgets('the preview walks from the splash screen to the identity form', (tester) async {
+  testWidgets('the preview walks from the splash screen to the identity form',
+      (tester) async {
     final container = ProviderContainer(overrides: [
       translationsProvider.overrideWithValue(translations),
       ...previewOverrides(latency: Duration.zero),
@@ -43,7 +44,7 @@ void main() {
     expect(find.textContaining('TZS'), findsWidgets);
 
     // Phone: a number with a recognised prefix.
-    await tester.tap(find.text('Get started'));
+    await tester.tap(find.text('Create account'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '712345678');
     await tester.pump();

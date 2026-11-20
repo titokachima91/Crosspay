@@ -348,8 +348,16 @@ firewall allows Python/node, and the server is bound to all interfaces
 2. Set a 4–6 digit PIN. Biometrics start off.
 3. Enable **Biometric unlock**; the device prompt must succeed.
 4. Tap **Test biometrics now**.
-5. Kill and reopen: biometric prompt appears. Cancel → PIN dialog.
-6. Disable biometrics → PIN only. Turn PIN off → lock cleared.
+5. Tap **Lock app now**: biometric prompt appears. Cancel → PIN dialog.
+6. Background the app and reopen it: it locks and asks for biometrics/PIN, not
+   OTP. The session and refresh token are retained.
+7. Turn the PIN off: the lock and biometric preference are cleared.
+8. **Sign out** separately: the refresh-token family is revoked, local tokens
+   and the device PIN/biometric preference are cleared, and the next sign-in
+   needs a new OTP. That is intentional.
+9. **Switch account** does the same and returns to the start screen; tap
+   **Sign in** for the other number. The account model and deletion policy are
+   in `docs/AUTH_FLOWS.md`.
 
 If no biometric is enrolled, the switch is disabled with an honest message.
 iOS/Face ID is unverified until Xcode is installed.
@@ -447,6 +455,8 @@ Admin credentials are not stored in this repository.
 | Splash shows network error | Phone and Mac on same Wi-Fi; Mac firewall; correct IP | Bind `0.0.0.0`, allow the process, rebuild with the right host |
 | OTP request `503 SMS_DELIVERY_FAILED` | Sandbox real-SMS gateway not running | Start the gateway or use a dev-OTP instance |
 | OTP request `429 RATE_LIMITED` | Per-phone resend or sandbox in-process limiter | Wait for the window; use a fresh phone in tests |
+| OTP asked on every app open | The person signed out, or the refresh token was cleared/revoked | Sign out is a full logout; use **Lock app now** or backgrounding for biometric/PIN re-entry |
+| "Get started" shown to a returning user | No stored refresh token, or session restore failed and tokens were cleared | Check sign-out history and network; the splash shows Continue instead when a token exists |
 | Admin redirects to `/login` | Session cookie expired/revoked | Sign in again with TOTP |
 | Admin form `403 ADMIN_CSRF_INVALID` | Page was open across a restart | Reload the form and submit |
 | Worker KPI "never" or stale | Worker process stopped | `cd server && npm run worker`; check DB |
@@ -481,6 +491,7 @@ Snapshot is a copy, not a backup of provider secrets or `.env`. Back up
 | Change | Must update |
 |---|---|
 | API request/response/error code | `docs/api_contract.md` |
+| Auth/account lifecycle | `docs/AUTH_FLOWS.md` |
 | Product or technical decision | `docs/DECISIONS.md` |
 | Schema/migration | `docs/B1_DATABASE_PLAN.md`, `docs/BUILD_LOG.md` |
 | Admin page/action/RBAC | `docs/ADMIN_WEB_IMPLEMENTATION.md` |

@@ -16,6 +16,8 @@ class _FakeAuthRepository extends AuthRepository {
   final Future<AuthSession> Function(String phone, String code)? onVerify;
   final Future<TokenPair> Function(String refreshToken)? onRefresh;
   int refreshCalls = 0;
+  int logoutCalls = 0;
+  String? lastLogoutToken;
 
   @override
   Future<OtpChallenge> requestOtp(String phone) => onRequest!(phone);
@@ -31,6 +33,13 @@ class _FakeAuthRepository extends AuthRepository {
   Future<TokenPair> refresh(String refreshToken) {
     refreshCalls++;
     return onRefresh!(refreshToken);
+  }
+
+  @override
+  Future<void> logout(String refreshToken) {
+    logoutCalls++;
+    lastLogoutToken = refreshToken;
+    return Future<void>.value();
   }
 }
 
@@ -198,19 +207,18 @@ void main() {
     expect(storage.token, isNull);
   });
 
-  test('signing out clears the session and the stored token', () async {
+  test('signing out revokes the refresh token and clears local storage',
+      () async {
     final storage = _MemoryTokenStorage();
-    final container = _container(
-      _FakeAuthRepository(
-        onRequest: (_) async => _challenge(),
-        onVerify: (phone, code) async => const AuthSession(
-          accessToken: 'test-token',
-          refreshToken: 'test-refresh',
-          profileComplete: false,
-        ),
+    final repo = _FakeAuthRepository(
+      onRequest: (_) async => _challenge(),
+      onVerify: (phone, code) async => const AuthSession(
+        accessToken: 'test-token',
+        refreshToken: 'test-refresh',
+        profileComplete: false,
       ),
-      storage,
     );
+    final container = _container(repo, storage);
     final notifier = container.read(authProvider.notifier);
 
     await notifier.requestOtp(_phone);
@@ -221,6 +229,8 @@ void main() {
     expect(container.read(authProvider).accessToken, isNull);
     expect(storage.token, isNull);
     expect(storage.refreshToken, isNull);
+    expect(repo.logoutCalls, 1);
+    expect(repo.lastLogoutToken, 'test-refresh');
   });
 
   test('restoring rotates the stored tokens and signs the merchant in',

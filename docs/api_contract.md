@@ -114,8 +114,13 @@ The app shows the code boxes and the resend countdown from these values.
 ## POST /api/v1/auth/otp/verify   (no login)
 Request:  { "phone": "+<dial code><national number>", "code": "<digits>" }
 Response: { "accessToken": "<JWT>", "refreshToken": "<token>",
-            "expiresInSeconds": <int>, "profileComplete": <true | false> }
+            "expiresInSeconds": <int>, "profileComplete": <true | false>,
+            "isNewUser": <true | false> }
 - profileComplete = false sends the merchant to business KYC; true goes Home.
+- isNewUser is true only when this verification created the account. A phone
+  number has one account; an existing number always signs in to it. The app
+  uses this for the “account created” / “welcome back” message, not for a
+  separate registration identity.
 - Wrong or expired codes must be 4xx (not 401) with an error code (below).
 - The app stores the refresh token in platform-secure storage (Keychain /
   Android Keystore) at sign-in. It is never kept in app state, logs or
@@ -172,6 +177,17 @@ Used from F5.3 (stay signed in). Refresh tokens rotate on every use.
   are terminal too: the app clears both stored tokens and asks for a code.
 - The app never retries the refresh request itself. The token is single-use, so
   replaying a request whose response was lost would be treated as reuse.
+
+## POST /api/v1/auth/logout   (no login; carries the refresh token)
+Request:  { "refreshToken": "<token>" }
+Response: 204 No Content
+- Revokes the refresh-token family for that device. Idempotent: an unknown,
+  expired or already-revoked token still returns 204 and reveals nothing.
+- The app calls this only on explicit **Sign out**. Locking the app or opening
+  it again with a stored session uses the local PIN/biometrics and does not
+  revoke the refresh token.
+- The sandbox facade does not implement this route yet; the app treats a 404 as
+  a best-effort failure and still clears the local session.
 
 ## GET /api/v1/me   (login required)
 {

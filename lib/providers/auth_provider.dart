@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crosspay_app/core/network/api_exception.dart';
 import 'package:crosspay_app/core/storage/token_storage.dart';
@@ -37,6 +39,7 @@ class AuthState {
     this.user,
     this.accessToken,
     this.profileComplete,
+    this.isNewUser,
     this.kycStatus,
     this.otpChallenge,
     this.errorKey,
@@ -57,6 +60,9 @@ class AuthState {
   /// Whether business KYC is done. Known once the code is verified.
   final bool? profileComplete;
 
+  /// True when the last OTP verification created a new account.
+  final bool? isNewUser;
+
   /// Set after the business details were submitted (verified or pending).
   final KycStatus? kycStatus;
   final OtpChallenge? otpChallenge;
@@ -72,6 +78,7 @@ class AuthState {
     UserProfile? user,
     String? accessToken,
     bool? profileComplete,
+    bool? isNewUser,
     KycStatus? kycStatus,
     OtpChallenge? otpChallenge,
     String? errorKey,
@@ -84,6 +91,7 @@ class AuthState {
       user: user ?? this.user,
       accessToken: accessToken ?? this.accessToken,
       profileComplete: profileComplete ?? this.profileComplete,
+      isNewUser: isNewUser ?? this.isNewUser,
       kycStatus: kycStatus ?? this.kycStatus,
       otpChallenge: otpChallenge ?? this.otpChallenge,
       errorKey: clearError ? null : (errorKey ?? this.errorKey),
@@ -279,6 +287,7 @@ class AuthNotifier extends Notifier<AuthState> {
         phone: phone,
         accessToken: session.accessToken,
         profileComplete: session.profileComplete,
+        isNewUser: session.isNewUser,
       );
       return true;
     } on ApiException catch (e) {
@@ -332,12 +341,31 @@ class AuthNotifier extends Notifier<AuthState> {
   void clearError() => state = state.copyWith(clearError: true);
 
   Future<void> signOut() async {
+    final storage = ref.read(tokenStorageProvider);
+    String? refreshToken;
+    try {
+      refreshToken = await storage.readRefreshToken();
+    } catch (_) {
+      refreshToken = null;
+    }
+
+    // Local-first: clear the device immediately, then ask the server to revoke
+    // the family in the background. An offline sign-out must still work.
     _sessionEpoch++;
     state = const AuthState();
     try {
-      await ref.read(tokenStorageProvider).delete();
+      await storage.delete();
     } catch (_) {
       // Nothing more to do if the device cannot clear it.
+    }
+
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      unawaited(
+        ref.read(authRepositoryProvider).logout(refreshToken).catchError((_) {
+          // The server-side token expires on its own if this best-effort
+          // revocation cannot be delivered.
+        }),
+      );
     }
   }
 }

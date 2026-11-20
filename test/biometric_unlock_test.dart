@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:crosspay_app/core/security/biometric_manager.dart';
+import 'package:crosspay_app/core/localization/app_localizations.dart';
+import 'package:crosspay_app/providers/localization_provider.dart';
+import 'package:crosspay_app/core/security/app_lock_provider.dart';
 import 'package:crosspay_app/core/security/pin_manager.dart';
 import 'package:crosspay_app/core/theme/app_theme.dart';
 import 'package:crosspay_app/features/account/screens/security_settings_screen.dart';
@@ -28,6 +31,12 @@ class _FakeBiometrics extends BiometricManager {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  late Map<String, AppLocalizations> translations;
+
+  setUpAll(() async {
+    translations = await AppLocalizations.loadAll();
+  });
 
   setUp(() {
     FlutterSecureStorage.setMockInitialValues(<String, String>{});
@@ -161,6 +170,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [translationsProvider.overrideWithValue(translations)],
         child: MaterialApp(
           theme: AppTheme.light,
           home: SecuritySettingsScreen(
@@ -200,6 +210,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [translationsProvider.overrideWithValue(translations)],
         child: MaterialApp(
           theme: AppTheme.light,
           home: SecuritySettingsScreen(
@@ -220,5 +231,39 @@ void main() {
     expect(biometricSwitch.onChanged, isNull);
 
     await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('Lock app now requests a shell lock without signing out',
+      (tester) async {
+    final pin = PinManager();
+    await pin.setPin('1234');
+    final biometrics = _FakeBiometrics(available: true, succeeds: true);
+    final container = ProviderContainer(
+      overrides: [translationsProvider.overrideWithValue(translations)],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: SecuritySettingsScreen(
+            pinManager: pin,
+            biometrics: biometrics,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Lock app now'));
+    await tester.pumpAndSettle();
+
+    // The lock request is separate from sign-out: the PIN and refresh
+    // preference remain, and the provider signals the shell to re-gate.
+    expect(container.read(appLockProvider), 1);
+    expect(await pin.hasPin(), true);
+    expect(await pin.hasBiometricUnlock(), false);
   });
 }

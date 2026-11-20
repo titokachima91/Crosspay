@@ -95,6 +95,7 @@ class AuthSession {
     required this.accessToken,
     required this.refreshToken,
     required this.profileComplete,
+    this.isNewUser = false,
   });
 
   final String accessToken;
@@ -105,6 +106,10 @@ class AuthSession {
 
   /// False for a new merchant who still has to complete business KYC.
   final bool profileComplete;
+
+  /// True when OTP verification created this account. Older servers omit it;
+  /// the app treats that as false and routes by [profileComplete].
+  final bool isNewUser;
 }
 
 /// A rotated token pair from `POST /auth/refresh`.

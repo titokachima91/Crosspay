@@ -113,11 +113,13 @@ describe('HTTP bootstrap, auth and recipients', () => {
       refreshToken: string;
       expiresInSeconds: number;
       profileComplete: boolean;
+      isNewUser: boolean;
     };
     assert.ok(session.accessToken);
     assert.ok(session.refreshToken);
     assert.equal(session.expiresInSeconds, 900);
     assert.equal(session.profileComplete, false);
+    assert.equal(session.isNewUser, true);
 
     const authorization = `Bearer ${session.accessToken}`;
     const beforeKyc = await app.inject({
@@ -415,5 +417,57 @@ describe('HTTP bootstrap, auth and recipients', () => {
         gateway.close((error) => (error ? reject(error) : resolve())),
       );
     }
+  });
+
+  it('revokes the refresh family on sign-out and is idempotent', async () => {
+    const phone = '+255755999778';
+    const requested = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/otp/request',
+      payload: { phone },
+    });
+    assert.equal(requested.statusCode, 200);
+    const code = sms.lastCode(phone);
+    assert.ok(code);
+    const verified = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/otp/verify',
+      payload: { phone, code },
+    });
+    assert.equal(verified.statusCode, 200);
+    const refreshToken = (verified.json() as { refreshToken: string }).refreshToken;
+    assert.ok(refreshToken);
+
+    const loggedOut = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/logout',
+      payload: { refreshToken },
+    });
+    assert.equal(loggedOut.statusCode, 204);
+
+    const refreshAfterLogout = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/refresh',
+      payload: { refreshToken },
+    });
+    assert.equal(refreshAfterLogout.statusCode, 401);
+    assert.equal(
+      (refreshAfterLogout.json() as { error: { code: string } }).error.code,
+      'REFRESH_TOKEN_REUSED',
+    );
+
+    const repeat = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/logout',
+      payload: { refreshToken },
+    });
+    assert.equal(repeat.statusCode, 204);
+
+    const unknown = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/logout',
+      payload: { refreshToken: 'not-a-real-token' },
+    });
+    assert.equal(unknown.statusCode, 204);
   });
 });

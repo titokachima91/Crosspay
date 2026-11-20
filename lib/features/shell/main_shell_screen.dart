@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crosspay_app/core/constants/app_colors.dart';
 import 'package:crosspay_app/core/constants/app_routes.dart';
+import 'package:crosspay_app/core/security/app_lock_provider.dart';
 import 'package:crosspay_app/core/security/pin_manager.dart';
 import 'package:crosspay_app/features/account/screens/account_tab_screen.dart';
 import 'package:crosspay_app/features/ledger/screens/transaction_history_screen.dart';
@@ -23,9 +24,11 @@ class MainShellScreen extends ConsumerStatefulWidget {
   ConsumerState<MainShellScreen> createState() => _MainShellScreenState();
 }
 
-class _MainShellScreenState extends ConsumerState<MainShellScreen> {
+class _MainShellScreenState extends ConsumerState<MainShellScreen>
+    with WidgetsBindingObserver {
   int _index = 0;
   bool _gated = false;
+  bool _gateRunning = false;
   bool _visible = false;
   Timer? _bannerTimer;
   String _bannerSignature = '';
@@ -33,13 +36,27 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _gate());
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _bannerTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
+    if (state == AppLifecycleState.paused && _visible) {
+      // Never leave the tabs visible in the app switcher. The session stays;
+      // the gate runs again when the app resumes.
+      setState(() => _visible = false);
+    } else if (state == AppLifecycleState.resumed && !_visible) {
+      _gate(force: true);
+    }
   }
 
   /// Rebuild when a published banner window opens or closes while the shell
@@ -70,11 +87,13 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
     );
   }
 
-  /// F5.3 — app-lock gate. Runs once per shell mount: when a PIN is
-  /// set the person must enter it before the tabs become usable.
-  /// Cancel pops back to the previous screen (never traps in a loop).
-  Future<void> _gate() async {
-    if (_gated) return;
+  /// F5.3 — app-lock gate. Runs on shell mount, when the app resumes, and when
+  /// the person taps "Lock app now". The session is untouched: biometrics/PIN
+  /// only hide and reveal the signed-in surface. Sign-out is separate.
+  Future<void> _gate({bool force = false}) async {
+    if (_gateRunning) return;
+    if (!force && _gated) return;
+    _gateRunning = true;
     _gated = true;
     bool unlocked;
     try {
@@ -90,13 +109,26 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
       // stays with the server (refresh tokens, timeouts).
       unlocked = true;
     }
-    if (!mounted) return;
-    if (unlocked) {
-      setState(() => _visible = true);
-    } else {
-      // Cancelled the PIN prompt: leave the shell.
-      Navigator.of(context).pop();
+    if (!mounted) {
+      _gateRunning = false;
+      return;
     }
+    setState(() => _visible = unlocked);
+    _gateRunning = false;
+  }
+
+  Future<void> _switchAccountFromLock() async {
+    try {
+      await PinManager().clear();
+    } catch (_) {
+      // The session still ends if the local lock cannot be cleared.
+    }
+    await ref.read(authProvider.notifier).signOut();
+    if (!mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      AppRoutes.splash,
+      (route) => false,
+    );
   }
 
   @override
@@ -113,6 +145,14 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
     });
 
     final config = ref.watch(appConfigProvider).config;
+    ref.listen<int>(appLockProvider, (previous, next) {
+      if (previous != null && next > previous) {
+        setState(() => _visible = false);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _gate(force: true);
+        });
+      }
+    });
     final service = config.service;
     final now = DateTime.now();
     final banners = [
@@ -126,8 +166,10 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
       body: SafeArea(
         bottom: false,
         child: !_visible
-            ? const Center(
-                child: CircularProgressIndicator(color: AppColors.emerald))
+            ? _LockedView(
+                onUnlock: () => _gate(force: true),
+                onSwitchAccount: _switchAccountFromLock,
+              )
             : Column(
                 children: [
                   if ((service != null && service.isActive) ||
@@ -160,6 +202,65 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
       bottomNavigationBar: PersistentBottomNav(
         currentIndex: _index,
         onSelected: (index) => setState(() => _index = index),
+      ),
+    );
+  }
+}
+
+class _LockedView extends StatelessWidget {
+  const _LockedView({required this.onUnlock, required this.onSwitchAccount});
+
+  final VoidCallback onUnlock;
+  final VoidCallback onSwitchAccount;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.lock_outline, size: 56, color: scheme.primary),
+              const SizedBox(height: 16),
+              Text(
+                'App locked',
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Use your fingerprint, face or PIN to continue. Your session '
+                'is still signed in; OTP is only needed for a new sign-in.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton.icon(
+                  onPressed: onUnlock,
+                  icon: const Icon(Icons.fingerprint),
+                  label: const Text('Unlock'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: onSwitchAccount,
+                child: const Text('Sign in with a different account'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

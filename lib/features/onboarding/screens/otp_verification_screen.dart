@@ -5,6 +5,7 @@ import 'package:crosspay_app/core/constants/app_colors.dart';
 import 'package:crosspay_app/core/constants/app_routes.dart';
 import 'package:crosspay_app/core/utils/duration_format.dart';
 import 'package:crosspay_app/core/utils/phone_utils.dart';
+import 'package:crosspay_app/features/onboarding/auth_entry_mode.dart';
 import 'package:crosspay_app/features/onboarding/widgets/pin_code_input_field.dart';
 import 'package:crosspay_app/providers/auth_provider.dart';
 import 'package:crosspay_app/providers/config_provider.dart';
@@ -25,6 +26,10 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
   final FocusNode _focusNode = FocusNode();
   Timer? _timer;
   Duration _untilResend = Duration.zero;
+
+  AuthEntryMode get _mode => AuthEntryMode.fromArguments(
+        ModalRoute.of(context)?.settings.arguments,
+      );
 
   @override
   void initState() {
@@ -78,7 +83,20 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
     if (!mounted) return;
 
     if (verified) {
-      final complete = ref.read(authProvider).profileComplete ?? false;
+      final auth = ref.read(authProvider);
+      final complete = auth.profileComplete ?? false;
+      final messenger = ScaffoldMessenger.of(context);
+      if (auth.isNewUser == true && _mode == AuthEntryMode.signIn) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(ref.tr('otp.new_account'))),
+        );
+      } else if (auth.isNewUser != true &&
+          complete &&
+          _mode == AuthEntryMode.createAccount) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(ref.tr('otp.existing_account'))),
+        );
+      }
       Navigator.of(context).pushNamedAndRemoveUntil(
         complete ? AppRoutes.home : AppRoutes.kyc,
         (route) => false,
@@ -163,8 +181,8 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                         Text(
                           ref.tr('otp.subtitle', params: {
                             'length': '${challenge.codeLength}',
-                            'phone':
-                                PhoneUtils.formatInternational(phone, countries),
+                            'phone': PhoneUtils.formatInternational(
+                                phone, countries),
                           }),
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
@@ -192,6 +210,14 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                                   onPressed: busy ? null : _resend,
                                   child: Text(ref.tr('otp.resend')),
                                 ),
+                        ),
+                        const SizedBox(height: 4),
+                        Center(
+                          child: TextButton(
+                            onPressed:
+                                busy ? null : () => Navigator.of(context).pop(),
+                            child: Text(ref.tr('otp.use_different_number')),
+                          ),
                         ),
                         if (auth.errorKey != null) ...[
                           const SizedBox(height: 16),

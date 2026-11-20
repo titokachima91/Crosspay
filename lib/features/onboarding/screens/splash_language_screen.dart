@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crosspay_app/core/constants/app_colors.dart';
 import 'package:crosspay_app/core/constants/app_constants.dart';
 import 'package:crosspay_app/core/constants/app_routes.dart';
+import 'package:crosspay_app/core/storage/token_storage.dart';
+import 'package:crosspay_app/features/onboarding/auth_entry_mode.dart';
 import 'package:crosspay_app/features/onboarding/widgets/corridor_health_card.dart';
 import 'package:crosspay_app/providers/auth_provider.dart';
 import 'package:crosspay_app/providers/config_provider.dart';
@@ -21,10 +23,33 @@ class SplashLanguageScreen extends ConsumerStatefulWidget {
 }
 
 class _SplashLanguageScreenState extends ConsumerState<SplashLanguageScreen> {
+  bool _checkingSession = true;
+  bool _hasStoredSession = false;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initialize());
+  }
+
+  Future<void> _initialize() async {
+    try {
+      final token = await ref.read(tokenStorageProvider).readRefreshToken();
+      _hasStoredSession = token != null && token.isNotEmpty;
+    } catch (_) {
+      _hasStoredSession = false;
+    }
+    if (!mounted) return;
+    await _load();
+  }
+
+  Future<bool> _storedSessionExists() async {
+    try {
+      final token = await ref.read(tokenStorageProvider).readRefreshToken();
+      return token != null && token.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _load() async {
@@ -43,16 +68,24 @@ class _SplashLanguageScreenState extends ConsumerState<SplashLanguageScreen> {
             AppRoutes.home,
             (route) => false,
           );
+          return;
         case SessionRestore.profileIncomplete:
           Navigator.of(context).pushNamedAndRemoveUntil(
             AppRoutes.kyc,
             (route) => false,
           );
+          return;
         case SessionRestore.noSession:
         case SessionRestore.unavailable:
           break;
       }
     }
+    final stored = await _storedSessionExists();
+    if (!mounted) return;
+    setState(() {
+      _hasStoredSession = stored;
+      _checkingSession = false;
+    });
   }
 
   @override
@@ -101,11 +134,58 @@ class _SplashLanguageScreenState extends ConsumerState<SplashLanguageScreen> {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                  child: CustomButton(
-                    label: ref.tr('common.get_started'),
-                    onPressed: () =>
-                        Navigator.of(context).pushNamed(AppRoutes.phone),
-                  ),
+                  child: _checkingSession
+                      ? const SizedBox(
+                          height: 52,
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      : _hasStoredSession
+                          ? Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CustomButton(
+                                  label: ref.tr('splash.continue'),
+                                  onPressed: _load,
+                                  accent: true,
+                                ),
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).pushNamed(
+                                    AppRoutes.phone,
+                                    arguments: {
+                                      'mode': AuthEntryMode.signIn.name,
+                                    },
+                                  ),
+                                  child: Text(ref.tr('splash.sign_in_code')),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CustomButton(
+                                  label: ref.tr('splash.sign_in'),
+                                  onPressed: () =>
+                                      Navigator.of(context).pushNamed(
+                                    AppRoutes.phone,
+                                    arguments: {
+                                      'mode': AuthEntryMode.signIn.name,
+                                    },
+                                  ),
+                                  accent: true,
+                                ),
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).pushNamed(
+                                    AppRoutes.phone,
+                                    arguments: {
+                                      'mode': AuthEntryMode.createAccount.name,
+                                    },
+                                  ),
+                                  child: Text(ref.tr('splash.create_account')),
+                                ),
+                              ],
+                            ),
                 ),
               ],
             ),

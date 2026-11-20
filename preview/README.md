@@ -7,7 +7,7 @@ you can walk the whole flow without a server. Every screen shows a yellow
 "PREVIEW" strip. All simulated values live in this folder only.
 
 Walkthrough
-- Splash: simulated corridors appear. Tap "Get started".
+- Splash: simulated corridors appear. Tap "Create account".
 - Phone: any 9 digits. Starting with 71 to 74 shows "Preview Network A".
 - Code: 1234 works; anything else shows the wrong-code message.
 - Identity: try Personal and Business. An ID containing "bad" is rejected,

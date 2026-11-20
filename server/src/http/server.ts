@@ -39,6 +39,7 @@ const PUBLIC_PATHS = new Set([
   '/api/v1/auth/otp/request',
   '/api/v1/auth/otp/verify',
   '/api/v1/auth/refresh',
+  '/api/v1/auth/logout',
   '/api/v1/trades/export/download',
   '/admin',
 ]);

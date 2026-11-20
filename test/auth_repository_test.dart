@@ -48,7 +48,7 @@ void main() {
   test('verifying sends phone and code and reads the session', () async {
     final adapter = _BodyAdapter(
       '{"accessToken": "test-token", "refreshToken": "refresh-token", '
-      '"expiresInSeconds": 900, "profileComplete": false}',
+      '"expiresInSeconds": 900, "profileComplete": false, "isNewUser": true}',
     );
 
     final session = await _repoFor(adapter).verifyOtp(
@@ -60,6 +60,7 @@ void main() {
     expect(session.accessToken, 'test-token');
     expect(session.refreshToken, 'refresh-token');
     expect(session.profileComplete, false);
+    expect(session.isNewUser, true);
   });
 
   test('refresh sends the token once and reads the rotated pair', () async {

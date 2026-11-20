@@ -59,12 +59,12 @@ The command prints the TOTP secret and recovery codes once. Store them offline.
 ```bash
 cd server
 npm run typecheck
-npm test                     # 122 tests, 21 suites
+npm test                     # 123 tests, 21 suites
 npm run build
 
 cd ..
 flutter analyze
-flutter test                 # 236 passed, 1 skipped (opt-in live sandbox)
+flutter test                 # 237 passed, 1 skipped (opt-in live sandbox)
 flutter build web --release -t preview/main.dart
 flutter build apk --debug
 ```
@@ -84,13 +84,13 @@ SQLite database when the main instance is configured for real SMS.
 ## Android biometric smoke test
 
 The sideload build is
-`~/Desktop/Projects/CrossPay/CrossPay-debug-biometrics-devotp-2026-11-20.apk`.
+`~/Desktop/Projects/CrossPay/CrossPay-debug-authflow-2026-11-20.apk`.
 It was compiled with `API_BASE_URL=http://192.168.1.3:8081`, the dev-OTP sandbox
 that shares the normal sandbox database. If the Mac's LAN address changes,
 rebuild with the current address (see the runbook).
 
 ```bash
-adb install -r ~/Desktop/Projects/CrossPay/CrossPay-debug-biometrics-devotp-2026-11-20.apk
+adb install -r ~/Desktop/Projects/CrossPay/CrossPay-debug-authflow-2026-11-20.apk
 ```
 
 1. Sign in and open **Account → Security**.
@@ -118,6 +118,8 @@ installed.
   retried.
 - The app lock is a local PIN with an optional biometric preference. Biometrics
   are off until the person enables them; the PIN is always the fallback.
+  Locking (or backgrounding) keeps the session and unlocks with biometrics/PIN.
+  Signing out revokes the refresh-token family and requires a new OTP.
 - Admin access is named accounts with TOTP/recovery codes, CSRF, RBAC, audit and
   an append-only activity outbox. The portal never edits journals, marks money
   paid or reveals PII without a reason.
@@ -132,6 +134,7 @@ entrypoints, health checks, worker heartbeat and backup/restore commands.
 ## Documentation
 
 - `docs/RUNBOOK.md` — ports, sandbox OTP modes, builds, recovery and database ops
+- `docs/AUTH_FLOWS.md` — one-phone-one-account, lock/sign-out/switch and deletion
 - `docs/api_contract.md` — exact app/API shapes and error codes
 - `docs/DECISIONS.md` — settled product and technical decisions
 - `docs/BUILD_LOG.md` — append-only record of what was built and verified
