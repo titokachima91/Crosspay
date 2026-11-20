@@ -59,7 +59,7 @@ The command prints the TOTP secret and recovery codes once. Store them offline.
 ```bash
 cd server
 npm run typecheck
-npm test                     # 123 tests, 21 suites
+npm test                     # 125 tests, 21 suites
 npm run build
 
 cd ..
@@ -115,7 +115,8 @@ installed.
   cash. Partner accounts are settlement, clearing, trust and operating accounts.
 - Access tokens are short-lived; rotating refresh tokens live only in Keychain
   or Android Keystore-backed storage. Refreshes are single-flight and never
-  retried.
+  retried. Only one session is active per account: a new OTP sign-in revokes
+  the old family and its access token with `SESSION_REVOKED`.
 - The app lock is a local PIN with an optional biometric preference. Biometrics
   are off until the person enables them; the PIN is always the fallback.
   Locking (or backgrounding) keeps the session and unlocks with biometrics/PIN.

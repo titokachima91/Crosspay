@@ -30,6 +30,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
   bool _gated = false;
   bool _gateRunning = false;
   bool _visible = false;
+  bool _lockError = false;
   Timer? _bannerTimer;
   String _bannerSignature = '';
 
@@ -95,6 +96,9 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
     if (!force && _gated) return;
     _gateRunning = true;
     _gated = true;
+    if (_lockError) {
+      setState(() => _lockError = false);
+    }
     bool unlocked;
     try {
       unlocked = await PinManager().ensureUnlocked(
@@ -103,17 +107,27 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
             ref.read(localizationProvider).t('security.biometric_reason'),
       );
     } catch (e) {
-      // Secure storage unavailable (tests, broken keystore): fail
-      // open so a storage error never locks the person out of their
-      // own device. PIN guards app surface only; session security
-      // stays with the server (refresh tokens, timeouts).
-      unlocked = true;
+      // A broken secure-storage/keystore state must not silently open a
+      // money app. Stay on the locked screen and offer retry or sign-out.
+      if (!mounted) {
+        _gateRunning = false;
+        return;
+      }
+      setState(() {
+        _visible = false;
+        _lockError = true;
+      });
+      _gateRunning = false;
+      return;
     }
     if (!mounted) {
       _gateRunning = false;
       return;
     }
-    setState(() => _visible = unlocked);
+    setState(() {
+      _visible = unlocked;
+      _lockError = false;
+    });
     _gateRunning = false;
   }
 
@@ -169,6 +183,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
             ? _LockedView(
                 onUnlock: () => _gate(force: true),
                 onSwitchAccount: _switchAccountFromLock,
+                lockError: _lockError,
               )
             : Column(
                 children: [
@@ -208,10 +223,15 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
 }
 
 class _LockedView extends StatelessWidget {
-  const _LockedView({required this.onUnlock, required this.onSwitchAccount});
+  const _LockedView({
+    required this.onUnlock,
+    required this.onSwitchAccount,
+    this.lockError = false,
+  });
 
   final VoidCallback onUnlock;
   final VoidCallback onSwitchAccount;
+  final bool lockError;
 
   @override
   Widget build(BuildContext context) {
@@ -224,10 +244,14 @@ class _LockedView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.lock_outline, size: 56, color: scheme.primary),
+              Icon(
+                lockError ? Icons.lock_person_outlined : Icons.lock_outline,
+                size: 56,
+                color: lockError ? scheme.error : scheme.primary,
+              ),
               const SizedBox(height: 16),
               Text(
-                'App locked',
+                lockError ? 'App lock unavailable' : 'App locked',
                 style: Theme.of(context)
                     .textTheme
                     .headlineSmall
@@ -235,8 +259,13 @@ class _LockedView extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Use your fingerprint, face or PIN to continue. Your session '
-                'is still signed in; OTP is only needed for a new sign-in.',
+                lockError
+                    ? 'The device lock could not be checked, so the app stayed '
+                        'closed. Try again, or sign in with a different account '
+                        'using OTP.'
+                    : 'Use your fingerprint, face or PIN to continue. Your '
+                        'session is still signed in; OTP is only needed for a '
+                        'new sign-in.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context)
                     .textTheme
@@ -250,7 +279,7 @@ class _LockedView extends StatelessWidget {
                 child: ElevatedButton.icon(
                   onPressed: onUnlock,
                   icon: const Icon(Icons.fingerprint),
-                  label: const Text('Unlock'),
+                  label: Text(lockError ? 'Try again' : 'Unlock'),
                 ),
               ),
               const SizedBox(height: 8),

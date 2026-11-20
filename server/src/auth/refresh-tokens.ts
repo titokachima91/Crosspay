@@ -83,6 +83,27 @@ export async function revokeRefreshFamily(
 }
 
 /**
+ * Enforces one active session per account after a new sign-in. The family that
+ * just issued the new session is kept; every other unrevoked family is revoked.
+ * The old device keeps only its short-lived access token until it expires, then
+ * its refresh fails and it signs out.
+ */
+export async function revokeOtherRefreshFamilies(
+  client: PoolClient,
+  input: { userId: string; keepFamilyId: string; now?: Date },
+): Promise<number> {
+  const result = await client.query(
+    `UPDATE refresh_tokens
+     SET revoked_at = $3
+     WHERE user_id = $1
+       AND family_id <> $2
+       AND revoked_at IS NULL`,
+    [input.userId, input.keepFamilyId, input.now ?? new Date()],
+  );
+  return result.rowCount ?? 0;
+}
+
+/**
  * Rotates a refresh token. A token may be used once. Reusing the previous
  * token revokes the entire family and returns `state: 'reused'`; the caller
  * MUST commit the transaction and answer 401. Invalid or expired tokens throw

@@ -8,6 +8,7 @@ import {
   issueRefreshToken,
   RefreshTokenExpiredError,
   RefreshTokenInvalidError,
+  revokeOtherRefreshFamilies,
   revokeRefreshFamily,
   rotateRefreshToken,
 } from '../../auth/refresh-tokens.js';
@@ -142,11 +143,24 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
         crypto: ctx.crypto,
         ttlSeconds: ctx.refreshTokenTtlSeconds,
       });
+      // One active session per account: a new sign-in signs out every other
+      // device by revoking its refresh family.
+      await revokeOtherRefreshFamilies(client, {
+        userId: user.id,
+        keepFamilyId: refresh.familyId,
+      });
+      const epoch = await client.query<{ auth_epoch: number }>(
+        `UPDATE users SET auth_epoch = auth_epoch + 1
+         WHERE id = $1
+         RETURNING auth_epoch`,
+        [user.id],
+      );
       return {
         kind: 'ok' as const,
         user,
         refresh,
         isNewUser: account.created,
+        sessionEpoch: Number(epoch.rows[0]?.auth_epoch ?? 0),
       };
     });
 
@@ -167,6 +181,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
 
     const accessToken = await signAccessToken({
       userId: result.user.id,
+      sessionEpoch: result.sessionEpoch,
       secret: ctx.jwtSecret,
       ttlSeconds: ctx.accessTokenTtlSeconds,
     });
@@ -224,8 +239,18 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
       );
     }
 
+    const epoch = await ctx.pool.query<{ auth_epoch: number }>(
+      `SELECT auth_epoch FROM users WHERE id = $1 AND deleted_at IS NULL`,
+      [result.userId],
+    );
+    const authEpoch = epoch.rows[0]?.auth_epoch;
+    if (authEpoch === undefined) {
+      throw unauthorized('USER_NOT_FOUND', 'The signed-in account no longer exists');
+    }
+
     const accessToken = await signAccessToken({
       userId: result.userId,
+      sessionEpoch: Number(authEpoch),
       secret: ctx.jwtSecret,
       ttlSeconds: ctx.accessTokenTtlSeconds,
     });

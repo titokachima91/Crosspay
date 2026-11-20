@@ -121,6 +121,10 @@ Response: { "accessToken": "<JWT>", "refreshToken": "<token>",
   number has one account; an existing number always signs in to it. The app
   uses this for the “account created” / “welcome back” message, not for a
   separate registration identity.
+- A successful verification revokes every other refresh-token family for the
+  account, so only one session is active at a time. The user's auth epoch is
+  incremented and carried by access tokens; an older access token is rejected
+  with `401 SESSION_REVOKED`. The old device must sign in again with OTP.
 - Wrong or expired codes must be 4xx (not 401) with an error code (below).
 - The app stores the refresh token in platform-secure storage (Keychain /
   Android Keystore) at sign-in. It is never kept in app state, logs or
@@ -136,6 +140,7 @@ IDEMPOTENCY_KEY_REQUIRED, IDEMPOTENCY_KEY_REUSED, IDEMPOTENCY_IN_PROGRESS,
 BENEFICIARY_EXISTS, BENEFICIARY_NOT_FOUND, INVALID_RAIL, INVALID_ACCOUNT,
 KYC_ALREADY_SUBMITTED, KYC_ALREADY_VERIFIED, ID_NUMBER_ALREADY_USED,
 REFRESH_TOKEN_INVALID, REFRESH_TOKEN_EXPIRED, REFRESH_TOKEN_REUSED,
+SESSION_REVOKED,
 SMS_NOT_CONFIGURED, PRICING_NOT_CONFIGURED, MARKET_DATA_NOT_CONFIGURED,
 TRADING_NOT_CONFIGURED, NAME_CHECK_NOT_CONFIGURED.
 A `503` with a `*_NOT_CONFIGURED` code means the server is reachable but that

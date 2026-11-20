@@ -40,6 +40,7 @@ class _SecuritySettingsScreenState
   bool _biometricsAvailable = false;
   bool _biometricEnabled = false;
   bool _checking = true;
+  bool _lockError = false;
 
   @override
   void initState() {
@@ -48,16 +49,26 @@ class _SecuritySettingsScreenState
   }
 
   Future<void> _load() async {
-    final has = await _pin.hasPin();
-    final available = await _biometrics.isAvailable();
-    final enabled = has && available ? await _pin.hasBiometricUnlock() : false;
-    if (!mounted) return;
-    setState(() {
-      _hasPin = has;
-      _biometricsAvailable = available;
-      _biometricEnabled = enabled;
-      _checking = false;
-    });
+    try {
+      final has = await _pin.hasPin();
+      final available = await _biometrics.isAvailable();
+      final enabled =
+          has && available ? await _pin.hasBiometricUnlock() : false;
+      if (!mounted) return;
+      setState(() {
+        _hasPin = has;
+        _biometricsAvailable = available;
+        _biometricEnabled = enabled;
+        _checking = false;
+        _lockError = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _checking = false;
+        _lockError = true;
+      });
+    }
   }
 
   Future<void> _onPinToggle(bool enabled) async {
@@ -290,9 +301,31 @@ class _SecuritySettingsScreenState
                           ? 'Checking…'
                           : (_hasPin ? 'On — asked when the app opens' : 'Off'),
                       value: _hasPin && !_checking,
-                      enabled: !_checking,
+                      enabled: !_checking && !_lockError,
                       onChanged: _onPinToggle,
                     ),
+                    if (_lockError)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'The device lock could not be read. The app '
+                              'stays locked; retry before changing it.',
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                                fontSize: 13,
+                                height: 1.4,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: _load,
+                              child: const Text('Try again'),
+                            ),
+                          ],
+                        ),
+                      ),
                     Divider(
                       height: 1,
                       color: Theme.of(context).colorScheme.outlineVariant,
@@ -312,7 +345,10 @@ class _SecuritySettingsScreenState
                           _hasPin &&
                           _biometricsAvailable &&
                           !_checking,
-                      enabled: !_checking && _hasPin && _biometricsAvailable,
+                      enabled: !_checking &&
+                          !_lockError &&
+                          _hasPin &&
+                          _biometricsAvailable,
                       onChanged: _onBiometricToggle,
                     ),
                     if (_biometricsAvailable && _hasPin)

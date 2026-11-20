@@ -1159,10 +1159,34 @@ Verification pending: final Flutter/Node suites, web/APK rebuild and re-serve.
   the server restart). Final sideload artifact:
   `~/Desktop/Projects/CrossPay/CrossPay-debug-authflow-2026-11-20.apk`
   (203 MB, SHA-256
-  `53eb0d4ffd0c155a869612bf46e2df30a0a2d64611b0e1e9f00ae51819811c47`).
+  `18a8db1c3d0617f04efe627f120f9eb0a8b952b973f1787a43baecc7eaa78a2e`).
 - The served APK on the local file server was replaced with this build; the
   previous biometric/dev-OTP file is no longer served.
 - Web release build refreshed on this commit: **Built build/web**.
+
+---
+
+## 2026-11-20 - one active session per account
+
+- A new OTP sign-in now revokes every other refresh-token family for that
+  account. Migration `0023_auth_epoch.sql` adds `users.auth_epoch`; access
+  tokens carry the epoch and the auth hook rejects a stale epoch with
+  `401 SESSION_REVOKED`. The old device must sign in again with OTP.
+- The sandbox facade received the same rule: `session_epoch` on
+  `sandbox_facade_users`, refresh-family revocation on OTP verify, epoch checks
+  in `facade-auth`, and the missing `POST /api/v1/auth/logout` route. Verified
+  on the isolated `:8081` instance with two sign-ins: old access `401
+  SESSION_REVOKED`, old refresh `401 REFRESH_TOKEN_REUSED`, new access works.
+  Files touched there were backed up under `.auth-backups/`; no GasLink/SMS/AI
+  files or data were modified.
+- App-lock gate now **fails closed** if secure storage/keystore cannot be
+  checked; it shows "App lock unavailable" with retry/switch-account instead of
+  silently opening. Security settings has the same error state.
+- Note: Sign out/switch clears the local PIN/biometric by design. To test the
+  lock, set the PIN/biometric after signing in, then use **Lock app now** or
+  background the app; do not sign out first.
+- Verification: Node **125/125**, 21 suites; Flutter **237 passed, 1 skipped**;
+  analyzer/typecheck clean.
 
 ---
 

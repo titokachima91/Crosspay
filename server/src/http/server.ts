@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import cors from '@fastify/cors';
 import type { AppContext } from './context.js';
-import { AppError } from './errors.js';
+import { AppError, unauthorized } from './errors.js';
 import { bearerToken, verifyAccessToken } from './auth.js';
 import {
   IdempotencyInProgressError,
@@ -99,7 +99,18 @@ export async function buildServer(
     if (path.startsWith('/api/v1/admin/')) return;
 
     const token = bearerToken(request);
-    const { userId } = await verifyAccessToken(token, ctx.jwtSecret);
+    const { userId, sessionEpoch } = await verifyAccessToken(token, ctx.jwtSecret);
+    const session = await ctx.pool.query<{ auth_epoch: number }>(
+      `SELECT auth_epoch FROM users WHERE id = $1 AND deleted_at IS NULL`,
+      [userId],
+    );
+    const currentEpoch = session.rows[0]?.auth_epoch;
+    if (currentEpoch === undefined || Number(currentEpoch) !== sessionEpoch) {
+      throw unauthorized(
+        'SESSION_REVOKED',
+        'This session was replaced by a newer sign-in',
+      );
+    }
     request.userId = userId;
   });
 

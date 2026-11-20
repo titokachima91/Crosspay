@@ -8,6 +8,8 @@ export const EXPORT_AUDIENCE = 'crosspay-export';
 
 export interface AccessTokenInput {
   userId: string;
+  /** Defaults to 0 for legacy/test callers; real sign-in always supplies it. */
+  sessionEpoch?: number;
   secret: Uint8Array;
   ttlSeconds?: number;
   now?: Date;
@@ -16,7 +18,7 @@ export interface AccessTokenInput {
 export async function signAccessToken(input: AccessTokenInput): Promise<string> {
   const nowSeconds = Math.floor((input.now ?? new Date()).getTime() / 1000);
   const ttlSeconds = input.ttlSeconds ?? 900;
-  return new SignJWT({})
+  return new SignJWT({ epoch: input.sessionEpoch ?? 0 })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setSubject(input.userId)
     .setIssuer(JWT_ISSUER)
@@ -29,7 +31,7 @@ export async function signAccessToken(input: AccessTokenInput): Promise<string> 
 export async function verifyAccessToken(
   token: string,
   secret: Uint8Array,
-): Promise<{ userId: string }> {
+): Promise<{ userId: string; sessionEpoch: number }> {
   try {
     const result = await jwtVerify(token, secret, {
       issuer: JWT_ISSUER,
@@ -38,7 +40,12 @@ export async function verifyAccessToken(
     });
     const userId = result.payload.sub;
     if (!userId) throw unauthorized();
-    return { userId };
+    const rawEpoch = result.payload['epoch'];
+    const sessionEpoch =
+      typeof rawEpoch === 'number' && Number.isInteger(rawEpoch) && rawEpoch >= 0
+        ? rawEpoch
+        : 0;
+    return { userId, sessionEpoch };
   } catch (error) {
     if (error instanceof Error && error.name === 'AppError') throw error;
     throw unauthorized();

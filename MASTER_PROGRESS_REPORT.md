@@ -381,7 +381,7 @@ The CrossPay API does not initiate or pay yet; that is B2.3/B2.4.
 | Android debug APK build | **Built app-debug.apk** | 2026-11-20 |
 | CrossPay API `typecheck` | **clean** | 2026-11-20 |
 | CrossPay API `build` | **clean** | 2026-11-20 |
-| CrossPay API tests | **123/123, 21 suites** | 2026-11-20 |
+| CrossPay API tests | **125/125, 21 suites** | 2026-11-20 |
 | Sandbox tests | **37/37** (14 facade + 9 simulator + 10 customers + 4 real-SMS) | 2026-11-15 |
 | B2.0 snapshot restore | `npm ci` + typecheck + build + **36/36** | 2026-11-15 |
 | B2.2 snapshot restore | `npm ci` + typecheck + build + **42/42** | 2026-11-15 |
@@ -553,6 +553,9 @@ Completed:
 - One-phone-one-account auth flow: Sign in / Create account entry, `isNewUser`,
   use-a-different-number, switch account clearing the local lock, and the
   reserved-phone deleted-account policy (`docs/AUTH_FLOWS.md`).
+- One active session per account: a new OTP sign-in revokes other refresh
+  families and increments the access-token epoch (`SESSION_REVOKED`); the
+  sandbox facade mirrors it and now implements logout.
 - Verified snapshots of both projects.
 
 Next, in order:

@@ -463,6 +463,7 @@ Admin credentials are not stored in this repository.
 | Migration checksum error | An applied migration was edited | Restore the original file, add a new migration |
 | `EADDRINUSE` | Another process on the port | `lsof -nP -iTCP:<port> -sTCP:LISTEN` |
 | Refresh token rejected | Rotation reuse/expiry | Sign in again; expected terminal path |
+| `SESSION_REVOKED` on a device | A newer OTP sign-in replaced this session (one active session per account) | Sign in again with OTP; this is expected |
 | APK installs old build | Browser/Android cache | Uninstall, use `adb install -r`, rename the file |
 | Live sandbox test fails at OTP | Real-SMS sandbox | Use dev-OTP instance and matching key |
 | Admin layout/SSE stalls | Buffering proxy | Disable proxy buffering for SSE |

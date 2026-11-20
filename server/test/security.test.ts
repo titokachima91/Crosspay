@@ -10,6 +10,7 @@ import {
   issueRefreshToken,
   RefreshTokenExpiredError,
   RefreshTokenInvalidError,
+  revokeOtherRefreshFamilies,
   rotateRefreshToken,
 } from '../src/auth/refresh-tokens.js';
 
@@ -287,6 +288,37 @@ describe('one-time codes and refresh-token rotation', () => {
     );
     assert.equal(Number(family.rows[0]?.['total']), 2);
     assert.equal(Number(family.rows[0]?.['revoked']), 2);
+  });
+
+  it('keeps only the newest refresh family for an account', async () => {
+    const crypto = new CryptoBox(randomBytes(32));
+    const user = await createUser(db.pool);
+
+    const first = await withTransaction(db.pool, (client) =>
+      issueRefreshToken(client, { userId: user, crypto }),
+    );
+    const second = await withTransaction(db.pool, (client) =>
+      issueRefreshToken(client, { userId: user, crypto }),
+    );
+    assert.notEqual(first.familyId, second.familyId);
+
+    const revoked = await withTransaction(db.pool, (client) =>
+      revokeOtherRefreshFamilies(client, {
+        userId: user,
+        keepFamilyId: second.familyId,
+      }),
+    );
+    assert.equal(revoked, 1);
+
+    const oldFamily = await withTransaction(db.pool, (client) =>
+      rotateRefreshToken(client, { token: first.token, crypto }),
+    );
+    assert.equal(oldFamily.state, 'reused');
+
+    const current = await withTransaction(db.pool, (client) =>
+      rotateRefreshToken(client, { token: second.token, crypto }),
+    );
+    assert.equal(current.state, 'rotated');
   });
 
   it('rejects unknown and expired refresh tokens', async () => {

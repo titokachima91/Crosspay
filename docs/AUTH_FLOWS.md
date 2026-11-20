@@ -87,8 +87,11 @@ deleted account already blocks automatic re-registration and returns
 5. Return to the start screen, where Sign in is available.
 6. Require OTP for the other phone.
 
-The server supports multiple sessions on different devices; switching on one
-device revokes only that device's family.
+The server allows **one active session per account**. A successful OTP login on
+any device revokes every other refresh-token family and increments the account
+auth epoch, so the previous access token is rejected immediately with
+`SESSION_REVOKED`; the old device must sign in again with OTP. Sign-out/switch
+revokes the current family.
 
 ## Account loss protections
 

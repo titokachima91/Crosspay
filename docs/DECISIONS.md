@@ -334,6 +334,10 @@ Scheduled banners, invoices, sessions and live activity
   identity and no duplicate account on the same phone. The verify response
   carries `isNewUser` for the UI message; routing still follows
   `profileComplete`.
+- **One active session per account.** A new OTP sign-in revokes every other
+  refresh-token family and increments `users.auth_epoch`; access tokens carry
+  the epoch and the API rejects an older one with `SESSION_REVOKED`. The old
+  device must sign in again. This is the same rule in the sandbox facade.
 - "Sign in" and "Create account" are entry labels, not two identity systems.
   A valid OTP on a new number creates the account; an existing number always
   resumes its own account.

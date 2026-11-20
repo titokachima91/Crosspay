@@ -13,6 +13,8 @@ import { DisabledSmsSender } from '../src/providers/sms.js';
 import { HttpSmsSender } from '../src/providers/http-sms.js';
 import { DisabledPricingProvider } from '../src/providers/pricing.js';
 import { DisabledPaymentProvider } from '../src/providers/payments.js';
+import { withTransaction } from '../src/db/pool.js';
+import { createOtpChallenge } from '../src/auth/otp.js';
 
 let db: TestDatabase;
 let app: FastifyInstance;
@@ -469,5 +471,66 @@ describe('HTTP bootstrap, auth and recipients', () => {
       payload: { refreshToken: 'not-a-real-token' },
     });
     assert.equal(unknown.statusCode, 204);
+  });
+
+  it('revokes the previous session when a new OTP sign-in succeeds', async () => {
+    const phone = '+255755999779';
+    await withTransaction(db.pool, (client) =>
+      createOtpChallenge(client, { phone, code: '111222' }, context.crypto),
+    );
+    const first = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/otp/verify',
+      payload: { phone, code: '111222' },
+    });
+    assert.equal(first.statusCode, 200, first.body);
+    const firstSession = first.json() as {
+      accessToken: string;
+      refreshToken: string;
+    };
+
+    await withTransaction(db.pool, (client) =>
+      createOtpChallenge(client, { phone, code: '333444' }, context.crypto),
+    );
+    const second = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/otp/verify',
+      payload: { phone, code: '333444' },
+    });
+    assert.equal(second.statusCode, 200, second.body);
+    const secondSession = second.json() as { accessToken: string };
+
+    const staleAccess = await app.inject({
+      method: 'GET',
+      url: '/api/v1/me',
+      headers: { authorization: `Bearer ${firstSession.accessToken}` },
+    });
+    assert.equal(staleAccess.statusCode, 401, staleAccess.body);
+    assert.equal(
+      (staleAccess.json() as { error: { code: string } }).error.code,
+      'SESSION_REVOKED',
+    );
+
+    const staleRefresh = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/refresh',
+      payload: { refreshToken: firstSession.refreshToken },
+    });
+    assert.equal(staleRefresh.statusCode, 401, staleRefresh.body);
+    assert.equal(
+      (staleRefresh.json() as { error: { code: string } }).error.code,
+      'REFRESH_TOKEN_REUSED',
+    );
+
+    const fresh = await app.inject({
+      method: 'GET',
+      url: '/api/v1/me',
+      headers: { authorization: `Bearer ${secondSession.accessToken}` },
+    });
+    assert.equal(fresh.statusCode, 409, fresh.body);
+    assert.equal(
+      (fresh.json() as { error: { code: string } }).error.code,
+      'PROFILE_INCOMPLETE',
+    );
   });
 });
