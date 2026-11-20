@@ -85,7 +85,7 @@ SQLite database when the main instance is configured for real SMS.
 
 The sideload build is
 `~/Desktop/Projects/CrossPay/CrossPay-debug-authflow-2026-11-20.apk`.
-It was compiled with `API_BASE_URL=http://192.168.1.3:8081`, the dev-OTP sandbox
+It was compiled with `API_BASE_URL=http://192.168.1.17:8081`, the dev-OTP sandbox
 that shares the normal sandbox database. If the Mac's LAN address changes,
 rebuild with the current address (see the runbook).
 
@@ -102,7 +102,7 @@ adb install -r ~/Desktop/Projects/CrossPay/CrossPay-debug-authflow-2026-11-20.ap
 6. Disable biometrics: the app must go straight to the PIN dialog.
 7. Turn the PIN off: the app lock and biometric preference are cleared.
 
-If sign-in stops at OTP, open `http://192.168.1.3:8081/dashboard` and read the
+If sign-in stops at OTP, open `http://192.168.1.17:8081/dashboard` and read the
 pending code under **OTP codes** (the runbook explains the key), or query
 `/api/v1/sandbox/state` with `SANDBOX_API_KEY_CROSSPAY`.
 If the device reports no enrolled biometric, the switch stays disabled with the

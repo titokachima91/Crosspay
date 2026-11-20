@@ -1155,10 +1155,11 @@ Verification pending: final Flutter/Node suites, web/APK rebuild and re-serve.
 - Final checks on the one-phone-one-account flow: Node **123/123** in 21 suites,
   typecheck/build clean; Flutter **237 passed, 1 skipped**, analyzer clean.
 - Rebuilt the debug APK with the auth-flow changes and
-  `API_BASE_URL=http://192.168.1.3:8081`. Final sideload artifact:
+  `API_BASE_URL=http://192.168.1.17:8081` (the Mac LAN address changed during
+  the server restart). Final sideload artifact:
   `~/Desktop/Projects/CrossPay/CrossPay-debug-authflow-2026-11-20.apk`
   (203 MB, SHA-256
-  `ebcb39dc3c806229ef90626271f2c332ba126d548e5b649d73757fa281f3676f`).
+  `53eb0d4ffd0c155a869612bf46e2df30a0a2d64611b0e1e9f00ae51819811c47`).
 - The served APK on the local file server was replaced with this build; the
   previous biometric/dev-OTP file is no longer served.
 - Web release build refreshed on this commit: **Built build/web**.

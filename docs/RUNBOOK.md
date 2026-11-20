@@ -40,7 +40,7 @@ For the current LAN sandbox the sideload build uses the dev-OTP instance on
 
 ```bash
 flutter build apk --debug \
-  --dart-define=API_BASE_URL=http://192.168.1.3:8081
+  --dart-define=API_BASE_URL=http://192.168.1.17:8081
 ```
 
 `:8080` remains the normal sandbox on real SMS; it can serve splash/config and
@@ -100,7 +100,7 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/api/v1/config
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/api/v1/rates
 
 # From a phone, use the Mac LAN address, e.g.
-curl -s -o /dev/null -w '%{http_code}\n' http://192.168.1.3:8080/api/v1/config
+curl -s -o /dev/null -w '%{http_code}\n' http://192.168.1.17:8080/api/v1/config
 ```
 
 `/config` and `/rates` must both be `200` before blaming the app.
