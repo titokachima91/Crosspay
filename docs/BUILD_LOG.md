@@ -1015,8 +1015,9 @@ the sandbox database or protected SMS/AI files.
   no attempt before opt-in, the settings toggle, and the unavailable state.
 - Android still uses `FlutterFragmentActivity` and `compileSdk 35`;
   `flutter build apk --debug` succeeds. A sideloadable build is at
-  `~/Desktop/Projects/CrossPay/CrossPay-debug-biometrics-2026-11-20.apk`
-  (SHA-256 `d99b182e3f08ddb391ba568fb94f9d18a4170680b3ae46f41540b6ef991127e6`).
+  `~/Desktop/Projects/CrossPay/CrossPay-debug-biometrics-sandbox-2026-11-20.apk`
+  (built with `API_BASE_URL=http://192.168.1.3:8080`; SHA-256
+  `4095894f05a2aa1dbad7c98e1aa3f5c3ddec446b0cf0a31eb3d4d0dc60c38f00`).
 - Real-device fingerprint/Face ID and iOS remain unverified here.
 
 ### Customer session reset
@@ -1055,6 +1056,47 @@ the sandbox database or protected SMS/AI files.
 
 Next: push the local branch to origin after the product owner's explicit
 confirmation, then take the final snapshot.
+
+---
+
+## 2026-11-20 - operator runbook and compile-time API URL correction
+
+- The served debug APK had been built without `--dart-define=API_BASE_URL`, so
+  it could never pass splash regardless of the sandbox. It was rebuilt against
+  `http://192.168.1.3:8080` (the current LAN sandbox facade), verified by
+  searching the APK's `kernel_blob.bin` for the URL, and re-served under
+  `CrossPay-debug-biometrics-sandbox-2026-11-20.apk`.
+- Added `docs/RUNBOOK.md`: topology and port checks, first-run commands,
+  sandbox real-SMS vs dev-OTP modes, OTP code retrieval, APK build/serve/install,
+  biometric smoke test, database backup/restore, admin operations, incident
+  playbook, snapshot/release procedure and documentation update rules.
+- README, `docs/DEPLOYMENT.md` and the screenshot/APK instructions now link the
+  runbook. The APK checksum changed to
+  `4095894f05a2aa1dbad7c98e1aa3f5c3ddec446b0cf0a31eb3d4d0dc60c38f00`.
+- No app or server behavior changed; this is documentation plus the rebuilt
+  debug artifact.
+
+---
+
+## 2026-11-20 - dev-OTP APK so sign-in works for the biometric test
+
+- The normal `:8080` sandbox is configured for real SMS. Its local gateway is not
+  running, so OTP returns 503 even though config/rates load. For app sign-in, a
+  dev-OTP facade was started on `:8081` using the same SQLite database and the
+  same institution/account data, with workers disabled:
+  `PORT=8081 FACADE_SMS_DELIVERY=false FACADE_DEV_OTP=true node -e "require('./server').start(8081,{startWorkers:false})"`.
+- The debug APK was rebuilt with `API_BASE_URL=http://192.168.1.3:8081` and
+  verified by reading `kernel_blob.bin`. Splash, OTP, KYC and the biometric
+  settings can now all be exercised on a physical Android device.
+- Final sideload artifact:
+  `~/Desktop/Projects/CrossPay/CrossPay-debug-biometrics-devotp-2026-11-20.apk`
+  (203 MB, SHA-256
+  `878387bb88c168002cc6e91fd242f91da690df480a6a3947126c56bef944d23c`).
+- The runbook now documents both OTP modes, retrieving the code from
+  `/dashboard` or `/api/v1/sandbox/state`, and the fact that the API base URL is
+  compile-time.
+- No app/server code changed; no sandbox SQLite rows, GasLink keys/routes or
+  protected SMS/AI files were modified.
 
 ---
 

@@ -2,6 +2,7 @@
 
 This is the code-side deployment path. Hosting, DNS, TLS termination, the
 managed PostgreSQL instance and secret storage remain product-owner decisions.
+Everyday operations, ports and failure recovery are in `docs/RUNBOOK.md`.
 
 ## Container stack
 

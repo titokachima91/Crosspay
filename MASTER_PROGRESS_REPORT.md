@@ -545,6 +545,9 @@ Completed:
   live activity.
 - Worker heartbeat, compiled migration/admin/worker entrypoints and the
   production-like container stack.
+- Operator runbook covering topology/ports, sandbox real-SMS vs dev-OTP modes,
+  compile-time `API_BASE_URL`, APK serving/install, biometric smoke test,
+  database backup/restore, incident recovery and release/snapshot steps.
 - Verified snapshots of both projects.
 
 Next, in order:

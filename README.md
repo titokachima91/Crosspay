@@ -4,6 +4,9 @@ Non-custodial cross-border transfers between East African mobile-money and bank
 rails. The Flutter app displays server state and never holds customer cash; the
 Node/Fastify API and PostgreSQL are the source of truth.
 
+**Operator runbook: [`docs/RUNBOOK.md`](docs/RUNBOOK.md)** — start here for
+ports, sandbox OTP modes, APK builds, failure recovery and database operations.
+
 ## Repository
 
 | Path | What it is |
@@ -80,10 +83,14 @@ SQLite database when the main instance is configured for real SMS.
 
 ## Android biometric smoke test
 
-Build or sideload `CrossPay-debug-biometrics-2026-11-20.apk`:
+The sideload build is
+`~/Desktop/Projects/CrossPay/CrossPay-debug-biometrics-devotp-2026-11-20.apk`.
+It was compiled with `API_BASE_URL=http://192.168.1.3:8081`, the dev-OTP sandbox
+that shares the normal sandbox database. If the Mac's LAN address changes,
+rebuild with the current address (see the runbook).
 
 ```bash
-adb install -r ~/Desktop/Projects/CrossPay/CrossPay-debug-biometrics-2026-11-20.apk
+adb install -r ~/Desktop/Projects/CrossPay/CrossPay-debug-biometrics-devotp-2026-11-20.apk
 ```
 
 1. Sign in and open **Account → Security**.
@@ -95,6 +102,9 @@ adb install -r ~/Desktop/Projects/CrossPay/CrossPay-debug-biometrics-2026-11-20.
 6. Disable biometrics: the app must go straight to the PIN dialog.
 7. Turn the PIN off: the app lock and biometric preference are cleared.
 
+If sign-in stops at OTP, open `http://192.168.1.3:8081/dashboard` and read the
+pending code under **OTP codes** (the runbook explains the key), or query
+`/api/v1/sandbox/state` with `SANDBOX_API_KEY_CROSSPAY`.
 If the device reports no enrolled biometric, the switch stays disabled with the
 honest unavailable message. Real Face ID/iOS is not verified until Xcode is
 installed.
@@ -121,6 +131,7 @@ entrypoints, health checks, worker heartbeat and backup/restore commands.
 
 ## Documentation
 
+- `docs/RUNBOOK.md` — ports, sandbox OTP modes, builds, recovery and database ops
 - `docs/api_contract.md` — exact app/API shapes and error codes
 - `docs/DECISIONS.md` — settled product and technical decisions
 - `docs/BUILD_LOG.md` — append-only record of what was built and verified
