@@ -401,13 +401,14 @@ Desktop copies are timestamped, verified snapshots. They are never overwritten
 and never used as the live tree.
 
 **Latest CrossPay snapshot**
-`~/Desktop/Projects/CrossPay/crosspay_app_2026-11-20_085744_b4.6-runbook`
-Commit `94e5575`, 432 tracked files, 23 MB. The snapshot includes `.git` but no
+`~/Desktop/Projects/CrossPay/crosspay_app_2026-11-20_120723_b4.6-auth-flows`
+Commit `600be2f`, 435 tracked files, 24 MB. The snapshot includes `.git` but no
 `node_modules`, `build`, `.dart_tool`, `server/.devdb`, `server/dist` or `.env`.
 Verified against the source tree: Node typecheck and production build clean,
-**122/122** tests in 21 suites; Flutter analyze clean, **236 passed, 1 skipped**;
-web release and Android debug builds clean. The runbook and the dev-OTP APK
-details are included; `git fsck` passes and the snapshot worktree is clean.
+**123/123** tests in 21 suites; Flutter analyze clean, **237 passed, 1 skipped**;
+web release and Android debug builds clean. The runbook, auth-flow policy and
+the auth-flow APK details are included; `git fsck` passes and the snapshot
+worktree is clean.
 
 **Latest sandbox snapshot**
 `~/Desktop/kachi-fintech-sandbox_otp-sim_2026-11-15_153857`
@@ -577,7 +578,7 @@ Next, in order:
    reconciliation pass.
 
 Git: branch `fix/theme-system` is pushed to
-`origin/fix/theme-system`. Open the PR at
+`origin/fix/theme-system` (`600be2f`). Open the PR at
 `https://github.com/titokachima91/Crosspay/pull/new/fix/theme-system`.
 `main` was not modified by this work. Operator runbook: `docs/RUNBOOK.md`.
 
